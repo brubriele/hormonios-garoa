@@ -633,6 +633,17 @@ dialog::backdrop {
 }
 
 @media (max-width:800px) {
+  .hero-copy h1,
+  .section-head h2 {
+    /* Diminui o tamanho máximo para 72px para não estourar a tela do celular */
+    font-size: clamp(46px, 14vw, 72px);
+    
+    /* Aumenta de 0.86 para 0.95. Esse pequeno ganho impede a sobreposição no Android/iOS */
+    line-height: 0.95; 
+    
+    /* Suaviza um pouco o aperto das letras no mobile para ajudar na leitura */
+    letter-spacing: -.04em; 
+  }
   .site-shell {
     padding: 0 17px 92px
   }
