@@ -633,20 +633,27 @@ dialog::backdrop {
 }
 
 @media (max-width:800px) {
-
   .hero-copy h1,
   .section-head h2 {
-    font-size: clamp(44px, 12vw, 76px); /* Mantém o efeito dinâmico do clamp */
-    line-height: 1.0;                  /* Dá o respiro vertical exato para o bloco */
-    letter-spacing: -.04em;
+    /* Substituímos o clamp por um tamanho puramente proporcional à largura da tela */
+    font-size: 13vw !important;
+    
+    /* Aumentamos consideravelmente o line-height para dar o espaço necessário à fonte do Android */
+    line-height: 1.15 !important;
+    
+    /* Afastamos um pouco as letras para dar nitidez ao efeito vazado */
+    letter-spacing: -.03em !important;
+    
+    /* Comando de segurança: Desliga o "Font Boosting" do Chrome do Android */
+    max-height: 999999px !important; 
   }
 
-  /* ADICIONE ESTE BLOCO ABAIXO DENTRO DA MEDIA QUERY MOBILE */
+  /* Garante que o texto vazado fique fino o suficiente no tamanho de tela do celular */
   .hero-copy h1 em, 
   .section-head h2 em {
-    /* Afina o contorno de 1.5px para 1px para não fechar os vãos das letras no celular */
-    -webkit-text-stroke: 1px var(--ink) !important; 
+    -webkit-text-stroke: 1px var(--ink) !important;
   }
+ 
 
   .site-shell {
     padding: 0 17px 92px
