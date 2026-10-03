@@ -664,12 +664,8 @@ dialog::backdrop {
     padding: 40px 0 30px
   }
 
-  .hero-copy h1,
-  .section-head h2 {
-     font-size: clamp(42px, 14vw, 68px); 
-     /* Aumentamos ligeiramente de 0.86 para 0.95 para dar espaço vertical entre as linhas */
-     line-height: 0.95; 
-     letter-spacing: -.04em;
+  .instrument-row {
+    grid-template-columns: 98px 1fr auto;
   }
 
   .rehearsal-spec {
