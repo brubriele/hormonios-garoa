@@ -1003,7 +1003,7 @@ dialog::backdrop{
 }
 
 .guide-video-btn:hover{
-  color:var(--purple);
+  color:white;
 }
 
 .guide-missing{
