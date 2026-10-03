@@ -1,0 +1,1128 @@
+=== PROJECT BUNDLE ===
+
+
+--- FILE: index.html ---
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f7f6f0">
+  <title>Hormônios da Garoa — Ensaios & Instrumentos</title>
+  <!-- Importação da fonte Inter para acabar com a incompatibilidade -->
+  <link rel="preconnect" href="https://googleapis.com">
+  <link rel="preconnect" href="https://gstatic.com" crossorigin>
+  <link href="https://googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="site-shell">
+    <header class="topbar">
+      <a class="brand" href="#home" data-nav="home" aria-label="Hormônios da Garoa">
+        <span class="brand-mark" aria-hidden="true">🥁</span>
+        <span><strong>HORMÔNIOS DA GAROA</strong><small>Ensaios · Instrumentos · Produção</small></span>
+      </a>
+      <div class="top-actions">
+        <a class="flow-link" href="flow.html">Mapa da experiência ↗</a>
+        <button class="production-pill" data-action="open-admin">Produção</button>
+      </div>
+    </header>
+
+    <main id="app">
+      <section id="home" class="view active">
+        <div class="hero-grid">
+          <div class="hero-copy">
+            <p class="eyebrow">PRÓXIMO ENSAIO</p>
+            <h1>Vem tocar<br><em>com a gente.</em></h1>
+            <p class="hero-note">Confirme sua presença e escolha seu instrumento para o próximo ensaio.</p>
+          </div>
+          <div class="rehearsal-spec">
+            <div class="spec-label">DATA</div>
+            <div class="spec-value" id="home-date">quarta-feira, 07 de outubro</div>
+            <div class="spec-rule"></div>
+            <div class="spec-row">
+              <div><span>HORÁRIO</span><strong id="home-time">19:30</strong></div>
+              <div><span>LOCAL</span><strong id="home-location">A definir</strong></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="counter-line">
+          <span>CONFIRMAÇÕES</span>
+          <strong id="home-attendance">0</strong>
+          <small>pessoas confirmadas</small>
+        </div>
+
+        <div class="home-actions">
+          <button class="primary-btn" data-nav="presence">Confirmar presença <span>→</span></button>
+          <button class="text-btn" data-nav="instruments">Escolher instrumento →</button>
+        </div>
+
+        <div class="editorial-strip">
+          <div><span>HG / 2026</span><strong>Ensaio aberto</strong></div>
+          <div><span>FORMATO</span><strong>Presença + reserva</strong></div>
+          <div><span>ACESSO</span><strong>Sem login</strong></div>
+        </div>
+      </section>
+
+      <section id="presence" class="view">
+        <div class="section-head">
+          <div><p class="eyebrow">01 / PRESENÇA</p><h2>Quem vem<br><em>tocar?</em></h2></div>
+          <button class="back-btn" data-nav="home">← voltar</button>
+        </div>
+        <div class="form-layout">
+          <div class="form-intro">
+            <p>Preencha uma vez para confirmar sua presença. Seu nome não é usado como identificador técnico.</p>
+            <div class="technical-note">ID DE PARTICIPANTE <span id="participant-id-short">—</span></div>
+          </div>
+          <form id="presence-form" class="line-form">
+            <label>Nome / Nome Social <input id="presence-name" required autocomplete="name" placeholder="Como você quer ser chamado?"></label>
+            <label>Pronome <input id="presence-pronoun" required placeholder="ex.: ela/dela, ele/dele, elu/delu"></label>
+            <button class="primary-btn" type="submit">Confirmar presença <span>→</span></button>
+          </form>
+        </div>
+        <div id="presence-status" class="status-message" hidden></div>
+      </section>
+
+      <section id="instruments" class="view">
+        <div class="section-head">
+          <div><p class="eyebrow">02 / INSTRUMENTOS</p><h2>O que você<br><em>vai tocar?</em></h2></div>
+          <button class="back-btn" data-nav="home">← voltar</button>
+        </div>
+        <div class="instrument-list" id="instrument-list"></div>
+        <div class="technical-footer">ESTOQUE DISPONÍVEL = ESTOQUE TOTAL − RESERVAS ATIVAS</div>
+      </section>
+
+      <section id="my-reservations" class="view">
+        <div class="section-head">
+          <div><p class="eyebrow">03 / MINHAS RESERVAS</p><h2>Seu<br><em>ensaio.</em></h2></div>
+          <button class="back-btn" data-nav="home">← voltar</button>
+        </div>
+        <div id="my-reservations-list" class="reservation-list"></div>
+      </section>
+
+      <section id="admin" class="view">
+        <div class="section-head">
+          <div><p class="eyebrow">PRODUÇÃO / ADMIN</p><h2>Controle<br><em>do ensaio.</em></h2></div>
+          <button class="back-btn" data-nav="home">← sair</button>
+        </div>
+        <div id="admin-content"></div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Navegação principal">
+      <button data-nav="presence"><span>01</span>Presença</button>
+      <button data-nav="instruments"><span>02</span>Instrumentos</button>
+      <button data-nav="my-reservations"><span>03</span>Minhas reservas</button>
+    </nav>
+  </div>
+
+  <dialog id="reserve-dialog">
+    <form method="dialog" id="reserve-form" class="dialog-form">
+      <button class="dialog-close" value="cancel" aria-label="Fechar">×</button>
+      <p class="eyebrow">RESERVA / <span id="reserve-instrument-label"></span></p>
+      <h3>Detalhes<br><em>do instrumento.</em></h3>
+      <input type="hidden" id="reserve-instrument-id">
+      <label>Nome / Nome Social <input id="reserve-name" required></label>
+      <label>Pronome <input id="reserve-pronoun" required placeholder="ex.: ela/dela"></label>
+      <label class="toggle-row"><input type="checkbox" id="needs-strap"><span>Preciso de talabarte (alça)</span></label>
+      <label class="toggle-row"><input type="checkbox" id="needs-beater"><span>Preciso de baqueta / maçaneta</span></label>
+      <button class="primary-btn" type="submit">Reservar instrumento <span>→</span></button>
+    </form>
+  </dialog>
+
+  <dialog id="admin-login-dialog">
+    <form method="dialog" id="admin-login-form" class="dialog-form compact">
+      <button class="dialog-close" value="cancel" aria-label="Fechar">×</button>
+      <p class="eyebrow">ÁREA RESTRITA</p>
+      <h3>Entrar na<br><em>produção.</em></h3>
+      <label>Senha <input id="admin-password" type="password" autocomplete="current-password" required></label>
+      <p class="form-hint">Protótipo: a senha definida no ADR é <strong>garoa</strong>.</p>
+      <button class="primary-btn" type="submit">Acessar produção <span>→</span></button>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
+
+
+--- FILE: styles.css ---
+:root {
+  --paper: #f7f6f0;
+  --ink: #111;
+  --muted: #74746f;
+  --line: #c9c9c3;
+  --pink: #e34a91;
+  --cyan: #54b8c8;
+  --yellow: #e7f600;
+  --purple: #8d66d9;
+  --white: #fff;
+  --danger: #b42318;
+  font-family: 'Inter', sans-serif; /* Mudou aqui */
+}
+
+* {
+  box-sizing: border-box
+}
+
+html {
+  scroll-behavior: smooth
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Inter', sans-serif; /* Mudou aqui */
+}
+
+button,
+input {
+  font: inherit
+}
+
+button {
+  cursor: pointer
+}
+
+.site-shell {
+  min-height: 100vh;
+  max-width: 1240px;
+  margin: auto;
+  padding: 0 28px 100px
+}
+
+.topbar {
+  height: 86px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--ink);
+  text-decoration: none
+}
+
+.brand-mark {
+  font-size: 28px;
+  line-height: 1
+}
+
+.brand strong {
+  display: block;
+  font-size: 16px;
+  letter-spacing: .04em
+}
+
+.brand small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 3px
+}
+
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 22px
+}
+
+.flow-link {
+  color: var(--ink);
+  font-size: 12px;
+  text-decoration: none;
+  border-bottom: 1px solid var(--ink);
+  padding-bottom: 2px
+}
+
+.production-pill {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  padding: 10px 16px;
+  font-weight: 700;
+  font-size: 12px
+}
+
+.view {
+  display: none;
+  padding: 56px 0 30px
+}
+
+.view.active {
+  display: block
+}
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1.1fr .9fr;
+  gap: 7vw;
+  min-height: 470px;
+  align-items: center
+}
+
+.eyebrow {
+  font-size: 11px;
+  letter-spacing: .16em;
+  font-weight: 800;
+  margin: 0 0 14px;
+  color: #555
+}
+
+.hero-copy h1,
+.section-head h2 {
+  font-size: clamp(58px, 9vw, 128px);
+  line-height: 0.95;
+  letter-spacing: -.07em;
+  margin: 0;
+  font-weight: 900
+}
+
+h1 em,
+h2 em,
+h3 em {
+  font-style: normal;
+  -webkit-text-stroke: 1.5px var(--ink);
+  color: transparent
+}
+
+.hero-note {
+  max-width: 480px;
+  font-size: 16px;
+  line-height: 1.45;
+  color: #4f4f4b;
+  margin-top: 32px
+}
+
+.rehearsal-spec {
+  border-left: 1px solid var(--ink);
+  padding-left: 28px;
+  max-width: 500px
+}
+
+.spec-label,
+.spec-row span {
+  font-size: 10px;
+  letter-spacing: .13em;
+  color: #777;
+  font-weight: 800
+}
+
+.spec-value {
+  font-size: 30px;
+  font-weight: 800;
+  margin: 8px 0 22px;
+  line-height: 1.05
+}
+
+.spec-rule {
+  border-top: 1px dashed #777;
+  margin-bottom: 22px
+}
+
+.spec-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px
+}
+
+.spec-row strong {
+  display: block;
+  font-size: 28px;
+  margin-top: 7px
+}
+
+.counter-line {
+  border-top: 1px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
+  padding: 14px 0;
+  display: flex;
+  align-items: baseline;
+  gap: 12px
+}
+
+.counter-line span {
+  font-size: 10px;
+  letter-spacing: .16em;
+  font-weight: 800
+}
+
+.counter-line strong {
+  font-size: 48px;
+  line-height: 1
+}
+
+.counter-line small {
+  font-size: 12px;
+  color: var(--muted)
+}
+
+.home-actions {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  padding: 24px 0
+}
+
+.primary-btn {
+  border: 0;
+  background: var(--pink);
+  color: #000;
+  padding: 17px 22px;
+  font-weight: 900;
+  letter-spacing: -.02em;
+  min-height: 52px
+}
+
+.primary-btn span {
+  margin-left: 24px
+}
+
+.text-btn,
+.back-btn {
+  background: none;
+  border: 0;
+  padding: 8px 0;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 4px
+}
+
+.editorial-strip {
+  border-top: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+  margin-top: 20px
+}
+
+.editorial-strip>div {
+  padding: 16px 18px;
+  border-right: 1px solid var(--line)
+}
+
+.editorial-strip>div:first-child {
+  padding-left: 0
+}
+
+.editorial-strip>div:last-child {
+  border-right: 0
+}
+
+.editorial-strip span {
+  display: block;
+  font-size: 9px;
+  letter-spacing: .14em;
+  color: #777;
+  margin-bottom: 6px
+}
+
+.editorial-strip strong {
+  font-size: 14px
+}
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 30px;
+  border-bottom: 1px solid var(--ink);
+  padding-bottom: 30px;
+  margin-bottom: 34px
+}
+
+.section-head h2 {
+  font-size: clamp(54px, 8vw, 105px)
+}
+
+.form-layout {
+  display: grid;
+  grid-template-columns: .7fr 1.3fr;
+  gap: 8vw;
+  max-width: 1000px
+}
+
+.form-intro p {
+  font-size: 17px;
+  line-height: 1.5;
+  max-width: 360px
+}
+
+.technical-note,
+.technical-footer {
+  font-size: 9px;
+  letter-spacing: .12em;
+  color: #777;
+  margin-top: 35px
+}
+
+.technical-note span {
+  display: inline-block;
+  color: var(--ink);
+  margin-left: 8px
+}
+
+.line-form {
+  display: grid;
+  gap: 24px
+}
+
+.line-form label,
+.dialog-form label {
+  font-size: 11px;
+  letter-spacing: .04em;
+  font-weight: 800
+}
+
+input {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--ink);
+  background: transparent;
+  padding: 13px 0 11px;
+  border-radius: 0;
+  outline: none;
+  font-size: 17px
+}
+
+input:focus {
+  border-bottom: 3px solid var(--pink)
+}
+
+.status-message {
+  margin-top: 30px;
+  border: 1px solid var(--ink);
+  padding: 16px;
+  font-weight: 800
+}
+
+.instrument-list {
+  border-top: 1px solid var(--ink)
+}
+
+.instrument-row {
+  display: grid;
+  grid-template-columns: 90px 1.2fr .6fr auto;
+  align-items: center;
+  gap: 22px;
+  border-bottom: 1px solid var(--line);
+  padding: 21px 0
+}
+
+.instrument-code {
+  font-size: 10px;
+  letter-spacing: .14em;
+  color: #777
+}
+
+.instrument-name {
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: -.04em
+}
+
+.instrument-availability {
+  font-size: 12px
+}
+
+.instrument-availability strong {
+  font-size: 22px;
+  margin-right: 5px
+}
+
+.instrument-availability.sold {
+  color: var(--muted)
+}
+
+.reserve-btn {
+  border: 1px solid var(--ink);
+  background: transparent;
+  padding: 11px 17px;
+  font-weight: 900
+}
+
+.reserve-btn:hover {
+  background: var(--ink);
+  color: var(--paper)
+}
+
+.technical-footer {
+  border-top: 1px solid var(--line);
+  padding-top: 15px
+}
+
+.reservation-list {
+  border-top: 1px solid var(--ink)
+}
+
+.reservation-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 25px;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  padding: 20px 0
+}
+
+.reservation-row strong {
+  font-size: 20px
+}
+
+.reservation-row small {
+  display: block;
+  color: var(--muted);
+  margin-top: 5px
+}
+
+.cancel-btn {
+  border: 1px solid var(--ink);
+  background: transparent;
+  padding: 9px 13px;
+  font-weight: 800
+}
+
+.empty-state {
+  padding: 50px 0;
+  color: var(--muted)
+}
+
+.bottom-nav {
+  position: fixed;
+  z-index: 10;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(247, 246, 240, .95);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: center
+}
+
+.bottom-nav button {
+  background: none;
+  border: 0;
+  padding: 14px 26px;
+  min-width: 150px;
+  color: #666;
+  font-weight: 800;
+  font-size: 12px
+}
+
+.bottom-nav button span {
+  font-size: 9px;
+  margin-right: 7px;
+  color: #aaa
+}
+
+.bottom-nav button:hover,
+.bottom-nav button.active {
+  color: #000
+}
+
+dialog {
+  border: 1px solid var(--ink);
+  padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+  width: min(560px, calc(100vw - 32px));
+  box-shadow: 14px 14px 0 var(--ink)
+}
+
+dialog::backdrop {
+  background: rgba(0, 0, 0, .35)
+}
+
+.dialog-form {
+  padding: 34px;
+  display: grid;
+  gap: 20px;
+  position: relative
+}
+
+.dialog-form h3 {
+  font-size: 54px;
+  line-height: .9;
+  letter-spacing: -.06em;
+  margin: 0 0 8px
+}
+
+.dialog-close {
+  position: absolute;
+  right: 18px;
+  top: 14px;
+  border: 0;
+  background: none;
+  font-size: 28px
+}
+
+.toggle-row {
+  display: flex !important;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line)
+}
+
+.toggle-row input {
+  width: auto
+}
+
+.form-hint {
+  font-size: 11px;
+  color: var(--muted);
+  margin: -5px 0
+}
+
+.toast {
+  position: fixed;
+  right: 22px;
+  bottom: 85px;
+  background: var(--ink);
+  color: #fff;
+  padding: 13px 17px;
+  font-size: 12px;
+  font-weight: 800;
+  transform: translateY(20px);
+  opacity: 0;
+  pointer-events: none;
+  transition: .2s;
+  z-index: 30
+}
+
+.toast.show {
+  transform: translateY(0);
+  opacity: 1
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 40px
+}
+
+.admin-card {
+  border-top: 1px solid var(--ink);
+  padding-top: 15px
+}
+
+.admin-card h3 {
+  font-size: 12px;
+  letter-spacing: .12em;
+  margin: 0 0 15px
+}
+
+.admin-card .big {
+  font-size: 50px;
+  font-weight: 900
+}
+
+.admin-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 20px;
+  align-items: end
+}
+
+.admin-table {
+  border-top: 1px solid var(--ink);
+  margin-top: 30px
+}
+
+.admin-line {
+  display: grid;
+  grid-template-columns: 1fr 110px 150px 160px;
+  gap: 20px;
+  align-items: center;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--line)
+}
+
+.stock-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px
+}
+
+.stock-controls button {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--ink);
+  background: transparent
+}
+
+.stock-controls strong {
+  min-width: 25px;
+  text-align: center
+}
+
+.admin-subsection {
+  margin-top: 45px
+}
+
+.reset-btn {
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  background: transparent;
+  padding: 12px 16px;
+  font-weight: 900
+}
+
+.flow-note {
+  font-size: 12px;
+  color: #666;
+  max-width: 650px
+}
+
+@media (max-width:800px) {
+  .hero-copy h1,
+  .section-head h2 {
+    /* Substituímos o clamp por um tamanho puramente proporcional à largura da tela */
+    font-size: 13vw !important;
+    
+    /* Aumentamos consideravelmente o line-height para dar o espaço necessário à fonte do Android */
+    line-height: 1.15 !important;
+    
+    /* Afastamos um pouco as letras para dar nitidez ao efeito vazado */
+    letter-spacing: -.03em !important;
+    
+    /* Comando de segurança: Desliga o "Font Boosting" do Chrome do Android */
+    max-height: 999999px !important; 
+  }
+
+  /* Garante que o texto vazado fique fino o suficiente no tamanho de tela do celular */
+  .hero-copy h1 em, 
+  .section-head h2 em {
+    -webkit-text-stroke: 1px var(--ink) !important;
+  }
+ 
+
+  .site-shell {
+    padding: 0 17px 92px
+  }
+
+  .topbar {
+    height: 72px
+  }
+
+  .flow-link {
+    display: none
+  }
+
+  .hero-grid {
+    grid-template-columns: 1fr;
+    gap: 45px;
+    min-height: 0;
+    padding: 40px 0 30px
+  }
+
+  .instrument-row {
+    grid-template-columns: 98px 1fr auto;
+  }
+
+  .rehearsal-spec {
+    border-left: 0;
+    border-top: 1px solid var(--ink);
+    padding: 18px 0 0
+  }
+
+  .spec-value {
+    font-size: 24px
+  }
+
+  .spec-row strong {
+    font-size: 22px
+  }
+
+  .home-actions {
+    display: grid
+  }
+
+  .editorial-strip {
+    grid-template-columns: 1fr
+  }
+
+  .editorial-strip>div {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    padding: 13px 0
+  }
+
+  .section-head {
+    align-items: end
+  }
+
+  .form-layout {
+    grid-template-columns: 1fr;
+    gap: 30px
+  }
+
+  .instrument-row {
+    grid-template-columns: 52px 1fr auto;
+    gap: 12px
+  }
+
+  .instrument-code {
+    display: none
+  }
+
+  .instrument-name {
+    font-size: 20px
+  }
+
+  .instrument-availability {
+    grid-column: 3
+  }
+
+  .reserve-btn {
+    grid-column: 3;
+    grid-row: 1 / span 2
+  }
+
+  .reservation-row {
+    grid-template-columns: 1fr auto
+  }
+
+  .reservation-row .meta {
+    grid-column: 1
+  }
+
+  .admin-grid {
+    grid-template-columns: 1fr
+  }
+
+  .admin-form {
+    grid-template-columns: 1fr
+  }
+
+  .admin-line {
+    grid-template-columns: 1fr auto
+  }
+
+  .admin-line .admin-stock {
+    grid-column: 1
+  }
+
+  .admin-line .admin-reservations,
+  .admin-line .admin-options {
+    grid-column: 1
+  }
+
+  .bottom-nav button {
+    min-width: 0;
+    flex: 1;
+    padding: 13px 5px;
+    font-size: 10px
+  }
+}
+
+--- FILE: app.js ---
+const STORAGE = {
+  participant: "hg_participant_id",
+  rehearsal: "hg_rehearsal",
+  instruments: "hg_instruments",
+  reservations: "hg_reservations",
+  attendance: "hg_attendance"
+};
+
+const seedInstruments = [
+  ["caixa","Caixa",6],["tamborim","Tamborim",6],["surdo-1","Surdo de 1ª",2],
+  ["surdo-2","Surdo de 2ª",2],["surdo-3","Surdo de 3ª",2],["agogo","Agogô",4],
+  ["repinique","Repinique",3],["timbal","Timbal",2],["alfaia","Alfaia",2],["ganza","Ganzá (Chocalho)",5]
+];
+
+function uuid(){ return crypto.randomUUID ? crypto.randomUUID() : "hg-"+Date.now()+"-"+Math.random().toString(16).slice(2); }
+function get(key, fallback){ try{return JSON.parse(localStorage.getItem(key)) ?? fallback}catch{return fallback} }
+function set(key, value){ localStorage.setItem(key, JSON.stringify(value)); }
+
+function init(){
+  if(!localStorage.getItem(STORAGE.participant)) localStorage.setItem(STORAGE.participant, uuid());
+  if(!localStorage.getItem(STORAGE.rehearsal)) set(STORAGE.rehearsal,{id:uuid(),date:"2026-10-07",time:"19:30",location:"A definir",status:"active"});
+  if(!localStorage.getItem(STORAGE.instruments)) set(STORAGE.instruments,seedInstruments.map(([id,name,stockTotal])=>({id,name,stockTotal,active:true})));
+  if(!localStorage.getItem(STORAGE.reservations)) set(STORAGE.reservations,[]);
+  if(!localStorage.getItem(STORAGE.attendance)) set(STORAGE.attendance,[]);
+  bind();
+  renderAll();
+  routeFromHash();
+}
+
+function bind(){
+  document.querySelectorAll("[data-nav]").forEach(b=>b.addEventListener("click",()=>navigate(b.dataset.nav)));
+  document.querySelector("[data-action=open-admin]").addEventListener("click",()=>document.querySelector("#admin-login-dialog").showModal());
+  document.querySelector("#presence-form").addEventListener("submit",confirmPresence);
+  document.querySelector("#reserve-form").addEventListener("submit",reserveInstrument);
+  document.querySelector("#admin-login-form").addEventListener("submit",adminLogin);
+  window.addEventListener("hashchange",routeFromHash);
+}
+
+function navigate(id){ location.hash=id; }
+function routeFromHash(){
+  const id=location.hash.replace("#","") || "home";
+  const allowed=["home","presence","instruments","my-reservations","admin"];
+  const target=allowed.includes(id)?id:"home";
+  document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id===target));
+  document.querySelectorAll(".bottom-nav button").forEach(b=>b.classList.toggle("active",b.dataset.nav===target));
+  if(target==="admin") renderAdmin();
+  if(target==="instruments") renderInstruments();
+  if(target==="my-reservations") renderMyReservations();
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+function currentRehearsal(){ return get(STORAGE.rehearsal,{}); }
+function instruments(){ return get(STORAGE.instruments,[]); }
+function reservations(){ return get(STORAGE.reservations,[]); }
+function attendance(){ return get(STORAGE.attendance,[]); }
+function participantId(){ return localStorage.getItem(STORAGE.participant); }
+
+function formatDate(value){
+  if(!value) return "A definir";
+  const d=new Date(value+"T12:00:00");
+  return new Intl.DateTimeFormat("pt-BR",{weekday:"long",day:"2-digit",month:"long"}).format(d);
+}
+function activeReservationsFor(id){ const r=currentRehearsal(); return reservations().filter(x=>x.rehearsalId===r.id && x.instrumentId===id && x.status==="active"); }
+function availableFor(id){
+  const i=instruments().find(x=>x.id===id); return i ? Math.max(0,i.stockTotal-activeReservationsFor(id).length) : 0;
+}
+function shortId(){return participantId().slice(0,8).toUpperCase()}
+
+function renderAll(){
+  const r=currentRehearsal();
+  document.querySelector("#home-date").textContent=formatDate(r.date);
+  document.querySelector("#home-time").textContent=r.time || "A definir";
+  document.querySelector("#home-location").textContent=r.location || "A definir";
+  document.querySelector("#home-attendance").textContent=attendance().filter(a=>a.rehearsalId===r.id).length;
+  document.querySelector("#participant-id-short").textContent=shortId();
+  renderInstruments();
+  renderMyReservations();
+}
+
+function confirmPresence(e){
+  e.preventDefault();
+  const r=currentRehearsal(), name=document.querySelector("#presence-name").value.trim(), pronoun=document.querySelector("#presence-pronoun").value.trim();
+  const existing=attendance().find(a=>a.rehearsalId===r.id && a.participantId===participantId());
+  if(existing){ showToast("Sua presença já está confirmada."); return; }
+  const list=attendance();
+  list.push({id:uuid(),rehearsalId:r.id,participantId:participantId(),name,pronoun,createdAt:new Date().toISOString()});
+  set(STORAGE.attendance,list);
+  showStatus("Presença confirmada. Agora você pode escolher um instrumento.");
+  renderAll();
+}
+function showStatus(msg){const el=document.querySelector("#presence-status");el.textContent=msg;el.hidden=false}
+function renderInstruments(){
+  const el=document.querySelector("#instrument-list"); if(!el)return;
+  el.innerHTML=instruments().filter(i=>i.active).map((i,n)=>{
+    const avail=availableFor(i.id);
+    return `<div class="instrument-row">
+      <div class="instrument-code">I / ${String(n+1).padStart(2,"0")}</div>
+      <div class="instrument-name">${i.name}</div>
+      <div class="instrument-availability ${avail===0?"sold":""}"><strong>${avail}</strong>${avail===1?"disponível":"disponíveis"}</div>
+      <button class="reserve-btn" ${avail===0?"disabled":""} data-reserve="${i.id}">${avail===0?"Esgotado":"Reservar →"}</button>
+    </div>`;
+  }).join("");
+  el.querySelectorAll("[data-reserve]").forEach(b=>b.addEventListener("click",()=>openReserve(b.dataset.reserve)));
+}
+function openReserve(id){
+  const i=instruments().find(x=>x.id===id);
+  document.querySelector("#reserve-instrument-id").value=id;
+  document.querySelector("#reserve-instrument-label").textContent=i.name;
+  const mine=attendance().find(a=>a.rehearsalId===currentRehearsal().id&&a.participantId===participantId());
+  if(mine){document.querySelector("#reserve-name").value=mine.name;document.querySelector("#reserve-pronoun").value=mine.pronoun}
+  document.querySelector("#reserve-dialog").showModal();
+}
+function reserveInstrument(e){
+  e.preventDefault();
+  const r=currentRehearsal(), id=document.querySelector("#reserve-instrument-id").value;
+  const existing=reservations().find(x=>x.rehearsalId===r.id&&x.participantId===participantId()&&x.instrumentId===id&&x.status==="active");
+  if(existing){showToast("Você já reservou este instrumento.");return}
+  if(availableFor(id)<=0){showToast("Este instrumento acabou de ficar esgotado.");return}
+  const list=reservations();
+  list.push({id:uuid(),rehearsalId:r.id,participantId:participantId(),instrumentId:id,name:document.querySelector("#reserve-name").value.trim(),pronoun:document.querySelector("#reserve-pronoun").value.trim(),needsStrap:document.querySelector("#needs-strap").checked,needsBeater:document.querySelector("#needs-beater").checked,status:"active",createdAt:new Date().toISOString()});
+  set(STORAGE.reservations,list);
+  document.querySelector("#reserve-dialog").close();
+  renderAll();
+  navigate("my-reservations");
+  showToast("Instrumento reservado.");
+}
+function renderMyReservations(){
+  const el=document.querySelector("#my-reservations-list"); if(!el)return;
+  const r=currentRehearsal(), mine=reservations().filter(x=>x.rehearsalId===r.id&&x.participantId===participantId()&&x.status==="active");
+  if(!mine.length){el.innerHTML=`<div class="empty-state">Você ainda não tem reservas ativas para este ensaio.<br><br><button class="text-btn" onclick="navigate('instruments')">Escolher instrumento →</button></div>`;return}
+  const all=instruments();
+  el.innerHTML=mine.map(x=>{const i=all.find(y=>y.id===x.instrumentId);return `<div class="reservation-row"><div><strong>${i?.name||"Instrumento"}</strong><small>${x.name} · ${x.pronoun}</small></div><div class="meta"><small>${x.needsStrap?"Talabarte · ":""}${x.needsBeater?"Baqueta/maçaneta":(!x.needsStrap?"Sem acessórios":"")}</small></div><button class="cancel-btn" data-cancel="${x.id}">Desfazer</button></div>`}).join("");
+  el.querySelectorAll("[data-cancel]").forEach(b=>b.addEventListener("click",()=>cancelReservation(b.dataset.cancel)));
+}
+function cancelReservation(id){
+  const list=reservations(); const item=list.find(x=>x.id===id&&x.participantId===participantId());
+  if(!item)return;
+  item.status="cancelled";item.cancelledAt=new Date().toISOString();set(STORAGE.reservations,list);renderAll();showToast("Reserva desfeita. O instrumento voltou ao estoque.");
+}
+
+function adminLogin(e){
+  e.preventDefault();
+  if(document.querySelector("#admin-password").value!=="garoa"){showToast("Senha incorreta.");return}
+  document.querySelector("#admin-login-dialog").close();navigate("admin");renderAdmin();
+}
+function renderAdmin(){
+  const el=document.querySelector("#admin-content"); if(!el)return;
+  const r=currentRehearsal(), att=attendance().filter(a=>a.rehearsalId===r.id), res=reservations().filter(x=>x.rehearsalId===r.id&&x.status==="active");
+  el.innerHTML=`
+    <div class="admin-grid">
+      <div class="admin-card"><h3>PRESENÇAS CONFIRMADAS</h3><div class="big">${att.length}</div></div>
+      <div class="admin-card"><h3>RESERVAS ATIVAS</h3><div class="big">${res.length}</div></div>
+    </div>
+    <div class="admin-card">
+      <h3>PRÓXIMO ENSAIO</h3>
+      <form id="rehearsal-form" class="admin-form">
+        <label>Data<input id="admin-date" type="date" value="${r.date||""}"></label>
+        <label>Horário<input id="admin-time" type="time" value="${r.time||""}"></label>
+        <label>Local<input id="admin-location" value="${escapeHtml(r.location||"")}"></label>
+        <button class="primary-btn" type="submit">Salvar ensaio →</button>
+      </form>
+    </div>
+    <div class="admin-subsection"><h3>ESTOQUE</h3><div class="admin-table">${instruments().map((i,n)=>`
+      <div class="admin-line">
+        <div><strong>${i.name}</strong><small class="admin-stock"> ${activeReservationsFor(i.id).length} reservados · ${availableFor(i.id)} disponíveis</small></div>
+        <div class="stock-controls"><button data-stock="-1" data-id="${i.id}">−</button><strong>${i.stockTotal}</strong><button data-stock="1" data-id="${i.id}">+</button></div>
+        <div class="admin-reservations">${activeReservationsFor(i.id).map(x=>`${escapeHtml(x.name)} — ${escapeHtml(x.pronoun)}`).join("<br>")||"—"}</div>
+        <div class="admin-options">${activeReservationsFor(i.id).map(x=>`${x.needsStrap?"talabarte ":""}${x.needsBeater?"baqueta/maçaneta":""}`).filter(Boolean).join("<br>")||"—"}</div>
+      </div>`).join("")}</div></div>
+    <div class="admin-subsection"><h3>PRESENÇAS</h3><div class="admin-table">${att.map(a=>`<div class="admin-line"><div><strong>${escapeHtml(a.name)}</strong><small>${escapeHtml(a.pronoun)}</small></div><div></div><div></div><div>${new Date(a.createdAt).toLocaleString("pt-BR")}</div></div>`).join("")||"<div class='empty-state'>Nenhuma presença ainda.</div>"}</div></div>
+    <div class="admin-subsection"><h3>MANUTENÇÃO</h3><button class="reset-btn" id="reset-rehearsal">Encerrar ensaio e criar próximo</button></div>
+  `;
+  document.querySelector("#rehearsal-form").addEventListener("submit",saveRehearsal);
+  el.querySelectorAll("[data-stock]").forEach(b=>b.addEventListener("click",()=>adjustStock(b.dataset.id,Number(b.dataset.stock))));
+  document.querySelector("#reset-rehearsal").addEventListener("click",resetRehearsal);
+}
+function saveRehearsal(e){e.preventDefault();const r=currentRehearsal();r.date=document.querySelector("#admin-date").value;r.time=document.querySelector("#admin-time").value;r.location=document.querySelector("#admin-location").value.trim();set(STORAGE.rehearsal,r);renderAll();renderAdmin();showToast("Dados do ensaio atualizados.");}
+function adjustStock(id,delta){const list=instruments(), i=list.find(x=>x.id===id);if(!i)return;const next=Math.max(0,i.stockTotal+delta);if(next<activeReservationsFor(id).length){showToast("O estoque total não pode ficar abaixo das reservas atuais.");return}i.stockTotal=next;set(STORAGE.instruments,list);renderAll();renderAdmin();}
+function resetRehearsal(){
+  if(!confirm("Encerrar o ensaio atual e criar um novo? No protótipo, presença e reservas do ensaio atual serão arquivadas localmente e o novo ensaio começará vazio."))return;
+  const old=currentRehearsal(), next={id:uuid(),date:"",time:"",location:"A definir",status:"active",previousRehearsalId:old.id};
+  set(STORAGE.rehearsal,next);renderAll();renderAdmin();showToast("Novo ensaio criado.");
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+let toastTimer;
+function showToast(msg){const t=document.querySelector("#toast");t.textContent=msg;t.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove("show"),2600)}
+window.navigate=navigate;
+init();
+
+
+--- FILE: netlify.toml ---
+[build]
+  command = ""
+  publish = "."
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

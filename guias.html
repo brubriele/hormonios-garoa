@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f7f6f0">
+  <title>Hormônios da Garoa — Acervo de guias</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="archive-page">
+  <div class="site-shell">
+    <header class="topbar">
+      <a class="brand" href="index.html" aria-label="Hormônios da Garoa">
+        <span class="brand-mark doodle-mark" aria-hidden="true">
+          <svg viewBox="0 0 74 60" role="img" aria-hidden="true">
+            <path d="M10 18c8-9 20-11 31-6l17 7v24c-13 11-33 14-49 3Z" fill="var(--pink)" stroke="var(--ink)" stroke-width="2"/>
+            <path d="M13 24h43v18c-12 9-29 11-43 2Z" fill="var(--cyan)" stroke="var(--ink)" stroke-width="2"/>
+            <path d="M20 30h29v13c-9 4-20 4-29 0Z" fill="var(--yellow)" stroke="var(--ink)" stroke-width="2"/>
+            <path d="M18 15 8 5M29 12 28 2M41 14l7-11" fill="none" stroke="var(--ink)" stroke-width="3" stroke-linecap="round"/>
+            <path d="M6 47c7 4 13 5 20 4M48 49c7 0 12-2 18-6" fill="none" stroke="var(--purple)" stroke-width="3" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span><strong>HORMÔNIOS DA GAROA</strong><small>Ensaios · Instrumentos · Garoa</small></span>
+      </a>
+      <div class="top-actions"><a class="flow-link" href="index.html">← sistema</a><a class="production-pill" href="index.html#instruments">Instrumentos</a></div>
+    </header>
+
+    <main class="archive-main">
+      <section class="archive-intro">
+        <div>
+          <p class="eyebrow">ACERVO / GUIAS</p>
+          <h1>Aprenda<br><em>a tocar.</em></h1>
+        </div>
+        <div class="archive-copy">
+          <p>Um ponto de partida para quem está chegando no bloquinho. Escolha um instrumento, veja o guia e volte para a reserva quando estiver pronto.</p>
+          <span class="archive-meta">VÍDEOS · REFERÊNCIAS · PRIMEIROS PASSOS</span>
+        </div>
+      </section>
+
+      <section class="guide-index" aria-label="Instrumentos disponíveis">
+        <div class="guide-index-head"><span>INSTRUMENTO</span><span>COMECE POR AQUI</span><span>ACESSO</span></div>
+        <div id="guide-list"></div>
+      </section>
+
+      <section id="guide-detail" class="guide-detail" hidden></section>
+    </main>
+  </div>
+  <script src="guides-data.js"></script>
+  <script src="guias.js"></script>
+</body>
+</html>

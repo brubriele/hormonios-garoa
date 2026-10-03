@@ -28,25 +28,42 @@ function init(){
 }
 
 function bind(){
-  document.querySelectorAll("[data-nav]").forEach(b=>b.addEventListener("click",()=>navigate(b.dataset.nav)));
-  document.querySelector("[data-action=open-admin]").addEventListener("click",()=>document.querySelector("#admin-login-dialog").showModal());
-  document.querySelector("#presence-form").addEventListener("submit",confirmPresence);
-  document.querySelector("#reserve-form").addEventListener("submit",reserveInstrument);
-  document.querySelector("#admin-login-form").addEventListener("submit",adminLogin);
+  // A navegação principal usa links com hash como fallback real.
+  // O JS apenas sincroniza qual view fica visível.
+  document.addEventListener("click", (event)=>{
+    const nav = event.target.closest("[data-nav]");
+    if(nav){
+      event.preventDefault();
+      navigate(nav.dataset.nav);
+    }
+  });
+  const adminButton=document.querySelector("[data-action=open-admin]");
+  if(adminButton) adminButton.addEventListener("click",()=>document.querySelector("#admin-login-dialog")?.showModal());
+  document.querySelector("#presence-form")?.addEventListener("submit",confirmPresence);
+  document.querySelector("#reserve-form")?.addEventListener("submit",reserveInstrument);
+  document.querySelector("#admin-login-form")?.addEventListener("submit",adminLogin);
   window.addEventListener("hashchange",routeFromHash);
 }
 
-function navigate(id){ location.hash=id; }
+function navigate(id){
+  const clean=String(id||"home").replace(/^#/,"");
+  if(location.hash === `#${clean}`){
+    routeFromHash();
+  } else {
+    location.hash=clean;
+  }
+}
+
 function routeFromHash(){
-  const id=location.hash.replace("#","") || "home";
+  const raw=location.hash.replace(/^#/,"");
   const allowed=["home","presence","instruments","my-reservations","admin"];
-  const target=allowed.includes(id)?id:"home";
+  const target=allowed.includes(raw)?raw:"home";
   document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id===target));
-  document.querySelectorAll(".bottom-nav button").forEach(b=>b.classList.toggle("active",b.dataset.nav===target));
+  document.querySelectorAll(".bottom-nav a").forEach(a=>a.classList.toggle("active",a.getAttribute("href")===`#${target}`));
   if(target==="admin") renderAdmin();
   if(target==="instruments") renderInstruments();
   if(target==="my-reservations") renderMyReservations();
-  window.scrollTo({top:0,behavior:"smooth"});
+  window.scrollTo({top:0,behavior:"auto"});
 }
 
 function currentRehearsal(){ return get(STORAGE.rehearsal,{}); }
@@ -98,6 +115,7 @@ function renderInstruments(){
       <div class="instrument-name">${i.name}</div>
       <div class="instrument-availability ${avail===0?"sold":""}"><strong>${avail}</strong>${avail===1?"disponível":"disponíveis"}</div>
       <button class="reserve-btn" ${avail===0?"disabled":""} data-reserve="${i.id}">${avail===0?"Esgotado":"Reservar →"}</button>
+      <a class="guide-btn" href="guias.html?instrument=${encodeURIComponent(i.id)}#detalhe">Guia ↗</a>
     </div>`;
   }).join("");
   el.querySelectorAll("[data-reserve]").forEach(b=>b.addEventListener("click",()=>openReserve(b.dataset.reserve)));
@@ -185,4 +203,5 @@ function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":
 let toastTimer;
 function showToast(msg){const t=document.querySelector("#toast");t.textContent=msg;t.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove("show"),2600)}
 window.navigate=navigate;
-init();
+if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+else init();
