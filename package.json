@@ -1,0 +1,19 @@
+{
+  "name": "hg--v1-ui-review",
+  "version": "1.0.0",
+  "description": "Versão estática, mobile-first, pronta para publicar no Netlify.",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "vite": "^8.3.2"
+  }
+}

@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f7f6f0">
+  <title>Hormônios da Garoa — Ensaios & Instrumentos</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="site-shell">
+    <header class="topbar">
+      <a class="brand" href="#home" data-nav="home" aria-label="Hormônios da Garoa">
+        <span class="brand-mark" aria-hidden="true">🥁</span>
+        <span><strong>HORMÔNIOS DA GAROA</strong><small>Ensaios · Instrumentos · Garoa</small></span>
+      </a>
+      <div class="top-actions">
+        <a class="flow-link" href="flow.html">Mapa da experiência ↗</a>
+        <button class="production-pill" data-action="open-admin">Produção</button>
+      </div>
+    </header>
+
+    <main id="app">
+      <section id="home" class="view active">
+        <div class="hero-grid">
+          <div class="hero-copy">
+            <p class="eyebrow">PRÓXIMO ENSAIO</p>
+            <h1>Vem tocar<br><em>com a gente.</em></h1>
+            <p class="hero-note">Confirme sua presença e escolha seu instrumento para o próximo ensaio.</p>
+          </div>
+          <div class="rehearsal-spec">
+            <div class="spec-label">DATA</div>
+            <div class="spec-value" id="home-date">quarta-feira, 07 de outubro</div>
+            <div class="spec-rule"></div>
+            <div class="spec-row">
+              <div><span>HORÁRIO</span><strong id="home-time">19:30</strong></div>
+              <div><span>LOCAL</span><strong id="home-location">A definir</strong></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="counter-line">
+          <span>CONFIRMAÇÕES</span>
+          <strong id="home-attendance">0</strong>
+          <small>pessoas confirmadas</small>
+        </div>
+
+        <div class="home-actions">
+          <button class="primary-btn" data-nav="presence">Confirmar presença <span>→</span></button>
+          <button class="text-btn" data-nav="instruments">Escolher instrumento →</button>
+        </div>
+
+        <div class="editorial-strip">
+          <div><span>HG / 2026</span><strong>Ensaio aberto</strong></div>
+          <div><span>FORMATO</span><strong>Presença + reserva</strong></div>
+          <div><span>ACESSO</span><strong>Sem login</strong></div>
+        </div>
+      </section>
+
+      <section id="presence" class="view">
+        <div class="section-head">
+          <div><p class="eyebrow">01 / PRESENÇA</p><h2>Quem vem<br><em>tocar?</em></h2></div>
+          <button class="back-btn" data-nav="home">← voltar</button>
+        </div>
+        <div class="form-layout">
+          <div class="form-intro">
+            <p>Preencha uma vez para confirmar sua presença. Seu nome não é usado como identificador técnico.</p>
+            <div class="technical-note">ID DE PARTICIPANTE <span id="participant-id-short">—</span></div>
+          </div>
+          <form id="presence-form" class="line-form">
+            <label>Nome / Nome Social <input id="presence-name" required autocomplete="name" placeholder="Como você quer ser chamado?"></label>
+            <label>Pronome <input id="presence-pronoun" required placeholder="ex.: ela/dela, ele/dele, elu/delu"></label>
+            <button class="primary-btn" type="submit">Confirmar presença <span>→</span></button>
+          </form>
+        </div>
+        <div id="presence-status" class="status-message" hidden></div>
+      </section>
+
+      <section id="instruments" class="view">
+        <div class="section-head">
+          <div><p class="eyebrow">02 / INSTRUMENTOS</p><h2>O que você<br><em>vai tocar?</em></h2></div>
+          <button class="back-btn" data-nav="home">← voltar</button>
+        </div>
+        <div class="instrument-list" id="instrument-list"></div>
+        <div class="technical-footer">ESTOQUE DISPONÍVEL = ESTOQUE TOTAL − RESERVAS ATIVAS</div>
+      </section>
+
+      <section id="my-reservations" class="view">
+        <div class="section-head">
+          <div><p class="eyebrow">03 / MINHAS RESERVAS</p><h2>Seu<br><em>ensaio.</em></h2></div>
+          <button class="back-btn" data-nav="home">← voltar</button>
+        </div>
+        <div id="my-reservations-list" class="reservation-list"></div>
+      </section>
+
+      <section id="admin" class="view">
+        <div class="section-head">
+          <div><p class="eyebrow">PRODUÇÃO / ADMIN</p><h2>Controle<br><em>do ensaio.</em></h2></div>
+          <button class="back-btn" data-nav="home">← sair</button>
+        </div>
+        <div id="admin-content"></div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Navegação principal">
+      <button data-nav="presence"><span>01</span>Presença</button>
+      <button data-nav="instruments"><span>02</span>Instrumentos</button>
+      <button data-nav="my-reservations"><span>03</span>Minhas reservas</button>
+    </nav>
+  </div>
+
+  <dialog id="reserve-dialog">
+    <form method="dialog" id="reserve-form" class="dialog-form">
+      <button class="dialog-close" value="cancel" aria-label="Fechar">×</button>
+      <p class="eyebrow">RESERVA / <span id="reserve-instrument-label"></span></p>
+      <h3>Detalhes<br><em>do instrumento.</em></h3>
+      <input type="hidden" id="reserve-instrument-id">
+      <label>Nome / Nome Social <input id="reserve-name" required></label>
+      <label>Pronome <input id="reserve-pronoun" required placeholder="ex.: ela/dela"></label>
+      <label class="toggle-row"><input type="checkbox" id="needs-strap"><span>Preciso de talabarte (alça)</span></label>
+      <label class="toggle-row"><input type="checkbox" id="needs-beater"><span>Preciso de baqueta / maçaneta</span></label>
+      <button class="primary-btn" type="submit">Reservar instrumento <span>→</span></button>
+    </form>
+  </dialog>
+
+  <dialog id="admin-login-dialog">
+    <form method="dialog" id="admin-login-form" class="dialog-form compact">
+      <button class="dialog-close" value="cancel" aria-label="Fechar">×</button>
+      <p class="eyebrow">ÁREA RESTRITA</p>
+      <h3>Entrar na<br><em>produção.</em></h3>
+      <label>Senha <input id="admin-password" type="password" autocomplete="current-password" required></label>
+      <p class="form-hint">Protótipo: a senha definida no ADR é <strong>garoa</strong>.</p>
+      <button class="primary-btn" type="submit">Acessar produção <span>→</span></button>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>

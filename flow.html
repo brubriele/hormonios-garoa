@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hormônios da Garoa — Mapa da experiência</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+.flow-page{max-width:1400px;margin:auto;padding:0 30px 70px}
+.flow-header{padding:42px 0 30px;border-bottom:1px solid #111;display:flex;justify-content:space-between;gap:20px;align-items:end}
+.flow-header h1{font-size:clamp(52px,8vw,112px);line-height:.86;letter-spacing:-.07em;margin:0}
+.flow-header h1 em{font-style:normal;-webkit-text-stroke:1.5px #111;color:transparent}
+.flow-header p{max-width:420px;font-size:14px;line-height:1.45;color:#555}
+.flow-map{margin-top:44px;display:grid;grid-template-columns:190px 1fr;gap:26px}
+.flow-rail{border-right:1px solid #111;padding-right:22px}
+.flow-rail .step{padding:18px 0;border-bottom:1px solid #ccc;font-size:11px;letter-spacing:.13em;font-weight:900}
+.flow-rail .step span{display:block;color:#999;font-size:9px;margin-bottom:5px}
+.flow-canvas{position:relative;overflow:auto;padding:10px 0 30px}
+.flow-track{min-width:980px;display:grid;grid-template-columns:repeat(5,1fr);gap:36px;align-items:start}
+.node{border:1px solid #111;background:#f7f6f0;min-height:88px;padding:15px;position:relative}
+.node strong{display:block;font-size:17px;margin-bottom:7px}
+.node small{font-size:10px;color:#666;line-height:1.3}
+.node.accent{background:#e7f600}
+.node.pink{background:#e34a91}
+.node.cyan{background:#54b8c8}
+.node.purple{background:#8d66d9;color:white}
+.node:after{content:"→";position:absolute;right:-28px;top:33px;font-size:18px}
+.col:last-child .node:after{display:none}
+.col{display:grid;gap:28px}
+.col-title{font-size:9px;letter-spacing:.15em;color:#777;font-weight:900;margin-bottom:4px}
+.flow-legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:35px;border-top:1px solid #111;padding-top:16px}
+.legend{font-size:10px;padding:7px 10px;border:1px solid #111}
+.legend i{display:inline-block;width:8px;height:8px;border-radius:50%;background:#e7f600;margin-right:6px}
+.legend.p i{background:#e34a91}.legend.c i{background:#54b8c8}.legend.x i{background:#8d66d9}
+.back-home{color:#111;text-decoration:none;font-weight:800;font-size:12px;border-bottom:1px solid #111}
+@media(max-width:800px){.flow-page{padding:0 17px 60px}.flow-map{grid-template-columns:1fr}.flow-rail{border-right:0;border-bottom:1px solid #111;padding:0;display:flex;gap:20px;overflow:auto}.flow-rail .step{min-width:130px}.flow-header{align-items:start;flex-direction:column}.flow-track{min-width:900px}}
+</style>
+</head>
+<body>
+<div class="flow-page">
+<header class="flow-header">
+  <div><p class="eyebrow">HG / UX FLOW</p><h1>Mapa da<br><em>experiência.</em></h1></div>
+  <div><p>Uma visão da jornada principal: entrar sem login, confirmar presença, escolher instrumento, consultar/cancelar reservas e, do outro lado, a rotina da Produção.</p><a class="back-home" href="index.html">← voltar para o sistema</a></div>
+</header>
+<section class="flow-map">
+  <aside class="flow-rail">
+    <div class="step"><span>01</span>CHEGADA</div>
+    <div class="step"><span>02</span>PRESENÇA</div>
+    <div class="step"><span>03</span>INSTRUMENTO</div>
+    <div class="step"><span>04</span>RESERVA</div>
+    <div class="step"><span>05</span>PRODUÇÃO</div>
+  </aside>
+  <div class="flow-canvas">
+    <div class="flow-track">
+      <div class="col">
+        <div class="col-title">ENTRADA</div>
+        <div class="node accent"><strong>Home</strong><small>Próximo ensaio, data, horário, local e confirmações.</small></div>
+        <div class="node"><strong>Sem login</strong><small>UUID persistido no dispositivo.</small></div>
+      </div>
+      <div class="col">
+        <div class="col-title">PRESENÇA</div>
+        <div class="node pink"><strong>Confirmar presença</strong><small>Nome / Nome Social + Pronome.</small></div>
+        <div class="node"><strong>Presença confirmada</strong><small>Uma pessoa pode ter o mesmo nome de outra.</small></div>
+      </div>
+      <div class="col">
+        <div class="col-title">INSTRUMENTOS</div>
+        <div class="node cyan"><strong>Lista de instrumentos</strong><small>Estoque disponível em tempo real dentro do protótipo.</small></div>
+        <div class="node"><strong>Escolher instrumento</strong><small>Reservar enquanto houver disponibilidade.</small></div>
+      </div>
+      <div class="col">
+        <div class="col-title">RESERVA</div>
+        <div class="node purple"><strong>Detalhes da reserva</strong><small>Talabarte + baqueta/maçaneta.</small></div>
+        <div class="node"><strong>Minhas reservas</strong><small>Consultar e desfazer reserva.</small></div>
+      </div>
+      <div class="col">
+        <div class="col-title">PRODUÇÃO</div>
+        <div class="node accent"><strong>Painel Produção</strong><small>Ensaio, presença, reservas e estoque.</small></div>
+        <div class="node"><strong>+ / − estoque</strong><small>Ajuste físico sem permitir estoque negativo.</small></div>
+        <div class="node pink"><strong>Novo ensaio</strong><small>Encerrar ciclo e criar o próximo.</small></div>
+      </div>
+    </div>
+    <div class="flow-legend">
+      <span class="legend"><i></i>entrada / sistema</span>
+      <span class="legend p"><i></i>ação da pessoa</span>
+      <span class="legend c"><i></i>catálogo</span>
+      <span class="legend x"><i></i>reserva</span>
+    </div>
+  </div>
+</section>
+</div>
+</body>
+</html>
