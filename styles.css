@@ -642,7 +642,8 @@ dialog::backdrop {
     line-height: 0.95; 
     
     /* Suaviza um pouco o aperto das letras no mobile para ajudar na leitura */
-    letter-spacing: -.04em; 
+    letter-spacing: -.01em; 
+    color: #b42318;
   }
   .site-shell {
     padding: 0 17px 92px
