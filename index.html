@@ -4,73 +4,120 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#f7f6f0">
-  <meta name="description" content="Hormônios da Garoa — ensaios, instrumentos, reservas e guias para começar no bloquinho.">
   <title>Hormônios da Garoa — Ensaios & Instrumentos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="site-shell">
     <header class="topbar">
       <a class="brand" href="#home" data-nav="home" aria-label="Hormônios da Garoa">
-        <span class="brand-mark doodle-mark" aria-hidden="true">
-          <svg viewBox="0 0 74 60" role="img" aria-hidden="true">
-            <path d="M10 18c8-9 20-11 31-6l17 7v24c-13 11-33 14-49 3Z" fill="var(--pink)" stroke="var(--ink)" stroke-width="2"/>
-            <path d="M13 24h43v18c-12 9-29 11-43 2Z" fill="var(--cyan)" stroke="var(--ink)" stroke-width="2"/>
-            <path d="M20 30h29v13c-9 4-20 4-29 0Z" fill="var(--yellow)" stroke="var(--ink)" stroke-width="2"/>
-            <path d="M18 15 8 5M29 12 28 2M41 14l7-11" fill="none" stroke="var(--ink)" stroke-width="3" stroke-linecap="round"/>
-            <path d="M6 47c7 4 13 5 20 4M48 49c7 0 12-2 18-6" fill="none" stroke="var(--purple)" stroke-width="3" stroke-linecap="round"/>
-          </svg>
-        </span>
-        <span><strong>HORMÔNIOS DA GAROA</strong><small>Ensaios · Instrumentos · Garoa</small></span>
+        <span class="brand-mark" aria-hidden="true">🥁</span>
+        <span><strong>HORMÔNIOS DA GAROA</strong><small>Ensaios · Instrumentos · Produção</small></span>
       </a>
       <div class="top-actions">
-        <a class="flow-link" href="flow.html">Como reservar ↗</a>
-        <a class="archive-link" href="guias.html">Acervo</a>
+        <a class="flow-link" href="flow.html">Mapa da experiência ↗</a>
         <button class="production-pill" data-action="open-admin">Produção</button>
       </div>
     </header>
 
     <main id="app">
       <section id="home" class="view active">
-        <div class="hero-grid">
-          <div class="hero-copy">
-            <p class="eyebrow">PRÓXIMO ENSAIO</p>
-            <h1><span>Vem tocar</span> <em>com a gente.</em></h1>
-            <p class="hero-note">Confirme sua presença, escolha um instrumento e consulte os guias para chegar no ensaio já conhecendo o básico.</p>
-          </div>
-          <div class="rehearsal-spec">
-            <div class="spec-label">DATA</div>
-            <div class="spec-value" id="home-date">quarta-feira, 07 de outubro</div>
-            <div class="spec-rule"></div>
-            <div class="spec-row">
-              <div><span>HORÁRIO</span><strong id="home-time">19:30</strong></div>
-              <div><span>LOCAL</span><strong id="home-location">A definir</strong></div>
+
+        <!-- VISÃO INFORMATIVA: reservas fechadas -->
+        <div id="booking-closed-view" class="booking-state booking-state--closed">
+          <div class="booking-closed-grid">
+            <div class="booking-closed-copy">
+              <p class="eyebrow">PRÓXIMO ENSAIO</p>
+              <h1>Logo mais a gente<br><em>libera a reserva.</em></h1>
+              <p class="hero-note">
+                Fique ligade nos informes do grupo <strong>HG · Ensaios</strong> no WhatsApp.
+                Enquanto isso, você pode dar uma conferida nas guias de estudo pra se aquecer!
+              </p>
+
+              <div class="closed-actions">
+                <a class="primary-btn" href="guias.html">Conferir guias de estudo <span>↗</span></a>
+                <a id="closed-whatsapp-link" class="text-btn" href="#" target="_blank" rel="noopener" hidden>
+                  Abrir grupo HG · Ensaios →
+                </a>
+              </div>
+            </div>
+
+            <div class="rehearsal-spec">
+              <div class="spec-label">PRÓXIMO ENSAIO</div>
+              <div class="spec-value" id="closed-date">A definir</div>
+              <div class="spec-rule"></div>
+              <div class="spec-row">
+                <div><span>HORÁRIO</span><strong id="closed-time">A definir</strong></div>
+                <div><span>LOCAL</span><strong id="closed-location">A definir</strong></div>
+              </div>
             </div>
           </div>
+
+          <div class="closed-notice">
+            <span>RESERVAS</span>
+            <strong>ABREM EM BREVE</strong>
+            <small>Quando a produção liberar, esta página muda automaticamente para o modo de presença + reserva.</small>
+          </div>
+
+          <div class="editorial-strip">
+            <div><span>HG / 2026</span><strong>Em preparação</strong></div>
+            <div><span>ENQUANTO ISSO</span><strong>Guias de instrumentos</strong></div>
+            <div><span>ACESSO</span><strong>Sem login</strong></div>
+          </div>
         </div>
 
-        <div class="counter-line">
-          <span>CONFIRMAÇÕES</span><strong id="home-attendance">0</strong><small>pessoas confirmadas</small>
-        </div>
+        <!-- VISÃO DE RESERVA: reservas abertas -->
+        <div id="booking-open-view" class="booking-state booking-state--open" hidden>
+          <div class="hero-grid">
+            <div class="hero-copy">
+              <p class="eyebrow">PRÓXIMO ENSAIO</p>
+              <h1>Vem tocar<br><em>com a gente.</em></h1>
+              <p class="hero-note">Confirme sua presença e escolha seu instrumento para o próximo ensaio.</p>
+            </div>
+            <div class="rehearsal-spec">
+              <div class="spec-label">DATA</div>
+              <div class="spec-value" id="home-date">A definir</div>
+              <div class="spec-rule"></div>
+              <div class="spec-row">
+                <div><span>HORÁRIO</span><strong id="home-time">A definir</strong></div>
+                <div><span>LOCAL</span><strong id="home-location">A definir</strong></div>
+              </div>
+            </div>
+          </div>
 
-        <div class="home-actions">
-          <a class="primary-btn nav-link" href="#presence">Confirmar presença <span>→</span></a>
-          <a class="text-btn nav-link" href="#instruments">Escolher instrumento →</a>
-          <a class="text-btn" href="guias.html">Aprender antes do ensaio →</a>
-          <a class="text-btn" href="flow.html">Como funciona a reserva →</a>
-        </div>
+          <div class="counter-line">
+            <span>CONFIRMAÇÕES</span>
+            <strong id="home-attendance">0</strong>
+            <small>pessoas confirmadas</small>
+          </div>
 
-        <div class="editorial-strip">
-          <div><span>HG / 2026</span><strong>Ensaio aberto</strong></div>
-          <div><span>FORMATO</span><strong>Presença + reserva</strong></div>
-          <div><span>APOIO</span><strong>Guias de instrumentos</strong></div>
+          <div class="home-actions">
+            <button class="primary-btn" data-nav="presence">Confirmar presença <span>→</span></button>
+            <button class="text-btn" data-nav="instruments">Escolher instrumento →</button>
+            <a class="text-btn" href="guias.html">Aprender antes do ensaio →</a>
+          </div>
+
+          <div class="editorial-strip">
+            <div><span>HG / 2026</span><strong>Ensaio aberto</strong></div>
+            <div><span>FORMATO</span><strong>Presença + reserva</strong></div>
+            <div><span>ACESSO</span><strong>Sem login</strong></div>
+          </div>
         </div>
       </section>
 
       <section id="presence" class="view">
-        <div class="section-head"><div><p class="eyebrow">01 / PRESENÇA</p><h2>Quem vem<br><em>tocar?</em></h2></div><a class="back-btn nav-link" href="#home">← voltar</a></div>
+        <div class="section-head">
+          <div><p class="eyebrow">01 / PRESENÇA</p><h2>Quem vem<br><em>tocar?</em></h2></div>
+          <button class="back-btn" data-nav="home">← voltar</button>
+        </div>
         <div class="form-layout">
-          <div class="form-intro"><p>Preencha uma vez para confirmar sua presença. Seu nome não é usado como identificador técnico.</p><div class="technical-note">ID DE PARTICIPANTE <span id="participant-id-short">—</span></div></div>
+          <div class="form-intro">
+            <p>Preencha uma vez para confirmar sua presença. Seu nome não é usado como identificador técnico.</p>
+            <div class="technical-note">ID DE PARTICIPANTE <span id="participant-id-short">—</span></div>
+          </div>
           <form id="presence-form" class="line-form">
             <label>Nome / Nome Social <input id="presence-name" required autocomplete="name" placeholder="Como você quer ser chamado?"></label>
             <label>Pronome <input id="presence-pronoun" required placeholder="ex.: ela/dela, ele/dele, elu/delu"></label>
@@ -81,28 +128,35 @@
       </section>
 
       <section id="instruments" class="view">
-        <div class="section-head"><div><p class="eyebrow">02 / INSTRUMENTOS</p><h2>O que você<br><em>vai tocar?</em></h2></div><a class="back-btn nav-link" href="#home">← voltar</a></div>
-        <div class="instrument-helper"><span>AINDA ESTÁ COMEÇANDO?</span><a href="guias.html">Veja o acervo de guias →</a></div>
+        <div class="section-head">
+          <div><p class="eyebrow">02 / INSTRUMENTOS</p><h2>O que você<br><em>vai tocar?</em></h2></div>
+          <button class="back-btn" data-nav="home">← voltar</button>
+        </div>
         <div class="instrument-list" id="instrument-list"></div>
         <div class="technical-footer">ESTOQUE DISPONÍVEL = ESTOQUE TOTAL − RESERVAS ATIVAS</div>
       </section>
 
       <section id="my-reservations" class="view">
-        <div class="section-head"><div><p class="eyebrow">03 / MINHAS RESERVAS</p><h2>Seu<br><em>ensaio.</em></h2></div><a class="back-btn nav-link" href="#home">← voltar</a></div>
+        <div class="section-head">
+          <div><p class="eyebrow">03 / MINHAS RESERVAS</p><h2>Seu<br><em>ensaio.</em></h2></div>
+          <button class="back-btn" data-nav="home">← voltar</button>
+        </div>
         <div id="my-reservations-list" class="reservation-list"></div>
       </section>
 
       <section id="admin" class="view">
-        <div class="section-head"><div><p class="eyebrow">PRODUÇÃO / ADMIN</p><h2>Controle<br><em>do ensaio.</em></h2></div><button class="back-btn" data-nav="home">← sair</button></div>
+        <div class="section-head">
+          <div><p class="eyebrow">PRODUÇÃO / ADMIN</p><h2>Controle<br><em>do ensaio.</em></h2></div>
+          <button class="back-btn" data-nav="home">← sair</button>
+        </div>
         <div id="admin-content"></div>
       </section>
     </main>
 
-    <nav class="bottom-nav" aria-label="Navegação principal">
-      <a href="#presence"><span>01</span>Presença</a>
-      <a href="#instruments"><span>02</span>Instrumentos</a>
-      <a href="#my-reservations"><span>03</span>Minhas reservas</a>
-      <a href="guias.html"><span>04</span>Guias</a>
+    <nav class="bottom-nav" aria-label="Navegação principal" id="main-bottom-nav">
+      <button data-nav="presence"><span>01</span>Presença</button>
+      <button data-nav="instruments"><span>02</span>Instrumentos</button>
+      <button data-nav="my-reservations"><span>03</span>Minhas reservas</button>
     </nav>
   </div>
 
@@ -123,7 +177,8 @@
   <dialog id="admin-login-dialog">
     <form method="dialog" id="admin-login-form" class="dialog-form compact">
       <button class="dialog-close" value="cancel" aria-label="Fechar">×</button>
-      <p class="eyebrow">ÁREA RESTRITA</p><h3>Entrar na<br><em>produção.</em></h3>
+      <p class="eyebrow">ÁREA RESTRITA</p>
+      <h3>Entrar na<br><em>produção.</em></h3>
       <label>Senha <input id="admin-password" type="password" autocomplete="current-password" required></label>
       <p class="form-hint">Protótipo: a senha definida no ADR é <strong>garoa</strong>.</p>
       <button class="primary-btn" type="submit">Acessar produção <span>→</span></button>
