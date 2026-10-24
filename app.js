@@ -1,71 +1,71 @@
-const STORAGE = {
-  participant: "hg_participant_id",
-  rehearsal: "hg_rehearsal",
-  instruments: "hg_instruments",
-  reservations: "hg_reservations",
-  attendance: "hg_attendance"
+// Estado em memória. Vem do BFF (/api) no init e é recarregado depois de cada ação.
+const state = {
+  event: null,        // GET /api/ensaio
+  eventError: false,
+  mine: [],           // GET /api/minhas-reservas
+  mineLoading: true,
+  mineError: false,
+  admin: null,        // GET /api/admin/resumo
+  adminLocked: false, // 401 na Produção
+  email: ""           // último e-mail usado nesta aba (não é salvo)
 };
 
-const seedInstruments = [
-  ["caixa","Caixa",6],["tamborim","Tamborim",6],["surdo-1","Surdo de 1ª",2],
-  ["surdo-2","Surdo de 2ª",2],["surdo-3","Surdo de 3ª",2],["agogo","Agogô",4],
-  ["repinique","Repinique",3],["timbal","Timbal",2],["alfaia","Alfaia",2],["ganza","Ganzá (Chocalho)",5]
-];
+const OPERATIONAL_VIEWS = ["instruments","my-reservations"];
 
-function uuid(){ return crypto.randomUUID ? crypto.randomUUID() : "hg-"+Date.now()+"-"+Math.random().toString(16).slice(2); }
-function get(key, fallback){ try{return JSON.parse(localStorage.getItem(key)) ?? fallback}catch{return fallback} }
-function set(key, value){ localStorage.setItem(key, JSON.stringify(value)); }
+const ERROR_MESSAGES = {
+  SOLD_OUT_ERROR: "Este instrumento acabou de esgotar.",
+  ALREADY_RESERVED_ERROR: "Este e-mail já tem reserva neste ensaio.",
+  BOOKING_CLOSED_ERROR: "As reservas estão fechadas no momento.",
+  EVENT_CHANGED_ERROR: "O ensaio mudou. Atualizamos a página.",
+  STOCK_BELOW_RESERVATIONS_ERROR: "O estoque total não pode ficar abaixo das reservas atuais.",
+  INVALID_PARAMETER_ERROR: "Confira os campos."
+};
+const GENERIC_ERROR = "Não foi possível concluir. Tente de novo.";
 
-function init(){
-  if(!localStorage.getItem(STORAGE.participant)) localStorage.setItem(STORAGE.participant, uuid());
-
-  // Mantém a versão atual aberta por padrão. A Produção pode fechar quando quiser.
-  if(!localStorage.getItem(STORAGE.rehearsal)){
-    set(STORAGE.rehearsal,{
-      id:uuid(),
-      date:"2026-10-07",
-      time:"19:30",
-      location:"A definir",
-      status:"active",
-      bookingOpen:true,
-      whatsappUrl:""
-    });
+async function api(path, { method = "GET", body } = {}){
+  const options = { method, credentials: "same-origin", headers: {} };
+  if(body !== undefined){
+    options.headers["Content-Type"] = "application/json";
+    options.body = JSON.stringify(body);
   }
 
-  // Compatibilidade com ensaios já salvos antes desta feature.
-  const existing = currentRehearsal();
-  let changed = false;
-  if(typeof existing.bookingOpen !== "boolean"){ existing.bookingOpen = true; changed = true; }
-  if(typeof existing.whatsappUrl !== "string"){ existing.whatsappUrl = ""; changed = true; }
-  if(changed) set(STORAGE.rehearsal, existing);
+  let res;
+  try{ res = await fetch(path, options); }
+  catch{ throw { status: 0, key: "NETWORK_ERROR" }; }
 
-  if(!localStorage.getItem(STORAGE.instruments)) set(STORAGE.instruments,seedInstruments.map(([id,name,stockTotal])=>({id,name,stockTotal,active:true})));
-  if(!localStorage.getItem(STORAGE.reservations)) set(STORAGE.reservations,[]);
-  if(!localStorage.getItem(STORAGE.attendance)) set(STORAGE.attendance,[]);
+  if(res.status === 204) return null;
+  const data = await res.json().catch(() => null);
+  if(!res.ok) throw { status: res.status, key: data?.key || "INTERNAL_ERROR", message: data?.message };
+  return data;
+}
 
+function init(){
   bind();
-  renderAll();
   routeFromHash();
+  loadPublic();
 }
 
 function bind(){
   document.querySelectorAll("[data-nav]").forEach(b=>b.addEventListener("click",()=>navigate(b.dataset.nav)));
-  document.querySelector("[data-action=open-admin]").addEventListener("click",()=>document.querySelector("#admin-login-dialog").showModal());
-  document.querySelector("#presence-form").addEventListener("submit",confirmPresence);
-  document.querySelector("#reserve-form").addEventListener("submit",reserveInstrument);
+  document.querySelector("[data-action=open-admin]").addEventListener("click",openAdmin);
+  document.querySelector("[data-action=confirm-presence]").addEventListener("click",()=>openReserve(null));
+  document.querySelector("#reserve-form").addEventListener("submit",submitReserve);
   document.querySelector("#admin-login-form").addEventListener("submit",adminLogin);
   window.addEventListener("hashchange",routeFromHash);
 }
 
 function navigate(id){ location.hash=id; }
 
-function routeFromHash(){
+function currentView(){
   const id=location.hash.replace("#","") || "home";
-  const allowed=["home","presence","instruments","my-reservations","admin"];
-  let target=allowed.includes(id)?id:"home";
+  return ["home","instruments","my-reservations","admin"].includes(id)?id:"home";
+}
+
+function routeFromHash(){
+  let target=currentView();
 
   // Quando a produção fecha as reservas, as telas operacionais ficam fora do ar.
-  if(!isBookingOpen() && ["presence","instruments","my-reservations"].includes(target)){
+  if(state.event && !isBookingOpen() && OPERATIONAL_VIEWS.includes(target)){
     target="home";
     if(location.hash !== "#home") history.replaceState(null,"","#home");
   }
@@ -73,7 +73,7 @@ function routeFromHash(){
   document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id===target));
   document.querySelectorAll(".bottom-nav button").forEach(b=>b.classList.toggle("active",b.dataset.nav===target));
 
-  if(target==="admin") renderAdmin();
+  if(target==="admin") loadAdmin();
   if(target==="instruments") renderInstruments();
   if(target==="my-reservations") renderMyReservations();
 
@@ -81,56 +81,81 @@ function routeFromHash(){
   window.scrollTo({top:0,behavior:"smooth"});
 }
 
-function currentRehearsal(){ return get(STORAGE.rehearsal,{}); }
-function instruments(){ return get(STORAGE.instruments,[]); }
-function reservations(){ return get(STORAGE.reservations,[]); }
-function attendance(){ return get(STORAGE.attendance,[]); }
-function participantId(){ return localStorage.getItem(STORAGE.participant); }
-function isBookingOpen(){ return currentRehearsal().bookingOpen !== false; }
+// Se as reservas fecharam, sai das telas operacionais sem rolar a página.
+function enforceBookingRoute(){
+  if(state.event && !isBookingOpen() && OPERATIONAL_VIEWS.includes(currentView())) navigate("home");
+}
+
+function isBookingOpen(){ return state.event?.bookingOpen === true; }
+
+async function loadEvent(){
+  try{
+    state.event=await api("/api/ensaio");
+    state.eventError=false;
+  }catch{
+    state.event=null;
+    state.eventError=true;
+  }
+}
+
+async function loadMine(){
+  state.mineLoading=true;
+  renderMyReservations();
+  try{
+    state.mine=await api("/api/minhas-reservas");
+    state.mineError=false;
+  }catch{
+    state.mine=[];
+    state.mineError=true;
+  }
+  state.mineLoading=false;
+}
+
+async function loadPublic(){
+  await Promise.all([loadEvent(),loadMine()]);
+  renderAll();
+  enforceBookingRoute();
+}
 
 function formatDate(value){
   if(!value) return "A definir";
   const d=new Date(value+"T12:00:00");
+  if(Number.isNaN(d.getTime())) return value;
   return new Intl.DateTimeFormat("pt-BR",{weekday:"long",day:"2-digit",month:"long"}).format(d);
 }
 
-function activeReservationsFor(id){
-  const r=currentRehearsal();
-  return reservations().filter(x=>x.rehearsalId===r.id && x.instrumentId===id && x.status==="active");
+function supportNames(ids){
+  const all=state.event?.supports || state.admin?.event.supports || [];
+  return ids.map(id=>all.find(s=>s.id===id)?.name || id);
 }
 
-function availableFor(id){
-  const i=instruments().find(x=>x.id===id);
-  return i ? Math.max(0,i.stockTotal-activeReservationsFor(id).length) : 0;
+function loadingHtml(){ return `<div class="empty-state">Carregando…</div>`; }
+
+function closedHtml(){
+  return `<div class="empty-state">As reservas estão fechadas no momento.<br><br><a class="text-btn" href="guias.html">Ir para as guias de estudo →</a></div>`;
 }
 
-function shortId(){return participantId().slice(0,8).toUpperCase()}
+function retryHtml(msg){
+  return `<div class="empty-state">${escapeHtml(msg)}<br><br><button class="text-btn" type="button" data-retry>Tentar de novo →</button></div>`;
+}
+
+function bindRetry(el){
+  el.querySelectorAll("[data-retry]").forEach(b=>b.addEventListener("click",()=>run(b,loadPublic)));
+}
 
 function renderAll(){
-  const r=currentRehearsal();
+  const r=state.event || {};
   const date=formatDate(r.date);
   const time=r.time || "A definir";
   const location=r.location || "A definir";
 
-  const homeDate=document.querySelector("#home-date");
-  const homeTime=document.querySelector("#home-time");
-  const homeLocation=document.querySelector("#home-location");
-  const closedDate=document.querySelector("#closed-date");
-  const closedTime=document.querySelector("#closed-time");
-  const closedLocation=document.querySelector("#closed-location");
-
-  if(homeDate) homeDate.textContent=date;
-  if(homeTime) homeTime.textContent=time;
-  if(homeLocation) homeLocation.textContent=location;
-  if(closedDate) closedDate.textContent=date;
-  if(closedTime) closedTime.textContent=time;
-  if(closedLocation) closedLocation.textContent=location;
-
-  const attendanceCount=document.querySelector("#home-attendance");
-  if(attendanceCount) attendanceCount.textContent=attendance().filter(a=>a.rehearsalId===r.id).length;
-
-  const participantShort=document.querySelector("#participant-id-short");
-  if(participantShort) participantShort.textContent=shortId();
+  document.querySelector("#home-date").textContent=date;
+  document.querySelector("#home-time").textContent=time;
+  document.querySelector("#home-location").textContent=location;
+  document.querySelector("#closed-date").textContent=date;
+  document.querySelector("#closed-time").textContent=time;
+  document.querySelector("#closed-location").textContent=location;
+  document.querySelector("#home-attendance").textContent=r.goingCount ?? 0;
 
   renderInstruments();
   renderMyReservations();
@@ -138,185 +163,204 @@ function renderAll(){
 }
 
 function updatePublicMode(){
+  const loaded=!!state.event;
   const open=isBookingOpen();
+  const status=document.querySelector("#home-status");
   const closed=document.querySelector("#booking-closed-view");
   const opened=document.querySelector("#booking-open-view");
   const nav=document.querySelector("#main-bottom-nav");
   const whatsapp=document.querySelector("#closed-whatsapp-link");
 
-  if(closed) closed.hidden=open;
-  if(opened) opened.hidden=!open;
-  if(nav) nav.hidden=!open;
-
-  const url=currentRehearsal().whatsappUrl || "";
-  if(whatsapp){
-    if(url){
-      whatsapp.href=url;
-      whatsapp.hidden=false;
-    }else{
-      whatsapp.removeAttribute("href");
-      whatsapp.hidden=true;
-    }
+  status.hidden=loaded;
+  if(!loaded){
+    status.innerHTML=state.eventError?retryHtml("Não foi possível carregar o ensaio."):loadingHtml();
+    bindRetry(status);
   }
-}
+  closed.hidden=!loaded || open;
+  opened.hidden=!loaded || !open;
+  nav.hidden=!loaded || !open;
 
-function confirmPresence(e){
-  e.preventDefault();
-  if(!isBookingOpen()){showToast("As reservas ainda não estão abertas.");navigate("home");return;}
-
-  const r=currentRehearsal();
-  const name=document.querySelector("#presence-name").value.trim();
-  const pronoun=document.querySelector("#presence-pronoun").value.trim();
-  const existing=attendance().find(a=>a.rehearsalId===r.id && a.participantId===participantId());
-
-  if(existing){ showStatus("Sua presença já está confirmada."); return; }
-
-  const list=attendance();
-  list.push({id:uuid(),rehearsalId:r.id,participantId:participantId(),name,pronoun,createdAt:new Date().toISOString()});
-  set(STORAGE.attendance,list);
-  showStatus("Presença confirmada. Agora você pode escolher um instrumento.");
-  renderAll();
-}
-
-function showStatus(msg){
-  const el=document.querySelector("#presence-status");
-  el.textContent=msg;
-  el.hidden=false;
+  const url=state.event?.whatsappUrl || "";
+  if(url){
+    whatsapp.href=url;
+    whatsapp.hidden=false;
+  }else{
+    whatsapp.removeAttribute("href");
+    whatsapp.hidden=true;
+  }
 }
 
 function renderInstruments(){
   const el=document.querySelector("#instrument-list"); if(!el)return;
 
-  if(!isBookingOpen()){
-    el.innerHTML=`<div class="empty-state">As reservas estão fechadas no momento.<br><br><a class="text-btn" href="guias.html">Ir para as guias de estudo →</a></div>`;
-    return;
-  }
+  if(!state.event){ el.innerHTML=state.eventError?retryHtml("Não foi possível carregar os instrumentos."):loadingHtml(); bindRetry(el); return; }
+  if(!isBookingOpen()){ el.innerHTML=closedHtml(); return; }
 
-  el.innerHTML=instruments().filter(i=>i.active).map((i,n)=>{
-    const avail=availableFor(i.id);
+  el.innerHTML=state.event.groups.map((g,n)=>{
+    const avail=g.available;
     return `<div class="instrument-row">
       <div class="instrument-code">I / ${String(n+1).padStart(2,"0")}</div>
-      <div class="instrument-name">${escapeHtml(i.name)}</div>
-      <div class="instrument-availability ${avail===0?"sold":""}"><strong>${avail}</strong>${avail===1?"disponível":"disponíveis"}</div>
-      <button class="reserve-btn" ${avail===0?"disabled":""} data-reserve="${i.id}">${avail===0?"Esgotado":"Reservar →"}</button>
+      <div class="instrument-name">${escapeHtml(g.name)}</div>
+      <div class="instrument-availability ${avail===0?"sold":""}"><strong>${escapeHtml(avail)}</strong>${avail===1?"disponível":"disponíveis"}</div>
+      <button class="reserve-btn" ${avail===0?"disabled":""} data-reserve="${escapeHtml(g.id)}">${avail===0?"Esgotado":"Reservar →"}</button>
     </div>`;
-  }).join("");
+  }).join("") || `<div class="empty-state">Nenhum instrumento disponível neste ensaio.</div>`;
 
   el.querySelectorAll("[data-reserve]").forEach(b=>b.addEventListener("click",()=>openReserve(b.dataset.reserve)));
 }
 
-function openReserve(id){
+// Folha única: com groupId reserva o instrumento; sem groupId é só presença.
+function openReserve(groupId){
   if(!isBookingOpen()){showToast("As reservas estão fechadas no momento.");navigate("home");return;}
 
-  const i=instruments().find(x=>x.id===id);
-  if(!i)return;
+  const group=groupId ? state.event.groups.find(g=>g.id===groupId) : null;
+  if(groupId && !group) return;
+  if(!group && state.mine.length){ showToast("Sua presença já está confirmada."); navigate("my-reservations"); return; }
 
-  document.querySelector("#reserve-instrument-id").value=id;
-  document.querySelector("#reserve-instrument-label").textContent=i.name;
+  document.querySelector("#reserve-group-id").value=group?group.id:"";
+  document.querySelector("#reserve-kind").textContent=group?"RESERVA":"PRESENÇA";
+  document.querySelector("#reserve-instrument-label").textContent=group?group.name:"sem instrumento";
+  document.querySelector("#reserve-title").innerHTML=group?"Detalhes<br><em>do instrumento.</em>":"Confirmar<br><em>presença.</em>";
+  document.querySelector("#reserve-submit").innerHTML=group?"Reservar instrumento <span>→</span>":"Confirmar presença <span>→</span>";
+  document.querySelector("#reserve-supports").hidden=!group;
+  document.querySelectorAll("#reserve-supports input").forEach(c=>c.checked=false);
 
-  const mine=attendance().find(a=>a.rehearsalId===currentRehearsal().id&&a.participantId===participantId());
-  if(mine){
-    document.querySelector("#reserve-name").value=mine.name;
-    document.querySelector("#reserve-pronoun").value=mine.pronoun;
-  }
+  const mine=state.mine[0];
+  const email=document.querySelector("#reserve-email");
+  const name=document.querySelector("#reserve-name");
+  const pronoun=document.querySelector("#reserve-pronoun");
+  if(!email.value) email.value=state.email;
+  if(mine && !name.value) name.value=mine.name;
+  if(mine && !pronoun.value) pronoun.value=mine.pronoun;
 
   document.querySelector("#reserve-dialog").showModal();
 }
 
-function reserveInstrument(e){
+function submitReserve(e){
   e.preventDefault();
+  const dialog=document.querySelector("#reserve-dialog");
+  if(e.submitter?.value==="cancel"){ dialog.close(); return; }
 
-  if(!isBookingOpen()){
-    document.querySelector("#reserve-dialog").close();
-    showToast("As reservas estão fechadas no momento.");
-    navigate("home");
-    return;
-  }
-
-  const r=currentRehearsal();
-  const id=document.querySelector("#reserve-instrument-id").value;
-  const existing=reservations().find(x=>x.rehearsalId===r.id&&x.participantId===participantId()&&x.instrumentId===id&&x.status==="active");
-
-  if(existing){showToast("Você já reservou este instrumento.");return}
-  if(availableFor(id)<=0){showToast("Este instrumento acabou de ficar esgotado.");return}
-
-  const list=reservations();
-  list.push({
-    id:uuid(),
-    rehearsalId:r.id,
-    participantId:participantId(),
-    instrumentId:id,
+  const groupId=document.querySelector("#reserve-group-id").value || null;
+  const body={
+    email:document.querySelector("#reserve-email").value.trim(),
     name:document.querySelector("#reserve-name").value.trim(),
     pronoun:document.querySelector("#reserve-pronoun").value.trim(),
-    needsStrap:document.querySelector("#needs-strap").checked,
-    needsBeater:document.querySelector("#needs-beater").checked,
-    status:"active",
-    createdAt:new Date().toISOString()
-  });
+    groupId,
+    supportIds:groupId?[...document.querySelectorAll("#reserve-supports input:checked")].map(c=>c.value):[]
+  };
 
-  set(STORAGE.reservations,list);
-  document.querySelector("#reserve-dialog").close();
-  renderAll();
-  navigate("my-reservations");
-  showToast("Instrumento reservado.");
+  run(document.querySelector("#reserve-submit"),async()=>{
+    await api("/api/reserva",{method:"POST",body});
+    state.email=body.email;
+    dialog.close();
+    await loadPublic();
+    navigate("my-reservations");
+    showToast(groupId?"Instrumento reservado.":"Presença confirmada. Agora você pode escolher um instrumento.");
+  });
 }
 
 function renderMyReservations(){
   const el=document.querySelector("#my-reservations-list"); if(!el)return;
 
-  if(!isBookingOpen()){
-    el.innerHTML=`<div class="empty-state">As reservas estão fechadas no momento.<br><br><a class="text-btn" href="guias.html">Ir para as guias de estudo →</a></div>`;
-    return;
-  }
+  if(!state.event){ el.innerHTML=state.eventError?retryHtml("Não foi possível carregar suas reservas."):loadingHtml(); bindRetry(el); return; }
+  if(!isBookingOpen()){ el.innerHTML=closedHtml(); return; }
+  if(state.mineLoading){ el.innerHTML=loadingHtml(); return; }
+  if(state.mineError){ el.innerHTML=retryHtml("Não foi possível carregar suas reservas."); bindRetry(el); return; }
 
-  const r=currentRehearsal();
-  const mine=reservations().filter(x=>x.rehearsalId===r.id&&x.participantId===participantId()&&x.status==="active");
-
-  if(!mine.length){
+  if(!state.mine.length){
     el.innerHTML=`<div class="empty-state">Você ainda não tem reservas ativas para este ensaio.<br><br><button class="text-btn" onclick="navigate('instruments')">Escolher instrumento →</button></div>`;
     return;
   }
 
-  const all=instruments();
-  el.innerHTML=mine.map(x=>{
-    const i=all.find(y=>y.id===x.instrumentId);
+  el.innerHTML=state.mine.map(x=>{
+    const title=x.groupId ? (x.groupName || "Instrumento") : "Presença confirmada";
+    const meta=x.groupId ? (supportNames(x.supportIds).join(" · ") || "Sem acessórios") : "Sem instrumento";
     return `<div class="reservation-row">
-      <div><strong>${escapeHtml(i?.name||"Instrumento")}</strong><small>${escapeHtml(x.name)} · ${escapeHtml(x.pronoun)}</small></div>
-      <div class="meta"><small>${x.needsStrap?"Talabarte · ":""}${x.needsBeater?"Baqueta/maçaneta":(!x.needsStrap?"Sem acessórios":"")}</small></div>
-      <button class="cancel-btn" data-cancel="${x.id}">Desfazer</button>
+      <div><strong>${escapeHtml(title)}</strong><small>${escapeHtml(x.name)} · ${escapeHtml(x.pronoun)}</small></div>
+      <div class="meta"><small>${escapeHtml(meta)}</small></div>
+      <button class="cancel-btn" data-cancel="${escapeHtml(x.id)}">Não vou</button>
     </div>`;
   }).join("");
 
-  el.querySelectorAll("[data-cancel]").forEach(b=>b.addEventListener("click",()=>cancelReservation(b.dataset.cancel)));
+  el.querySelectorAll("[data-cancel]").forEach(b=>b.addEventListener("click",()=>cancelReservation(b,b.dataset.cancel)));
 }
 
-function cancelReservation(id){
-  const list=reservations();
-  const item=list.find(x=>x.id===id&&x.participantId===participantId());
-  if(!item)return;
+function cancelReservation(button,id){
+  const item=state.mine.find(x=>x.id===id);
+  run(button,async()=>{
+    await api("/api/reserva/desfazer",{method:"POST",body:{id}});
+    await loadPublic();
+    showToast(item?.groupId?"Reserva desfeita. O instrumento voltou ao estoque.":"Presença desfeita.");
+  });
+}
 
-  item.status="cancelled";
-  item.cancelledAt=new Date().toISOString();
-  set(STORAGE.reservations,list);
-  renderAll();
-  showToast("Reserva desfeita. O instrumento voltou ao estoque.");
+// Produção
+
+function openAdmin(){
+  if(currentView()==="admin") loadAdmin();
+  else navigate("admin");
+}
+
+function openAdminLogin(){
+  const dialog=document.querySelector("#admin-login-dialog");
+  if(!dialog.open) dialog.showModal();
 }
 
 function adminLogin(e){
   e.preventDefault();
-  if(document.querySelector("#admin-password").value!=="garoa"){showToast("Senha incorreta.");return}
-  document.querySelector("#admin-login-dialog").close();
-  navigate("admin");
+  const dialog=document.querySelector("#admin-login-dialog");
+  if(e.submitter?.value==="cancel"){ dialog.close(); return; }
+
+  const input=document.querySelector("#admin-password");
+  run(document.querySelector("#admin-login-submit"),async()=>{
+    try{
+      await api("/api/admin/entrar",{method:"POST",body:{key:input.value}});
+    }catch(err){
+      if(err.key==="UNAUTHORIZED_ERROR"){ showToast("Chave incorreta."); return; }
+      throw err;
+    }
+    input.value="";
+    dialog.close();
+    openAdmin();
+  });
+}
+
+async function loadAdmin(){
+  const el=document.querySelector("#admin-content"); if(!el)return;
+  if(!state.admin) el.innerHTML=loadingHtml();
+  try{
+    state.admin=await api("/api/admin/resumo");
+    state.adminLocked=false;
+  }catch(err){
+    if(err.key==="UNAUTHORIZED_ERROR"){
+      state.admin=null;
+      state.adminLocked=true;
+      openAdminLogin();
+    }else{
+      el.innerHTML=retryHtml("Não foi possível carregar a Produção.");
+      el.querySelector("[data-retry]").addEventListener("click",loadAdmin);
+      return;
+    }
+  }
   renderAdmin();
 }
 
 function renderAdmin(){
   const el=document.querySelector("#admin-content"); if(!el)return;
 
-  const r=currentRehearsal();
-  const att=attendance().filter(a=>a.rehearsalId===r.id);
-  const res=reservations().filter(x=>x.rehearsalId===r.id&&x.status==="active");
-  const bookingOpen=r.bookingOpen !== false;
+  if(state.adminLocked || !state.admin){
+    el.innerHTML=`<div class="empty-state">Entre com a chave da Produção.<br><br><button class="text-btn" type="button" id="admin-login-open">Entrar →</button></div>`;
+    document.querySelector("#admin-login-open").addEventListener("click",openAdminLogin);
+    return;
+  }
+
+  const r=state.admin.event;
+  const att=state.admin.attendances;
+  const res=att.filter(a=>a.groupId);
+  const bookingOpen=r.bookingOpen === true;
+  const groupName=id=>r.groups.find(g=>g.id===id)?.name || "";
+  const supports=ids=>ids.map(id=>r.supports.find(s=>s.id===id)?.name || id).map(n=>n.toLowerCase());
 
   el.innerHTML=`
     <div class="admin-grid">
@@ -350,8 +394,8 @@ function renderAdmin(){
     <div class="admin-card">
       <h3>PRÓXIMO ENSAIO</h3>
       <form id="rehearsal-form" class="admin-form">
-        <label>Data<input id="admin-date" type="date" value="${r.date||""}"></label>
-        <label>Horário<input id="admin-time" type="time" value="${r.time||""}"></label>
+        <label>Data<input id="admin-date" type="date" value="${escapeHtml(r.date||"")}"></label>
+        <label>Horário<input id="admin-time" type="time" value="${escapeHtml(r.time||"")}"></label>
         <label>Local<input id="admin-location" value="${escapeHtml(r.location||"")}"></label>
         <button class="primary-btn" type="submit">Salvar ensaio →</button>
       </form>
@@ -368,96 +412,121 @@ function renderAdmin(){
       <p class="form-hint">Se preenchido, o botão “Abrir grupo HG · Ensaios” aparece automaticamente na tela de reservas fechadas.</p>
     </div>
 
-    <div class="admin-subsection"><h3>ESTOQUE</h3><div class="admin-table">${instruments().map((i,n)=>`
+    <div class="admin-subsection"><h3>ESTOQUE</h3><div class="admin-table">${r.groups.map(g=>{
+      const list=res.filter(x=>x.groupId===g.id);
+      return `
       <div class="admin-line">
-        <div><strong>${escapeHtml(i.name)}</strong><small class="admin-stock"> ${activeReservationsFor(i.id).length} reservados · ${availableFor(i.id)} disponíveis</small></div>
-        <div class="stock-controls"><button data-stock="-1" data-id="${i.id}">−</button><strong>${i.stockTotal}</strong><button data-stock="1" data-id="${i.id}">+</button></div>
-        <div class="admin-reservations">${activeReservationsFor(i.id).map(x=>`${escapeHtml(x.name)} — ${escapeHtml(x.pronoun)}`).join("<br>")||"—"}</div>
-        <div class="admin-options">${activeReservationsFor(i.id).map(x=>`${x.needsStrap?"talabarte ":""}${x.needsBeater?"baqueta/maçaneta":""}`).filter(Boolean).join("<br>")||"—"}</div>
-      </div>`).join("")}</div></div>
+        <div><strong>${escapeHtml(g.name)}</strong><small class="admin-stock"> ${list.length} reservados · ${escapeHtml(g.available)} disponíveis${g.active?"":" · inativo"}</small></div>
+        <div class="stock-controls"><button data-stock="-1" data-id="${escapeHtml(g.id)}">−</button><strong>${escapeHtml(g.stockTotal)}</strong><button data-stock="1" data-id="${escapeHtml(g.id)}">+</button></div>
+        <div class="admin-reservations">${list.map(x=>`${escapeHtml(x.name)} — ${escapeHtml(x.pronoun)}`).join("<br>")||"—"}</div>
+        <div class="admin-options">${list.map(x=>escapeHtml(supports(x.supportIds).join(" "))).filter(Boolean).join("<br>")||"—"}</div>
+      </div>`;
+    }).join("")}</div></div>
 
-    <div class="admin-subsection"><h3>PRESENÇAS</h3><div class="admin-table">${att.map(a=>`<div class="admin-line"><div><strong>${escapeHtml(a.name)}</strong><small>${escapeHtml(a.pronoun)}</small></div><div></div><div></div><div>${new Date(a.createdAt).toLocaleString("pt-BR")}</div></div>`).join("")||"<div class='empty-state'>Nenhuma presença ainda.</div>"}</div></div>
+    <div class="admin-subsection"><h3>PRESENÇAS</h3><div class="admin-table">${att.map(a=>`<div class="admin-line"><div><strong>${escapeHtml(a.name)}</strong><small>${escapeHtml(a.pronoun)}</small></div><div>${escapeHtml(a.groupId?groupName(a.groupId):"Sem instrumento")}</div><div></div><div>${escapeHtml(new Date(a.createdAt).toLocaleString("pt-BR"))}</div></div>`).join("")||"<div class='empty-state'>Nenhuma presença ainda.</div>"}</div></div>
 
     <div class="admin-subsection"><h3>MANUTENÇÃO</h3><button class="reset-btn" id="reset-rehearsal">Encerrar ensaio e criar próximo</button></div>
   `;
 
   document.querySelector("#rehearsal-form").addEventListener("submit",saveRehearsal);
   document.querySelector("#whatsapp-form").addEventListener("submit",saveWhatsapp);
-  document.querySelector("#toggle-booking").addEventListener("click",toggleBooking);
-  el.querySelectorAll("[data-stock]").forEach(b=>b.addEventListener("click",()=>adjustStock(b.dataset.id,Number(b.dataset.stock))));
-  document.querySelector("#reset-rehearsal").addEventListener("click",resetRehearsal);
+  document.querySelector("#toggle-booking").addEventListener("click",e=>toggleBooking(e.currentTarget));
+  el.querySelectorAll("[data-stock]").forEach(b=>b.addEventListener("click",()=>adjustStock(b,b.dataset.id,Number(b.dataset.stock))));
+  document.querySelector("#reset-rehearsal").addEventListener("click",e=>resetRehearsal(e.currentTarget));
+}
+
+// PUT parcial: só os campos enviados mudam. A resposta já é o resumo novo.
+async function updateEvent(body){
+  state.admin=await api("/api/admin/ensaio",{method:"PUT",body});
+  renderAdmin();
+  await loadPublic();
 }
 
 function saveRehearsal(e){
   e.preventDefault();
-  const r=currentRehearsal();
-  r.date=document.querySelector("#admin-date").value;
-  r.time=document.querySelector("#admin-time").value;
-  r.location=document.querySelector("#admin-location").value.trim();
-  set(STORAGE.rehearsal,r);
-  renderAll();
-  renderAdmin();
-  showToast("Dados do ensaio atualizados.");
+  const body={
+    date:document.querySelector("#admin-date").value,
+    time:document.querySelector("#admin-time").value,
+    location:document.querySelector("#admin-location").value.trim()
+  };
+  run(e.submitter,async()=>{ await updateEvent(body); showToast("Dados do ensaio atualizados."); });
 }
 
 function saveWhatsapp(e){
   e.preventDefault();
-  const r=currentRehearsal();
-  r.whatsappUrl=document.querySelector("#admin-whatsapp").value.trim();
-  set(STORAGE.rehearsal,r);
-  renderAll();
-  renderAdmin();
-  showToast("Link do grupo atualizado.");
+  const body={ whatsappUrl:document.querySelector("#admin-whatsapp").value.trim() };
+  run(e.submitter,async()=>{ await updateEvent(body); showToast("Link do grupo atualizado."); });
 }
 
-function toggleBooking(){
-  const r=currentRehearsal();
-  r.bookingOpen=r.bookingOpen === false;
-  set(STORAGE.rehearsal,r);
-  renderAll();
-  renderAdmin();
-  if(r.bookingOpen){
-    showToast("Reservas liberadas. A UI de presença e reserva está ativa.");
-  }else{
+function toggleBooking(button){
+  const bookingOpen=!state.admin.event.bookingOpen;
+  run(button,async()=>{
+    await updateEvent({bookingOpen});
+    if(!bookingOpen) navigate("home");
+    showToast(bookingOpen?"Reservas liberadas. A UI de presença e reserva está ativa.":"Reservas fechadas. A página informativa está ativa.");
+  });
+}
+
+function adjustStock(button,id,delta){
+  const g=state.admin.event.groups.find(x=>x.id===id);
+  if(!g)return;
+  const stockTotal=Math.max(0,g.stockTotal+delta);
+  if(stockTotal===g.stockTotal)return;
+  run(button,()=>updateEvent({groups:[{id,stockTotal}]}));
+}
+
+function resetRehearsal(button){
+  if(!confirm("Encerrar o ensaio atual e criar um novo? As presenças e reservas do ensaio atual ficam guardadas no histórico e o novo ensaio começa fechado para reservas."))return;
+
+  run(button,async()=>{
+    state.admin=await api("/api/admin/novo-ensaio",{method:"POST"});
+    renderAdmin();
+    await loadPublic();
     navigate("home");
-    showToast("Reservas fechadas. A página informativa está ativa.");
+    showToast("Novo ensaio criado. Reservas estão fechadas.");
+  });
+}
+
+// Ações: botão disabled enquanto a chamada roda; erro vira toast pela key.
+
+async function run(button,fn){
+  if(button){ button.disabled=true; button.setAttribute("aria-busy","true"); }
+  try{
+    await fn();
+  }catch(err){
+    await handleError(err);
+  }finally{
+    if(button && button.isConnected){ button.disabled=false; button.removeAttribute("aria-busy"); }
   }
 }
 
-function adjustStock(id,delta){
-  const list=instruments(), i=list.find(x=>x.id===id);
-  if(!i)return;
-  const next=Math.max(0,i.stockTotal+delta);
-  if(next<activeReservationsFor(id).length){
-    showToast("O estoque total não pode ficar abaixo das reservas atuais.");
+async function handleError(err){
+  const key=err?.key;
+
+  if(key==="UNAUTHORIZED_ERROR"){
+    state.admin=null;
+    state.adminLocked=true;
+    renderAdmin();
+    openAdminLogin();
     return;
   }
-  i.stockTotal=next;
-  set(STORAGE.instruments,list);
-  renderAll();
-  renderAdmin();
-}
 
-function resetRehearsal(){
-  if(!confirm("Encerrar o ensaio atual e criar um novo? No protótipo, presença e reservas do ensaio atual serão arquivadas localmente e o novo ensaio começará fechado para reservas."))return;
+  showToast(ERROR_MESSAGES[key] || GENERIC_ERROR);
 
-  const old=currentRehearsal();
-  const next={
-    id:uuid(),
-    date:"",
-    time:"",
-    location:"A definir",
-    status:"active",
-    bookingOpen:false,
-    whatsappUrl:old.whatsappUrl || "",
-    previousRehearsalId:old.id
-  };
-
-  set(STORAGE.rehearsal,next);
-  renderAll();
-  renderAdmin();
-  navigate("home");
-  showToast("Novo ensaio criado. Reservas estão fechadas.");
+  if(key==="BOOKING_CLOSED_ERROR"){
+    document.querySelector("#reserve-dialog").close();
+    await loadPublic();
+    navigate("home");
+  }
+  if(key==="SOLD_OUT_ERROR"){
+    document.querySelector("#reserve-dialog").close();
+    await loadPublic();
+  }
+  if(key==="EVENT_CHANGED_ERROR"){
+    document.querySelector("#reserve-dialog").close();
+    await loadPublic();
+    if(currentView()==="admin") await loadAdmin();
+  }
 }
 
 function escapeHtml(s){

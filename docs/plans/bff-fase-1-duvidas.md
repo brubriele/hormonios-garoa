@@ -15,6 +15,13 @@
 | 8 | 2 | Quem já tem presença sem instrumento neste aparelho e pede presença de novo (sem `groupId`). | A função dá `ALREADY_RESERVED`: a exceção do passo 5 vale só quando o pedido traz um `groupId`. | |
 | 9 | 2 | `ReserveUsecase` faz o upsert do usuário antes de `reservar`, então uma reserva recusada já teria trocado nome e pronome. | O usecase confere `bookingOpen` antes do upsert (a função confere de novo). Em `SOLD_OUT` e `ALREADY_RESERVED` o nome ainda é trocado. | |
 | 10 | 2 | O `npm install -D typescript` instalou o TypeScript 7.0.2. | Mantive. O `tsconfig.json` não usa opções removidas no 7 (`baseUrl` etc.). | |
+| 11 | 3 | `GET /api/minhas-reservas` não devolve o e-mail. Para uma presença ganhar instrumento, a pessoa precisa digitar o mesmo e-mail. | A folha já vem com nome e pronome da reserva deste aparelho. O e-mail fica só em memória (`state.email`) e preenche a folha enquanto a aba estiver aberta. Depois de recarregar, a pessoa digita de novo. | |
+| 12 | 3 | "Confirmar presença" quando este aparelho já tem reserva (com ou sem instrumento) daria `ALREADY_RESERVED_ERROR` (dúvida 8). | O front não abre a folha: mostra "Sua presença já está confirmada." e vai para Minhas reservas. | |
+| 13 | 3 | O botão "Produção" abria sempre o login. Com o cookie `hg_admin` de 12 h, pedir a chave toda vez não faz sentido. | O botão vai para a Produção e chama `GET /api/admin/resumo`. O login só abre num 401, e a tela mostra "Entre com a chave da Produção." com um botão "Entrar". | |
+| 14 | 3 | `.bottom-nav` tem `display:flex`, que anulava o `hidden`: a navegação aparecia mesmo com as reservas fechadas. | Entrou `.bottom-nav[hidden]{display:none!important}` no `styles.css`. Agora a navegação some com as reservas fechadas e enquanto o ensaio carrega. | |
+| 15 | 3 | O "×" dos diálogos é um botão de submit: com os campos preenchidos, fechar a folha fazia a reserva; com os campos vazios, a validação não deixava fechar. | O "×" ganhou `formnovalidate`, e o handler só fecha o diálogo quando o `submitter` é o "×". | |
+| 16 | 3 | Sem a view de presença, a navegação tinha "01 Presença, 02 Instrumentos, 03 Minhas reservas". | Renumerei: "01 Instrumentos", "02 Minhas reservas" (navegação e títulos das telas). | |
+| 17 | 3 | Na Produção, a lista "Presenças" antes era só de presenças. Agora o resumo traz uma linha por pessoa, com ou sem instrumento. | A lista mostra todas as linhas `vou`, com o instrumento (ou "Sem instrumento") na segunda coluna. O contador "Reservas ativas" conta as que têm instrumento. Grupos inativos aparecem no estoque com "· inativo". | |
 
 ## Para a Bea testar (onda 2)
 

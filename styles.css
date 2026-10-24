@@ -1904,3 +1904,17 @@ body.modal-open{
     width:100%;
   }
 }
+
+/* --------------------------------------------------
+   BFF: CARREGANDO / CHAMADA EM ANDAMENTO
+-------------------------------------------------- */
+
+.bottom-nav[hidden],
+.home-status[hidden]{
+  display:none !important;
+}
+
+button[aria-busy="true"]{
+  opacity:.55;
+  cursor:wait;
+}
