@@ -1,7 +1,8 @@
 # Padrão de código do BFF (/api)
 
-> Docs para agentes e pessoas que escrevem código do bff-hormonios. Specs das fases:
-> [`docs/spec/README.md`](../../spec/README.md).
+> Docs para agentes e pessoas que escrevem código do bff-hormonios. Planos das fases:
+> [`docs/plans/README.md`](../../plans/README.md). O que já está implementado:
+> [`docs/spec/back/README.md`](../../spec/back/README.md).
 
 ## Como usar
 
@@ -13,6 +14,7 @@ e siga as regras e os exemplos deles.
 Se for mexer em um arquivo de uma pasta, leia o doc dela:
 
 - **Se for mexer em `api/`** (rotas), leia [`api.md`](api.md).
+- **Se for mexer em `src/serve-utils/http/`** (resposta, erro, cookies, sessão), leia [`http.md`](http.md).
 - **Se for mexer em `src/serve-utils/errors/`**, leia [`errors.md`](errors.md).
 - **Se for mexer em `src/serve-utils/models/`**, leia [`models.md`](models.md).
 - **Se for mexer em `src/serve-utils/interfaces/`**, leia [`interfaces.md`](interfaces.md).
@@ -27,8 +29,10 @@ Tarefas que passam por mais de uma camada. Leia os docs e faça os arquivos **na
 
 | Tarefa | Ordem dos docs |
 |---|---|
-| **Rota nova** | `errors.md` (se precisar de erro novo) → `models.md` → `interfaces.md` → `repos.md` → `usecases.md` → `api.md` |
+| **Rota nova** | `errors.md` (se precisar de erro novo) → `models.md` → `interfaces.md` → `repos.md` → `usecases.md` → `http.md` (resposta, cookies, sessão) → `api.md` |
 | **Integração com uma API externa nova** | `clients.md` (se o client atual não serve) → `interfaces.md` (`IRaw*` e `I<Fonte>Repo`) → `repos.md` (pasta `repos/<fonte>/` com UrlCollection + Repo) |
+| **Integração com o Transicionais** (`repos/transicionais/`) | ler o contrato pela seção "Contrato do Transicionais" da skill `code-pattern` (só referência para a tradução) → `interfaces.md` (`IRaw*`) → `repos.md` (`mapper*`) |
+| **Consulta nova no Supabase** (tabela ou função SQL) | `interfaces.md` (`IRaw*`) → `repos.md` (R9) |
 | **Operação nova num repo existente** (ex.: criar reserva no Transicionais) | `interfaces.md` (método na interface do repo) → `repos.md` |
 | **Campo novo num model** | `models.md` → `interfaces.md` (o `IRaw*` que traz o campo) → `repos.md` (o `mapper*`) |
 | **Erro novo** | `errors.md` → `api.md` (conferir se a rota devolve o `status` certo) |
@@ -58,6 +62,7 @@ src/serve-utils/
   models/                              entidades
   interfaces/                          contratos (I*) e formatos crus (IRaw*)
   clients/                             HTTP/SDK compartilhado
+  http/                                handle, cookies, hg_device e hg_admin
   repos/<fonte>/url-collection.ts      URLs da API externa
   repos/<fonte>/repo.ts                acesso à fonte (transicionais, supabase...)
   usecases/                            um arquivo por rota de /api
@@ -66,7 +71,7 @@ src/serve-utils/
 ## Fluxo de uma chamada
 
 ```
-api/<rota>.ts → Usecase.execute(input) → Repo (pela interface) → Client → API externa / Supabase
+api/<rota>.ts (handle) → Usecase.execute(input) → Repo (pela interface) → Client → API externa / Supabase
                                        ← model                ← IRaw* (mapper no repo)
 ```
 

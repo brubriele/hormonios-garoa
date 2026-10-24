@@ -1,6 +1,9 @@
 # Repos e UrlCollection (`src/serve-utils/repos/<fonte>/`)
 
 > Índice: [`README.md`](README.md). Usa: [`clients.md`](clients.md), [`interfaces.md`](interfaces.md), [`models.md`](models.md).
+> Contrato do Transicionais: seção "Contrato do Transicionais" da skill `code-pattern`
+> (`.claude/skills/code-pattern/SKILL.md`). Ele é só referência para a tradução no `mapper*`. Não
+> dita os nomes nem os formatos do Hormônios.
 
 Cada fonte (API externa ou SDK) tem uma pasta com o par `url-collection.ts` + `repo.ts`. Uma fonte
 sem URL própria, como o Supabase via SDK, tem só o `repo.ts`.
@@ -17,6 +20,7 @@ sem URL própria, como o Supabase via SDK, tem só o `repo.ts`.
 | R6 | `find<Nome>` devolve `T \| null`. `find<Nome>OrFail` chama o `find` e lança `NotFoundError`. |
 | R7 | Validações vêm primeiro, com retorno antecipado. |
 | R8 | **O repo trata a `IClientResponse`** do client: decide o que cada `status` significa para aquela operação (ex.: `404` vira `null` num `find`), e um `error` que não tem tratamento vira `Error` com o `status` na mensagem. |
+| R9 | **Supabase:** `repos/supabase/repo.ts`, sem UrlCollection. Toda consulta passa por `supabaseClient.query(...)`. A função SQL sinaliza um erro de negócio com `raise exception '<CODIGO>'`, e o repo traduz o código em `AppError` por um mapa (`SQL_ERRORS`). Um código fora do mapa segue a R8. |
 
 ## Exemplo
 
@@ -86,5 +90,33 @@ export class TransicionaisRepo implements ITransicionaisRepo {
   }
 
   // ------------ other api operation ---------
+}
+```
+
+## Exemplo: Supabase (função SQL)
+
+```ts
+// src/serve-utils/repos/supabase/repo.ts (trecho)
+const SQL_ERRORS: Record<string, () => AppError> = {
+  BOOKING_CLOSED: () => new BookingClosedError("Booking is closed"),
+  SOLD_OUT: () => new SoldOutError("Group is sold out"),
+};
+
+async reserve(input: IReserveInput): Promise<Attendance> {
+  const response = await this.supabaseClient.query<IRawAttendance>((sdk) =>
+    sdk.rpc("reservar", { p_user_id: input.userId, p_day_key: input.dayKey, p_device_id: input.deviceId, p_data: input.data }).single(),
+  );
+
+  const knownError = response.error && SQL_ERRORS[response.error.message];
+
+  if (knownError) {
+    throw knownError();
+  }
+
+  if (response.error || !response.data) {
+    throw new Error(`Supabase reservar failed with ${response.status}: ${response.error?.message}`);
+  }
+
+  return this.mapperAttendance(response.data);
 }
 ```

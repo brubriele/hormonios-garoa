@@ -1,4 +1,4 @@
-# Specs do bff-hormonios
+# Planos do bff-hormonios
 
 > Registrado em 2026-10-23. Lado do **Hormônios** (front + bff-hormonios + Supabase + Worker de cron).
 > O que precisa ser criado no Transicionais está em `transicionais/` (será movido para o repo do
@@ -8,7 +8,7 @@
 
 | Fase | Spec |
 |---|---|
-| 1 | [`bff-fase-1.md`](bff-fase-1.md) |
+| 1 | [`bff-fase-1.md`](bff-fase-1.md) · execução: [`bff-fase-1-implementacao.md`](bff-fase-1-implementacao.md) |
 | 2 | [`bff-fase-2.md`](bff-fase-2.md) |
 | 3 | [`bff-fase-3-login-email.md`](bff-fase-3-login-email.md) |
 | 4 | [`bff-fase-4-login-oauth2.md`](bff-fase-4-login-oauth2.md) |

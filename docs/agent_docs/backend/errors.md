@@ -35,4 +35,9 @@ export class NotFoundError extends AppError {
   readonly key = "NOT_FOUND_ERROR";
   readonly status = 404;
 }
+
+export class UnauthorizedError extends AppError {
+  readonly key = "UNAUTHORIZED_ERROR";
+  readonly status = 401;
+}
 ```

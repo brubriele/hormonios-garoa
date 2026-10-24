@@ -8,6 +8,7 @@ ler para cada camada e para cada tarefa.
 
 O front (`app.js`, `guias.js`, `*.html`, `styles.css`) não segue esse padrão.
 
-## Specs
+## Planos e specs
 
-As decisões e fases do BFF estão em `docs/spec/README.md`.
+- **Planos** (decisões e fases, antes de implementar): `docs/plans/README.md`.
+- **Specs** (o que já está implementado): `docs/spec/back/README.md` e `docs/spec/front/README.md`.

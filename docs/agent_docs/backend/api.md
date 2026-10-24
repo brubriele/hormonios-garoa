@@ -1,6 +1,6 @@
 # Rotas (`api/`)
 
-> Índice: [`README.md`](README.md). Usa: [`usecases.md`](usecases.md), [`errors.md`](errors.md).
+> Índice: [`README.md`](README.md). Usa: [`http.md`](http.md), [`usecases.md`](usecases.md), [`errors.md`](errors.md).
 
 ## Regras
 
@@ -8,34 +8,54 @@
 |---|---|
 | A1 | A rota **não tem regra de negócio**. Ela lê a entrada, monta o usecase, chama `execute` e responde. |
 | A2 | As dependências (client, repos) são montadas na rota e passadas ao usecase pelo construtor. |
-| A3 | `AppError` vira resposta com o `status` e a `key` do erro. Qualquer outro erro vira `500` genérico. |
-| A4 | As rotas ficam numa lista fechada (spec da fase 1). Rota nova entra na spec antes do código. |
+| A3 | Toda rota é envolvida por `handle(...)` ([`http.md`](http.md)), que converte `AppError` em `status` + `key` e qualquer outro erro em `500`. A rota não tem `try/catch`. |
+| A4 | As rotas ficam numa lista fechada (plano da fase). Rota nova entra no plano antes do código. |
+| A5 | Cookies e sessão só pelas peças de `http/` (`getOrCreateDevice`, `requireAdmin`, `createAdminCookie`, `isAdminKey`). Nas rotas da Produção, `requireAdmin` é a primeira linha. |
 
 ## Exemplo
 
 ```ts
 // api/events/[id].ts
-import { AppError } from "../../src/serve-utils/errors/app-error";
 import { HttpClient } from "../../src/serve-utils/clients/http-client";
+import { handle } from "../../src/serve-utils/http/handle";
 import { TransicionaisRepo } from "../../src/serve-utils/repos/transicionais/repo";
 import { FindEventUsecase } from "../../src/serve-utils/usecases/find-event";
 import type { UUID } from "../../src/serve-utils/interfaces/uuid";
 
-export async function GET(request: Request): Promise<Response> {
+export const GET = handle(async (request) => {
   const id = new URL(request.url).pathname.split("/").pop() as UUID;
 
   const usecase = new FindEventUsecase(new TransicionaisRepo(new HttpClient()));
 
-  try {
-    const event = await usecase.execute({ id });
+  return { body: await usecase.execute({ id }) };
+});
+```
 
-    return Response.json(event);
-  } catch (error) {
-    if (error instanceof AppError) {
-      return Response.json({ key: error.key, message: error.message }, { status: error.status });
-    }
+## Exemplo: aparelho e Produção
 
-    return Response.json({ key: "INTERNAL_ERROR" }, { status: 500 });
+```ts
+// api/admin/entrar.ts
+import { UnauthorizedError } from "../../src/serve-utils/errors/app-error";
+import { createAdminCookie, isAdminKey } from "../../src/serve-utils/http/admin-session";
+import { handle, readJson } from "../../src/serve-utils/http/handle";
+
+export const POST = handle(async (request) => {
+  const { key } = await readJson<{ key?: string }>(request);
+
+  if (!key || !(await isAdminKey(key))) {
+    throw new UnauthorizedError("Invalid admin key");
   }
-}
+
+  return { cookies: [await createAdminCookie()] };
+});
+```
+
+```ts
+// api/minhas-reservas.ts (trecho)
+export const GET = handle(async (request) => {
+  const { deviceId, cookie } = getOrCreateDevice(request);
+  const body = await new ListMyReservationsUsecase(repo).execute({ deviceId });
+
+  return { body, cookies: cookie ? [cookie] : [] };
+});
 ```
