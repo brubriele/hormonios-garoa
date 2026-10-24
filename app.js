@@ -34,8 +34,10 @@ async function api(path, { method = "GET", body } = {}){
   catch{ throw { status: 0, key: "NETWORK_ERROR" }; }
 
   if(res.status === 204) return null;
-  const data = await res.json().catch(() => null);
+  const data = await res.json().catch(() => undefined);
   if(!res.ok) throw { status: res.status, key: data?.key || "INTERNAL_ERROR", message: data?.message };
+  // 200 que não é JSON (ex.: /api servido pelo vite sem o vercel dev) é erro, não "carregando"
+  if(data === undefined) throw { status: res.status, key: "INVALID_RESPONSE" };
   return data;
 }
 
