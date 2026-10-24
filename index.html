@@ -97,7 +97,7 @@
           </div>
 
           <div class="home-actions">
-            <button class="primary-btn" type="button" data-action="confirm-presence">Confirmar presença <span>→</span></button>
+            <button class="primary-btn" data-nav="presence">Confirmar presença <span>→</span></button>
             <button class="text-btn" data-nav="instruments">Escolher instrumento →</button>
             <a class="text-btn" href="guias.html">Aprender antes do ensaio →</a>
           </div>
@@ -110,9 +110,28 @@
         </div>
       </section>
 
+      <section id="presence" class="view">
+        <div class="section-head">
+          <div><p class="eyebrow">01 / PRESENÇA</p><h2>Quem vem<br><em>tocar?</em></h2></div>
+          <button class="back-btn" data-nav="home">← voltar</button>
+        </div>
+        <div class="form-layout">
+          <div class="form-intro">
+            <p>Preencha uma vez para confirmar sua presença. Seu nome não é usado como identificador técnico.</p>
+          </div>
+          <form id="presence-form" class="line-form">
+            <label>E-mail <input id="presence-email" type="email" required autocomplete="email" placeholder="voce@exemplo.com"></label>
+            <label>Nome / Nome Social <input id="presence-name" required autocomplete="name" placeholder="Como você quer ser chamado?"></label>
+            <label>Pronome <input id="presence-pronoun" required placeholder="ex.: ela/dela, ele/dele, elu/delu"></label>
+            <button class="primary-btn" type="submit" id="presence-submit">Confirmar presença <span>→</span></button>
+          </form>
+        </div>
+        <div id="presence-status" class="status-message" hidden></div>
+      </section>
+
       <section id="instruments" class="view">
         <div class="section-head">
-          <div><p class="eyebrow">01 / INSTRUMENTOS</p><h2>O que você<br><em>vai tocar?</em></h2></div>
+          <div><p class="eyebrow">02 / INSTRUMENTOS</p><h2>O que você<br><em>vai tocar?</em></h2></div>
           <button class="back-btn" data-nav="home">← voltar</button>
         </div>
         <div class="instrument-list" id="instrument-list"></div>
@@ -121,7 +140,7 @@
 
       <section id="my-reservations" class="view">
         <div class="section-head">
-          <div><p class="eyebrow">02 / MINHAS RESERVAS</p><h2>Seu<br><em>ensaio.</em></h2></div>
+          <div><p class="eyebrow">03 / MINHAS RESERVAS</p><h2>Seu<br><em>ensaio.</em></h2></div>
           <button class="back-btn" data-nav="home">← voltar</button>
         </div>
         <div id="my-reservations-list" class="reservation-list"></div>
@@ -137,25 +156,23 @@
     </main>
 
     <nav class="bottom-nav" aria-label="Navegação principal" id="main-bottom-nav" hidden>
-      <button data-nav="instruments"><span>01</span>Instrumentos</button>
-      <button data-nav="my-reservations"><span>02</span>Minhas reservas</button>
+      <button data-nav="presence"><span>01</span>Presença</button>
+      <button data-nav="instruments"><span>02</span>Instrumentos</button>
+      <button data-nav="my-reservations"><span>03</span>Minhas reservas</button>
     </nav>
   </div>
 
   <dialog id="reserve-dialog">
     <form method="dialog" id="reserve-form" class="dialog-form">
       <button class="dialog-close" value="cancel" formnovalidate aria-label="Fechar">×</button>
-      <p class="eyebrow"><span id="reserve-kind">RESERVA</span> / <span id="reserve-instrument-label"></span></p>
-      <h3 id="reserve-title">Detalhes<br><em>do instrumento.</em></h3>
-      <input type="hidden" id="reserve-group-id">
-      <label>E-mail <input id="reserve-email" type="email" autocomplete="email" required placeholder="voce@exemplo.com"></label>
-      <label>Nome / Nome Social <input id="reserve-name" required autocomplete="name"></label>
+      <p class="eyebrow">RESERVA / <span id="reserve-instrument-label"></span></p>
+      <h3>Detalhes<br><em>do instrumento.</em></h3>
+      <input type="hidden" id="reserve-instrument-id">
+      <label>E-mail <input id="reserve-email" type="email" autocomplete="email" required></label>
+      <label>Nome / Nome Social <input id="reserve-name" required></label>
       <label>Pronome <input id="reserve-pronoun" required placeholder="ex.: ela/dela"></label>
-      <div id="reserve-supports">
-        <label class="toggle-row"><input type="checkbox" id="needs-strap" value="talabarte"><span>Preciso de talabarte (alça)</span></label>
-        <label class="toggle-row"><input type="checkbox" id="needs-beater" value="baqueta"><span>Preciso de baqueta / maçaneta</span></label>
-      </div>
-      <p class="form-hint">Uma reserva por e-mail neste ensaio.</p>
+      <label class="toggle-row"><input type="checkbox" id="needs-strap"><span>Preciso de talabarte (alça)</span></label>
+      <label class="toggle-row"><input type="checkbox" id="needs-beater"><span>Preciso de baqueta / maçaneta</span></label>
       <button class="primary-btn" type="submit" id="reserve-submit">Reservar instrumento <span>→</span></button>
     </form>
   </dialog>
@@ -165,8 +182,7 @@
       <button class="dialog-close" value="cancel" formnovalidate aria-label="Fechar">×</button>
       <p class="eyebrow">ÁREA RESTRITA</p>
       <h3>Entrar na<br><em>produção.</em></h3>
-      <label>Chave <input id="admin-password" type="password" autocomplete="current-password" required></label>
-      <p class="form-hint">A chave fica com a Produção.</p>
+      <label>Senha <input id="admin-password" type="password" autocomplete="current-password" required></label>
       <button class="primary-btn" type="submit" id="admin-login-submit">Acessar produção <span>→</span></button>
     </form>
   </dialog>
