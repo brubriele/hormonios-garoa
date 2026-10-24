@@ -23,6 +23,7 @@
 | 16 | 3 | Sem a view de presença, a navegação tinha "01 Presença, 02 Instrumentos, 03 Minhas reservas". | Renumerei: "01 Instrumentos", "02 Minhas reservas" (navegação e títulos das telas). | |
 | 17 | 3 | Na Produção, a lista "Presenças" antes era só de presenças. Agora o resumo traz uma linha por pessoa, com ou sem instrumento. | A lista mostra todas as linhas `vou`, com o instrumento (ou "Sem instrumento") na segunda coluna. O contador "Reservas ativas" conta as que têm instrumento. Grupos inativos aparecem no estoque com "· inativo". | |
 | 18 | 4 | Quem reserva de novo depois do "Não vou" reaproveita a linha (`on conflict`) e mantém o `created_at` antigo. Na lista de presenças da Produção, que é ordenada por `created_at`, a pessoa volta para a posição antiga. | Deixei assim. Para ir para o fim da lista, a ordem passaria a ser por `updated_at`. | |
+| 19 | 5 | O passo 3 da função `reservar` (`EVENT_CHANGED`) foi pensado para "o ensaio mudou desde que a pessoa abriu a folha", mas o `POST /api/reserva` não recebe `dayKey`: o usecase lê o ensaio atual e passa o `dayKey` dele. Assim, quem abriu a folha antes de um "Encerrar ensaio" reserva no ensaio novo (se estiver aberto), e o `EVENT_CHANGED_ERROR` só aparece se o ensaio mudar entre a leitura e a função. | A spec do back descreve o código como está. Para valer o que o plano pensou, o front mandaria o `dayKey` do `GET /api/ensaio` no corpo da reserva. | |
 
 ## Para a Bea testar (onda 2)
 

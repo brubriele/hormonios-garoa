@@ -1,6 +1,6 @@
 # bff-hormonios — Fase 1: Hormônios sozinho (sem a API do Transicionais)
 
-> Índice e decisões comuns: [`README.md`](README.md). Recursos do Transicionais: [`transicionais/plano-transicionais.md`](transicionais/plano-transicionais.md).
+> Índice e decisões comuns: [`README.md`](README.md). **Implementado:** [`../spec/back/fase-1.md`](../spec/back/fase-1.md) e [`../spec/front/fase-1.md`](../spec/front/fase-1.md). Recursos do Transicionais: [`transicionais/plano-transicionais.md`](transicionais/plano-transicionais.md).
 
 
 ## Objetivo
@@ -53,6 +53,9 @@ create table hg_attendances (
 );
 ```
 
+Na implementação, o jsonb de `hg_current_event` ganhou o `dayKey` (texto), que vai para `day_key`.
+O seed usa data e hora vazias (ver `bff-fase-1-duvidas.md`, dúvida 1).
+
 ## Rotas do BFF
 
 | Rota | Faz |
@@ -69,21 +72,26 @@ create table hg_attendances (
 ## Tasks
 
 **E1-S1. Esqueleto e Supabase**
-- [ ] Vercel Functions no próprio repo. Rotas em lista fechada.
-- [ ] Projeto Supabase, migration 1 e RLS ligada sem política pública.
-- [ ] Função SQL `reservar(user_id, day_key, device_id, data)`: trava a linha de `hg_current_event`, confere estoque e reservas abertas, faz o upsert.
-- [ ] Envs: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_KEY`, `COOKIE_KEY`.
+- [x] Vercel Functions no próprio repo. Rotas em lista fechada.
+- [x] Migration 1 (`supabase/migrations/0001_fase1.sql`) com RLS ligada sem política pública.
+- [ ] Projeto Supabase de dev criado e migration aplicada (`supabase link` e `db push`).
+- [x] Função SQL `reservar(user_id, day_key, device_id, data)`: trava a linha de `hg_current_event`, confere estoque e reservas abertas, faz o upsert. A trava com dois pedidos ao mesmo tempo ainda precisa do teste no Supabase de dev (ver `bff-fase-1-duvidas.md`).
+- [x] Envs lidas no código: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_KEY`, `COOKIE_KEY`.
+- [ ] Envs preenchidas na Vercel e no `.env.local`.
 
 **E1-S2. Rotas públicas** (ensaio, reserva, desfazer, minhas reservas, `hg_device`)
+- [x] As 4 rotas e o cookie `hg_device`. O "Não vou" funciona com as reservas fechadas e o nome é trocado antes da função `reservar` (ver `bff-fase-1-duvidas.md`, dúvidas 6, 8 e 9).
 
 **E1-S3. Rotas da Produção** (`hg_admin`, resumo, ensaio, estoque, novo ensaio)
+- [x] As 4 rotas e o cookie `hg_admin`. O estoque é conferido fora da trava (ver `bff-fase-1-duvidas.md`, dúvida 7).
 
 **E1-W1. Front**
-- [ ] Saem as chaves do `localStorage` e o estoque semeado no `app.js` (passa para a migration como dado inicial).
-- [ ] Folha única de reserva com e-mail, nome e pronome.
-- [ ] Produção usa as rotas `/api/admin/*`. Sai a senha `garoa`.
-- [ ] Estados de carregando e de erro.
+- [x] Saem as chaves do `localStorage` e o estoque semeado no `app.js` (passa para a migration como dado inicial).
+- [x] Folha única de reserva com e-mail, nome e pronome.
+- [x] Produção usa as rotas `/api/admin/*`. Sai a senha `garoa`.
+- [x] Estados de carregando e de erro.
 
 **Pronto quando:** dois celulares veem as mesmas vagas. Duas pessoas disputando o último instrumento
 resultam numa reserva só. Desfazer de outro aparelho não funciona. A Produção fecha as reservas e o
-público vê a tela de "reservas fechadas".
+público vê a tela de "reservas fechadas". Estes critérios dependem do Supabase de dev e do
+`vercel dev` (ver `bff-fase-1-duvidas.md`).
