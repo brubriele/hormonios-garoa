@@ -30,9 +30,17 @@ export function handle(fn: (request: Request) => Promise<IHttpResult>) {
 }
 
 export async function readJson<T>(request: Request): Promise<T> {
+  let body: unknown;
+
   try {
-    return (await request.json()) as T;
+    body = await request.json();
   } catch {
     throw new InvalidParameterError("Body must be JSON");
   }
+
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    throw new InvalidParameterError("Body must be a JSON object");
+  }
+
+  return body as T;
 }

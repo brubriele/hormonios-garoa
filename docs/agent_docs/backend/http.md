@@ -11,7 +11,7 @@ cookies. Não têm regra de negócio.
 |---|---|
 | H1 | Toda rota é `export const <VERBO> = handle(async (request) => ...)`. O `handle` converte `AppError` em `{ key, message }` com o `status` do erro, e qualquer outro erro em `500` `INTERNAL_ERROR`. |
 | H2 | A função da rota devolve `IHttpResult` (`{ status?, body?, cookies? }`). Sem `body`, a resposta é `204`. |
-| H3 | O corpo é lido com `readJson<T>(request)`. Um corpo inválido vira `InvalidParameterError`. |
+| H3 | O corpo é lido com `readJson<T>(request)` e precisa ser um objeto JSON. Um corpo que não é JSON, ou que é `null`, array ou outro valor que não seja objeto, vira `InvalidParameterError`. |
 | H4 | Cookie sempre por `buildCookie`: `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`. |
 | H5 | **`hg_device`:** `getOrCreateDevice(request)` devolve o `deviceId`. Quando o aparelho ainda não tem um, devolve também o `cookie` para a rota gravar. É um UUID aleatório que vale 1 ano. |
 | H6 | **`hg_admin`:** `createAdminCookie()` grava, com validade de 12 h. `requireAdmin(request)` lança `UnauthorizedError` sem um cookie válido. A assinatura é HMAC-SHA256 por WebCrypto, com `COOKIE_KEY`. |
@@ -54,11 +54,19 @@ export function handle(fn: (request: Request) => Promise<IHttpResult>) {
 }
 
 export async function readJson<T>(request: Request): Promise<T> {
+  let body: unknown;
+
   try {
-    return (await request.json()) as T;
+    body = await request.json();
   } catch {
     throw new InvalidParameterError("Body must be JSON");
   }
+
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    throw new InvalidParameterError("Body must be a JSON object");
+  }
+
+  return body as T;
 }
 ```
 

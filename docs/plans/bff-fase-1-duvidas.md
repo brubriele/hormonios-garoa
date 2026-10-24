@@ -22,6 +22,7 @@
 | 15 | 3 | O "×" dos diálogos é um botão de submit: com os campos preenchidos, fechar a folha fazia a reserva; com os campos vazios, a validação não deixava fechar. | O "×" ganhou `formnovalidate`, e o handler só fecha o diálogo quando o `submitter` é o "×". | |
 | 16 | 3 | Sem a view de presença, a navegação tinha "01 Presença, 02 Instrumentos, 03 Minhas reservas". | Renumerei: "01 Instrumentos", "02 Minhas reservas" (navegação e títulos das telas). | |
 | 17 | 3 | Na Produção, a lista "Presenças" antes era só de presenças. Agora o resumo traz uma linha por pessoa, com ou sem instrumento. | A lista mostra todas as linhas `vou`, com o instrumento (ou "Sem instrumento") na segunda coluna. O contador "Reservas ativas" conta as que têm instrumento. Grupos inativos aparecem no estoque com "· inativo". | |
+| 18 | 4 | Quem reserva de novo depois do "Não vou" reaproveita a linha (`on conflict`) e mantém o `created_at` antigo. Na lista de presenças da Produção, que é ordenada por `created_at`, a pessoa volta para a posição antiga. | Deixei assim. Para ir para o fim da lista, a ordem passaria a ser por `updated_at`. | |
 
 ## Para a Bea testar (onda 2)
 
@@ -30,3 +31,19 @@
   builder da Vercel resolve. Se der erro de módulo não encontrado, é aqui.
 - **Função `reservar`:** só foi revisada no código. A trava e o `SOLD_OUT` com dois pedidos ao mesmo
   tempo precisam do teste com o Supabase de dev.
+
+## Verificação da onda 4 (sem Supabase)
+
+A migration real roda num Postgres em memória (PGlite). As 8 rotas usam o `supabase-js` real com
+um dublê do PostgREST, e o front roda num DOM falso (happy-dom).
+
+- SQL: 32/32.
+- Rotas: 70/70. A única falha, `entrar` com corpo `null` dando 500, foi corrigida no `readJson`.
+- Front: 32/32.
+
+**Falta confirmar no Supabase de dev / `vercel dev`:**
+- dois pedidos ao mesmo tempo pela última vaga, para testar a trava `for update`;
+- o rpc que devolve a linha com `.single()`;
+- a consulta com `hg_users(*)` embutido;
+- o upsert com `on_conflict=email`;
+- os imports sem extensão no builder da Vercel.
