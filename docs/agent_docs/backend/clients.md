@@ -1,33 +1,58 @@
 # Clients (`src/serve-utils/clients/`)
 
-> Índice: [`README.md`](README.md). Quem usa: [`repos.md`](repos.md).
+> Índice: [`README.md`](README.md). Contrato da resposta: [`interfaces.md`](interfaces.md). Quem usa: [`repos.md`](repos.md).
 
 ## Regras
 
 | # | Regra |
 |---|---|
 | C1 | O client é **compartilhado** e não conhece domínio: não importa models nem interfaces de fonte. |
-| C2 | `404` devolve `null`. Os outros status de erro lançam. Quem decide se `null` é erro é o repo. |
-| C3 | Só `fetch` (funciona no Edge). Sem `node:*`. |
-| C4 | Um SDK de terceiro (ex.: `supabase-js`) também é criado aqui, uma vez, e passado aos repos. |
+| C2 | Todo client devolve **`IClientResponse<T>`** (`{ status, data?, error? }`). Cada client monta essa resposta do seu jeito, a partir do que a sua fonte devolve. |
+| C3 | O client **não lança** e não decide o que um status significa. Sucesso preenche `data`. Falha preenche `error`. Quem trata é o repo ([`repos.md`](repos.md), R8). |
+| C4 | Falha de rede (sem resposta HTTP) devolve `status: 0` com `error`. |
+| C5 | Só `fetch` (funciona no Edge). Sem `node:*`. |
+| C6 | Um SDK de terceiro (ex.: `supabase-js`) também é criado aqui, uma vez, e passado aos repos. O resultado dele é convertido para `IClientResponse<T>`. |
 
-## Exemplo
+## Exemplo: HTTP
 
 ```ts
 // src/serve-utils/clients/http-client.ts
+import type { IClientResponse } from "../interfaces/client-response";
+
 export class HttpClient {
-  async get<T>(url: string): Promise<T | null> {
-    const response = await fetch(url);
+  async get<T>(url: string): Promise<IClientResponse<T>> {
+    try {
+      const response = await fetch(url);
 
-    if (response.status === 404) {
-      return null;
+      if (!response.ok) {
+        return {
+          status: response.status,
+          error: { message: response.statusText, details: await response.text() },
+        };
+      }
+
+      return { status: response.status, data: (await response.json()) as T };
+    } catch (error) {
+      return {
+        status: 0,
+        error: { message: error instanceof Error ? error.message : "Request failed", details: error },
+      };
     }
-
-    if (!response.ok) {
-      throw new Error(`GET ${url} failed with ${response.status}`);
-    }
-
-    return (await response.json()) as T;
   }
 }
+```
+
+## Exemplo: SDK
+
+O `supabase-js` já devolve `{ data, error, status }`. O client só ajusta os nomes ao contrato:
+
+```ts
+// src/serve-utils/clients/supabase-client.ts (trecho)
+const { data, error, status } = await this.supabase.from(table).select().eq("id", id).maybeSingle();
+
+if (error) {
+  return { status, error: { message: error.message, details: error } };
+}
+
+return { status, data: data ?? undefined };
 ```

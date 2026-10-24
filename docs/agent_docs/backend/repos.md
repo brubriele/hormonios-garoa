@@ -16,6 +16,7 @@ sem URL própria, como o Supabase via SDK, tem só o `repo.ts`.
 | R5 | O repo converte `IRaw*` em model num `private mapper<Nome>`. O formato cru não sai do repo. |
 | R6 | `find<Nome>` devolve `T \| null`. `find<Nome>OrFail` chama o `find` e lança `NotFoundError`. |
 | R7 | Validações vêm primeiro, com retorno antecipado. |
+| R8 | **O repo trata a `IClientResponse`** do client: decide o que cada `status` significa para aquela operação (ex.: `404` vira `null` num `find`), e um `error` que não tem tratamento vira `Error` com o `status` na mensagem. |
 
 ## Exemplo
 
@@ -59,15 +60,19 @@ export class TransicionaisRepo implements ITransicionaisRepo {
   }
 
   async findEvent(filter: IFindEventFilter): Promise<BasicEvent | null> {
-    const rawEvent = await this.httpClient.get<IRawEvent>(
+    const response = await this.httpClient.get<IRawEvent>(
       TransicionaisUrlCollection.eventById(filter.id),
     );
 
-    if (!rawEvent) { // validacoes vem primeiro, para evitar codigo horizontal
+    if (response.status === 404) { // validacoes vem primeiro, para evitar codigo horizontal
       return null;
     }
 
-    return this.mapperEvent(rawEvent);
+    if (response.error || !response.data) {
+      throw new Error(`Transicionais findEvent failed with ${response.status}: ${response.error?.message}`);
+    }
+
+    return this.mapperEvent(response.data);
   }
 
   async findEventOrFail(filter: IFindEventFilter): Promise<BasicEvent> {

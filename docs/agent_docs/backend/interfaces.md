@@ -20,6 +20,21 @@ export type UUID = `${string}-${string}-${string}-${string}-${string}`;
 ```
 
 ```ts
+// src/serve-utils/interfaces/client-response.ts
+// resposta padrão de todo client (ver clients.md)
+export interface IClientError {
+  message: string;
+  details?: unknown;
+}
+
+export interface IClientResponse<T> {
+  status: number; // status HTTP; 0 quando não houve resposta
+  data?: T;
+  error?: IClientError;
+}
+```
+
+```ts
 // src/serve-utils/interfaces/transicionais.ts
 import type { BasicEvent } from "../models/basic-event";
 import type { UUID } from "./uuid";

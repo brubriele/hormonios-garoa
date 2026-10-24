@@ -86,4 +86,5 @@ api/<rota>.ts → Usecase.execute(input) → Repo (pela interface) → Client �
 2. O usecase depende de interfaces, não de classes concretas.
 3. Todo `async` chamado dentro de `try` tem `await`.
 4. O formato cru (`IRaw*`) não sai do repo.
-5. `tsc --noEmit` passa.
+5. Todo client devolve `IClientResponse<T>` e não lança. O repo trata o `status`.
+6. `tsc --noEmit` passa.
