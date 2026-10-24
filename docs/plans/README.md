@@ -9,14 +9,14 @@
 | Fase | Spec |
 |---|---|
 | 1 | [`bff-fase-1.md`](bff-fase-1.md) · execução: [`bff-fase-1-implementacao.md`](bff-fase-1-implementacao.md) |
-| 2 | [`bff-fase-2.md`](bff-fase-2.md) |
+| 2 | [`bff-fase-2.md`](bff-fase-2.md) · execução: [`bff-fase-2-implementacao.md`](bff-fase-2-implementacao.md) · setup no Transicionais: [`transicionais/setup-hormonios.md`](transicionais/setup-hormonios.md) |
 | 3 | [`bff-fase-3-login-email.md`](bff-fase-3-login-email.md) |
 | 4 | [`bff-fase-4-login-oauth2.md`](bff-fase-4-login-oauth2.md) |
 
 | Fase | O que entrega | Transicionais |
 |---|---|---|
 | **1** | BFF + Supabase **como se a API do Transicionais não existisse**. Sem login. Ensaio e estoque editados na Produção do Hormônios. | não é usado |
-| **2** | **Integração com a API** do Transicionais e **plano de falha (resiliência)**: o ensaio vem de lá, com cache, webhooks e cron. | leitura e escrita: encontro, vagas, webhooks, reservas como ingressos (token `SERVICE`) |
+| **2** | **Integração com a API** do Transicionais e **plano de falha (resiliência)**: o ensaio vem de lá, com cache, webhooks e cron. A Produção edita pelo BFF, sem ver o Transicionais. | leitura e escrita: encontro, vagas, webhooks, reservas como ingressos (token de membro até existir o `SERVICE`) |
 | **3** | **Login etapa 1 (opcional):** código no e-mail, só para ver e desfazer reservas em outro aparelho. | não é usado |
 | **4** | **Login etapa 2 (opcional):** SSO com OAuth2 (Google/LinkedIn). | OAuth2 pelo bf-front |
 

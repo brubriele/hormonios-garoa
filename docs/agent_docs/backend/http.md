@@ -2,8 +2,8 @@
 
 > Índice: [`README.md`](README.md). Quem usa: [`api.md`](api.md). Erros: [`errors.md`](errors.md).
 
-As peças da borda HTTP que todas as rotas repetiriam: a resposta, o tratamento de erro e os
-cookies. Não têm regra de negócio.
+As peças da borda HTTP que todas as rotas repetiriam: a resposta, o tratamento de erro, os
+cookies, a autenticação do cron e do webhook e o IP real. Não têm regra de negócio.
 
 ## Regras
 
@@ -17,6 +17,9 @@ cookies. Não têm regra de negócio.
 | H6 | **`hg_admin`:** `createAdminCookie()` grava, com validade de 12 h. `requireAdmin(request)` lança `UnauthorizedError` sem um cookie válido. A assinatura é HMAC-SHA256 por WebCrypto, com `COOKIE_KEY`. |
 | H7 | **`ADMIN_KEY`:** comparada só por `isAdminKey(candidate)`, em tempo constante. Nunca use `===` na chave. |
 | H8 | Só WebCrypto (`globalThis.crypto`) e `btoa`/`atob`. Sem `node:*` (G4). Env lida na chamada. |
+| H9 | **Cron:** `requireCron(request)` (`http/cron-auth.ts`) exige `Authorization: Bearer <CRON_SECRET>` e lança `UnauthorizedError`. A comparação é pelo HMAC, em tempo constante, como a H7. |
+| H10 | **Webhook:** `verifyWebhookJwt(request)` (`http/webhook-auth.ts`) confere o `Authorization: Bearer <JWT>` do Transicionais: HS256 com `TRANSICIONAIS_JWT_KEY` (WebCrypto `verify`), `exp` no futuro e `role: "SERVICE"`. Falhou → `UnauthorizedError`. Devolve o payload. |
+| H11 | **IP real:** `clientIp(request)` (`http/client-ip.ts`) devolve o primeiro IP do `x-forwarded-for` que a Vercel repassa, ou `null`. A rota passa o IP ao usecase, que o repassa ao repo do Transicionais (R4 de `bff-fase-2.md`). |
 
 ## Exemplo
 
@@ -114,6 +117,37 @@ export function getOrCreateDevice(request: Request): { deviceId: UUID; cookie?: 
   const deviceId = globalThis.crypto.randomUUID();
 
   return { deviceId, cookie: buildCookie(DEVICE_COOKIE, deviceId, ONE_YEAR_SECONDS) };
+}
+```
+
+```ts
+// src/serve-utils/http/cron-auth.ts
+import { UnauthorizedError } from "../errors/app-error";
+
+const encoder = new TextEncoder();
+
+async function digest(value: string): Promise<Uint8Array> {
+  return new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", encoder.encode(value)));
+}
+
+// compara os hashes byte a byte, sem sair cedo
+export async function requireCron(request: Request): Promise<void> {
+  const secret = process.env.CRON_SECRET;
+
+  if (!secret) {
+    throw new Error("CRON_SECRET is not set");
+  }
+
+  const [expected, received] = await Promise.all([
+    digest(`Bearer ${secret}`),
+    digest(request.headers.get("authorization") ?? ""),
+  ]);
+  let diff = 0;
+  expected.forEach((byte, index) => (diff |= byte ^ received[index]));
+
+  if (diff !== 0) {
+    throw new UnauthorizedError("Cron secret required");
+  }
 }
 ```
 

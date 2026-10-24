@@ -31,7 +31,8 @@ Tarefas que passam por mais de uma camada. Leia os docs e faça os arquivos **na
 |---|---|
 | **Rota nova** | `errors.md` (se precisar de erro novo) → `models.md` → `interfaces.md` → `repos.md` → `usecases.md` → `http.md` (resposta, cookies, sessão) → `api.md` |
 | **Integração com uma API externa nova** | `clients.md` (se o client atual não serve) → `interfaces.md` (`IRaw*` e `I<Fonte>Repo`) → `repos.md` (pasta `repos/<fonte>/` com UrlCollection + Repo) |
-| **Integração com o Transicionais** (`repos/transicionais/`) | ler o contrato pela seção "Contrato do Transicionais" da skill `code-pattern` (só referência para a tradução) → `interfaces.md` (`IRaw*`) → `repos.md` (`mapper*`) |
+| **Integração com o Transicionais** (`repos/transicionais/`) | ler o contrato pela seção "Contrato do Transicionais" da skill `code-pattern` (só referência para a tradução) → `clients.md` (timeout) → `interfaces.md` (`IRaw*`) → `repos.md` (`mapper*`, `session.ts`, R10 e R11) |
+| **Rota de cron ou de webhook** | `http.md` (H9, H10) → `usecases.md` → `api.md` (A6) |
 | **Consulta nova no Supabase** (tabela ou função SQL) | `interfaces.md` (`IRaw*`) → `repos.md` (R9) |
 | **Operação nova num repo existente** (ex.: criar reserva no Transicionais) | `interfaces.md` (método na interface do repo) → `repos.md` |
 | **Campo novo num model** | `models.md` → `interfaces.md` (o `IRaw*` que traz o campo) → `repos.md` (o `mapper*`) |
@@ -40,6 +41,11 @@ Tarefas que passam por mais de uma camada. Leia os docs e faça os arquivos **na
 | **Teste de usecase** | `usecases.md` (seção "Teste com fake") → `interfaces.md` |
 
 Se a tarefa não está na tabela, leia o doc de cada pasta que vai tocar, como em **Por camada**.
+
+**Testar contra a API de dev do Transicionais:** os usuários estão em
+[`transicionais-dev-users.md`](transicionais-dev-users.md), e o do BFF, em
+[`setup-hormonios.md`](../../plans/transicionais/setup-hormonios.md). As credenciais ficam no
+`.env.local` (`TRANSICIONAIS_USER`, `TRANSICIONAIS_PASSWORD`, `TRANSICIONAIS_URL`).
 
 ### Ao terminar
 
@@ -62,9 +68,10 @@ src/serve-utils/
   models/                              entidades
   interfaces/                          contratos (I*) e formatos crus (IRaw*)
   clients/                             HTTP/SDK compartilhado
-  http/                                handle, cookies, hg_device e hg_admin
+  http/                                handle, cookies, hg_device, hg_admin, cron, webhook e IP real
   repos/<fonte>/url-collection.ts      URLs da API externa
   repos/<fonte>/repo.ts                acesso à fonte (transicionais, supabase...)
+  repos/transicionais/session.ts       token de membro do Transicionais (login e refresh)
   usecases/                            um arquivo por rota de /api
 ```
 

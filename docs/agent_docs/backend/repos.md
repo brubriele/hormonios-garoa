@@ -20,6 +20,8 @@ sem URL própria, como o Supabase via SDK, tem só o `repo.ts`.
 | R6 | `find<Nome>` devolve `T \| null`. `find<Nome>OrFail` chama o `find` e lança `NotFoundError`. |
 | R7 | Validações vêm primeiro, com retorno antecipado. |
 | R8 | **O repo trata a `IClientResponse`** do client: decide o que cada `status` significa para aquela operação (ex.: `404` vira `null` num `find`), e um `error` que não tem tratamento vira `Error` com o `status` na mensagem. |
+| R10 | **Token do Transicionais:** só pela `TransicionaisSession` (`repos/transicionais/session.ts`). Login, refresh e o reenvio depois de um 401 ficam nela. Usecase e rota nunca veem token. |
+| R11 | **`key` de erro do Transicionais:** o repo lê `error.details.key` e a traduz num `AppError` do Hormônios por um mapa (`TRANSICIONAIS_ERRORS`), como o `SQL_ERRORS` da R9. A mensagem do Transicionais nunca chega à tela (E2.3). Falha de rede, timeout, 429 e 5xx não viram `AppError`: o repo devolve o resultado como "fora do ar" quando a operação tem plano de falha (envio da reserva, leitura do retrato), ou lança `UpstreamUnavailableError` (503) nas ações da Produção. |
 | R9 | **Supabase:** `repos/supabase/repo.ts`, sem UrlCollection. Toda consulta passa por `supabaseClient.query(...)`. A função SQL sinaliza um erro de negócio com `raise exception '<CODIGO>'`, e o repo traduz o código em `AppError` por um mapa (`SQL_ERRORS`). Um código fora do mapa segue a R8. |
 
 ## Exemplo
@@ -92,6 +94,77 @@ export class TransicionaisRepo implements ITransicionaisRepo {
   // ------------ other api operation ---------
 }
 ```
+
+## Exemplo: token do Transicionais (`session.ts`)
+
+Até existir a role `SERVICE`, o BFF entra como membro (E2.6 de `bff-fase-2.md`). O token fica na
+memória da função (uma instância serve vários pedidos) e nunca sai do repo.
+
+```ts
+// src/serve-utils/repos/transicionais/session.ts
+import { HttpClient, type IHttpRequest } from "../../clients/http-client";
+import type { IClientResponse } from "../../interfaces/client-response";
+import type { IRawLogin } from "../../interfaces/transicionais";
+import { TransicionaisUrlCollection } from "./url-collection";
+
+let tokens: { access: string; refresh: string } | null = null; // memória da instância
+
+export class TransicionaisSession {
+  constructor(private readonly httpClient: HttpClient) {}
+
+  // chamada autenticada: num 401, renova (ou entra de novo) e tenta uma vez mais
+  async request<T>(input: IHttpRequest): Promise<IClientResponse<T>> {
+    const first = await this.send<T>(input, await this.accessToken());
+
+    if (first.status !== 401) {
+      return first;
+    }
+
+    tokens = await this.renew();
+    return this.send<T>(input, tokens.access);
+  }
+
+  private send<T>(input: IHttpRequest, access: string): Promise<IClientResponse<T>> {
+    return this.httpClient.request<T>({ ...input, headers: { ...input.headers, authorization: `Bearer ${access}` } });
+  }
+
+  private async accessToken(): Promise<string> {
+    tokens ??= await this.login();
+    return tokens.access;
+  }
+
+  private async renew(): Promise<{ access: string; refresh: string }> {
+    // tenta o refresh; se falhar, login de novo
+    // ...
+    return this.login();
+  }
+
+  private async login(): Promise<{ access: string; refresh: string }> {
+    const username = process.env.TRANSICIONAIS_USER;
+    const password = process.env.TRANSICIONAIS_PASSWORD;
+
+    if (!username || !password) {
+      throw new Error("TRANSICIONAIS_USER or TRANSICIONAIS_PASSWORD is not set");
+    }
+
+    const response = await this.httpClient.request<IRawLogin>({
+      method: "POST",
+      url: TransicionaisUrlCollection.login(),
+      body: { username, password },
+    });
+
+    if (response.error || !response.data) {
+      throw new Error(`Transicionais login failed with ${response.status}`);
+    }
+
+    // os nomes dos campos vêm do contrato (script da skill code-pattern)
+    return { access: response.data.accessToken, refresh: response.data.refreshToken };
+  }
+}
+```
+
+O repo recebe a `TransicionaisSession` no construtor e chama `session.request(...)` nas rotas que
+pedem token. A rota pública do encontro usa o `HttpClient` direto.
 
 ## Exemplo: Supabase (função SQL)
 

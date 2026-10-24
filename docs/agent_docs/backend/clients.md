@@ -12,6 +12,8 @@
 | C4 | Falha de rede (sem resposta HTTP) devolve `status: 0` com `error`. |
 | C5 | Só `fetch` (funciona no Edge). Sem `node:*`. |
 | C6 | Um SDK de terceiro (ex.: `supabase-js`) também é criado aqui, uma vez, e passado aos repos. O resultado dele é convertido para `IClientResponse<T>`. |
+| C7 | **Timeout:** toda chamada HTTP tem `AbortSignal.timeout` (padrão 3 s). Estourou → `status: 0`, como falha de rede (C4). |
+| C8 | Headers (token, `x-forwarded-for`) entram pelo parâmetro da chamada. O client não conhece token nem env de domínio. |
 
 ## Exemplo: HTTP
 
@@ -19,19 +21,37 @@
 // src/serve-utils/clients/http-client.ts
 import type { IClientResponse } from "../interfaces/client-response";
 
+export interface IHttpRequest {
+  method?: "GET" | "POST" | "PUT" | "DELETE";
+  url: string;
+  body?: unknown;
+  headers?: Record<string, string>;
+  timeoutMs?: number; // padrão 3000 (C7)
+}
+
 export class HttpClient {
-  async get<T>(url: string): Promise<IClientResponse<T>> {
+  async get<T>(url: string, headers?: Record<string, string>): Promise<IClientResponse<T>> {
+    return this.request<T>({ url, headers });
+  }
+
+  async request<T>(input: IHttpRequest): Promise<IClientResponse<T>> {
     try {
-      const response = await fetch(url);
+      const response = await fetch(input.url, {
+        method: input.method ?? "GET",
+        headers: { "content-type": "application/json", ...input.headers },
+        body: input.body === undefined ? undefined : JSON.stringify(input.body),
+        signal: AbortSignal.timeout(input.timeoutMs ?? 3000),
+      });
+
+      const text = await response.text();
+      const json: unknown = text ? JSON.parse(text) : undefined; // 204 vem sem corpo
 
       if (!response.ok) {
-        return {
-          status: response.status,
-          error: { message: response.statusText, details: await response.text() },
-        };
+        // details traz o corpo do erro ({ key, message } no Transicionais): o repo decide (C3)
+        return { status: response.status, error: { message: response.statusText, details: json } };
       }
 
-      return { status: response.status, data: (await response.json()) as T };
+      return { status: response.status, data: json as T };
     } catch (error) {
       return {
         status: 0,
