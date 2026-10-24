@@ -170,7 +170,7 @@ Arquivos: `app.js` e `index.html`.
 
 ## Passo 5 — Verificação
 
-1. `npm run typecheck` passa. Build e lint ficam para o fim, depois da onda 5, com a Bea.
+1. `npm run typecheck` e o build passam (o build é rodado pelo tech lead ao fim de cada onda).
 2. `npx vercel dev`, com `.env.local` apontando para o projeto de dev.
 3. Testes com `curl`:
    - `GET /api/ensaio`;
@@ -245,9 +245,11 @@ arquivos de cada um não se cruzam. Ninguém commita. Eu reviso e commito ao fim
 | 5 | **specs** (general-purpose) | 6 | `docs/spec/**`, `docs/plans/bff-fase-1.md` | onda 4 sem falhas |
 
 Regras para todos os subagentes:
-- **Build e lint só no fim da implementação** (regra deste plano): nenhuma onda roda
-  `yarn build` nem `yarn lint`. Durante as ondas, só `npm run typecheck` (`tsc --noEmit`). Hoje o
-  repo usa npm (`package-lock.json`) e não tem script de lint.
+- **Build ao fim de cada onda, rodado pelo tech lead** na revisão, antes do commit. O subagente
+  não roda build nem lint, só `npm run typecheck` (`tsc --noEmit`). Hoje o repo usa npm
+  (`package-lock.json`) e não tem script de lint.
+- **Testes manuais:** a Bea testa no navegador depois e diz o que funcionou. Ninguém espera o
+  Supabase nem o `.env.local` para seguir.
 - O subagente **back** segue o `CLAUDE.md` e lê os docs de `docs/agent_docs/backend/` pela tabela
   **Por tarefa**. Termina com `npm run typecheck` passando.
 - Se surgir algo que os docs ou o contrato não cobrem, o subagente para e relata. Ele não inventa
