@@ -1,7 +1,10 @@
 # Implementação da fase 2 do bff-hormonios
 
 > Plano de execução de [`bff-fase-2.md`](bff-fase-2.md). Feito com a Bea em 2026-10-24.
-> **Status:** onda 1 (docs) feita. Ondas 2 a 6 por subagente, uma por vez.
+> **Status (2026-10-25):** ondas 1 (docs), 2 (leitura e Produção) e 3 (reservas, cron e webhooks)
+> feitas, e a E2.9 (estoque pelas assistências) também. Faltam a 4 (front e Worker) e a 5
+> (verificação). A 6 (specs) virou contínua: a skill `code-pattern` exige a spec e o doc de usecase
+> junto com o código ([`spec/back/fase-2.md`](../spec/back/fase-2.md), [`spec/front/fase-2.md`](../spec/front/fase-2.md)).
 > Dúvidas: [`bff-fase-2-duvidas.md`](bff-fase-2-duvidas.md).
 
 ## Contexto

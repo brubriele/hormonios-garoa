@@ -17,7 +17,7 @@ cookies, a autenticação do cron e do webhook e o IP real. Não têm regra de n
 | H6 | **`hg_admin`:** `createAdminCookie()` grava, com validade de 12 h. `requireAdmin(request)` lança `UnauthorizedError` sem um cookie válido. A assinatura é HMAC-SHA256 por WebCrypto, com `COOKIE_KEY`. |
 | H7 | **`ADMIN_KEY`:** comparada só por `isAdminKey(candidate)`, em tempo constante. Nunca use `===` na chave. |
 | H8 | Só WebCrypto (`globalThis.crypto`) e `btoa`/`atob`. Sem `node:*` (G4). Env lida na chamada. |
-| H9 | **Cron:** `requireCron(request)` (`http/cron-auth.ts`) exige `Authorization: Bearer <CRON_SECRET>` e lança `UnauthorizedError`. A comparação é pelo HMAC, em tempo constante, como a H7. |
+| H9 | **Cron:** `requireCron(request)` (`http/cron-auth.ts`) exige `Authorization: Bearer <CRON_SECRET>` e lança `UnauthorizedError`. A comparação é pelo SHA-256 dos dois valores (WebCrypto `digest`), em tempo constante. |
 | H10 | **Webhook:** `verifyWebhookJwt(request)` (`http/webhook-auth.ts`) confere o `Authorization: Bearer <JWT>` do Transicionais: HS256 com `TRANSICIONAIS_JWT_KEY` (WebCrypto `verify`), `exp` no futuro e `role: "SERVICE"`. Falhou → `UnauthorizedError`. Devolve o payload. |
 | H11 | **IP real:** `clientIp(request)` (`http/client-ip.ts`) devolve o primeiro IP do `x-forwarded-for` que a Vercel repassa, ou `null`. A rota passa o IP ao usecase, que o repassa ao repo do Transicionais (R4 de `bff-fase-2.md`). |
 

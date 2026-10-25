@@ -51,7 +51,10 @@ Se a tarefa não está na tabela, leia o doc de cada pasta que vai tocar, como e
 
 1. Passe pelo [checklist](#checklist-ao-terminar) no fim deste README.
 2. Rode `tsc --noEmit`.
-3. Se você criou uma pasta, um tipo de arquivo ou uma regra que estes docs não cobrem, avise a pessoa
+3. Atualize a spec: `docs/spec/back/fase-<N>.md` e, para cada usecase criado ou alterado,
+   a seção dele em `docs/spec/back/usecases/<dominio>.md` (modelo em
+   [`usecases/README.md`](../../spec/back/usecases/README.md)).
+4. Se você criou uma pasta, um tipo de arquivo ou uma regra que estes docs não cobrem, avise a pessoa
    em vez de inventar o padrão. Os docs são a fonte do padrão e precisam ser atualizados antes.
 
 ## Escopo

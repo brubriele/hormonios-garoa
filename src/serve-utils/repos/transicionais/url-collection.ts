@@ -3,6 +3,7 @@ export class TransicionaisUrlCollection {
   static readonly COMMUNITY_PATH = "v2/community/organizations";
   static readonly EVENT_PATH = "v2/manager-events/details";
   static readonly SUPPORT_TYPE_PATH = "v2/manager-support-types";
+  static readonly VALIDATION_PATH = "v2/community/validations";
 
   // lido na chamada, nao no import: env ausente quebra na hora certa (R2)
   // TRANSICIONAIS_URL já traz o prefixo /apps_nodejs
@@ -82,5 +83,10 @@ export class TransicionaisUrlCollection {
   // catálogo da assistência: capacity, groupIds e rotativo (E2.9)
   static supportType(id: number): string {
     return `${this.apiUrl}/${this.SUPPORT_TYPE_PATH}/${encodeURIComponent(id)}`;
+  }
+
+  // resposta do convidado, escrita pelo token de membro em nome dele (E2.8)
+  static validationChange(): string {
+    return `${this.apiUrl}/${this.VALIDATION_PATH}/change`;
   }
 }

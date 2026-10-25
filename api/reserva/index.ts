@@ -1,18 +1,26 @@
+import { HttpClient } from "../../src/serve-utils/clients/http-client";
 import { SupabaseClient } from "../../src/serve-utils/clients/supabase-client";
+import { clientIp } from "../../src/serve-utils/http/client-ip";
 import { getOrCreateDevice } from "../../src/serve-utils/http/device";
 import { handle, readJson } from "../../src/serve-utils/http/handle";
 import { HormoniosRepo } from "../../src/serve-utils/repos/supabase/repo";
+import { TransicionaisRepo } from "../../src/serve-utils/repos/transicionais/repo";
+import { TransicionaisSession } from "../../src/serve-utils/repos/transicionais/session";
 import { ReserveUsecase, type IReserveInput } from "../../src/serve-utils/usecases/reserve";
 
 export const POST = handle(async (request) => {
   const { deviceId, cookie } = getOrCreateDevice(request);
-  const body = await readJson<Omit<IReserveInput, "deviceId">>(request);
+  const body = await readJson<Omit<IReserveInput, "deviceId" | "ip">>(request);
 
-  const usecase = new ReserveUsecase(new HormoniosRepo(new SupabaseClient()));
+  const httpClient = new HttpClient();
+  const usecase = new ReserveUsecase(
+    new HormoniosRepo(new SupabaseClient()),
+    new TransicionaisRepo(httpClient, new TransicionaisSession(httpClient)),
+  );
 
   return {
     status: 201,
-    body: await usecase.execute({ ...body, deviceId }),
+    body: await usecase.execute({ ...body, deviceId, ip: clientIp(request) }),
     cookies: cookie ? [cookie] : [],
   };
 });

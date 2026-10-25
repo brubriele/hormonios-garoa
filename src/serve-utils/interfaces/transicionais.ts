@@ -1,4 +1,7 @@
+import type { AppError } from "../errors/app-error";
+import type { AttendanceAnswer } from "../models/attendance";
 import type { EventSnapshot } from "../models/event-snapshot";
+import type { UUID } from "./uuid";
 
 // formatos crus da API do Transicionais; nunca saem do repo (nomes do contrato, pelo script da skill)
 
@@ -209,6 +212,110 @@ export interface IRawCreatedEvent {
   content?: IRawTransicionaisId | { id?: IRawTransicionaisId } | null;
 }
 
+// corpo do POST v2/community/validations/change com o token de membro, em nome do convidado
+// (E2.8; setup-hormonios.md, item 6: ainda fora do contrato local, D3)
+export interface IRawValidationChangeInput {
+  type: "ATTENDANCE";
+  configDayId: IRawTransicionaisId;
+  status: "ATTENDING" | "DECLINED";
+  groupId?: IRawTransicionaisId; // ausente = só presença ("Não se aplica")
+  supportTypeIds: IRawTransicionaisId[];
+  person: { email: string; name: string; pronoun: string };
+  idempotencyKey: string;
+}
+
+// resposta do validations/change (setup, item 6). O contrato local só diz `content` (201): os
+// campos podem vir nele ou na raiz (dúvida D33)
+export interface IRawValidationChange {
+  guestId?: string | number | null;
+  orderId?: string | number | null;
+  answer?: string | null;
+  changedAt?: string | null;
+  dayVacancies?: IRawDayVacancies | null;
+}
+
+export interface IRawValidationChangeResponse extends IRawValidationChange {
+  content?: IRawValidationChange | null;
+}
+
+// vagas do dia nos webhooks. O plano traz só groups (pessoas por grupo); o estoque é por
+// assistência (E2.9), então só supports é usado (dúvida D36)
+export interface IRawDayVacancies {
+  total?: number | null;
+  groups?: { groupId: IRawTransicionaisId | string; remaining: number | null }[];
+  supports?: { id?: IRawTransicionaisId | string; supportTypeId?: IRawTransicionaisId | string; occupied: number }[];
+}
+
+// envelope dos webhooks (bff-fase-2.md, "Webhooks")
+export interface IRawWebhookEnvelope {
+  deliveryId: string;
+  type: string;
+  occurredAt?: string;
+  organizationId?: string;
+  data?: unknown;
+}
+
+export interface IRawEventUpdatedData {
+  externalId: string;
+  version?: number;
+  current?: boolean;
+  event: IRawPublicEvent; // o mesmo retrato do GET público
+  vacanciesAt?: string;
+}
+
+export interface IRawValidationChangedData {
+  orderId?: string | number | null;
+  configDayId: IRawTransicionaisId | string;
+  person?: { kind?: string; guestId?: string | number | null; email?: string | null };
+  answer: string; // ATTENDING | DECLINED | TENTATIVE
+  status?: string;
+  groupId?: IRawTransicionaisId | string | null;
+  supportTypeIds?: (IRawTransicionaisId | string)[];
+  changedAt: string;
+  dayVacancies?: IRawDayVacancies | null;
+}
+
+// envio da reserva (E2.8): o estado atual da linha
+export interface ISendAttendanceData {
+  attendanceId: UUID;
+  updatedAt: string; // entra na idempotencyKey (<id>:<updated_at>)
+  dayKey: string; // = configDayId
+  answer: AttendanceAnswer;
+  groupId: string | null; // null = só presença
+  supportTypeIds: string[]; // assistência do instrumento + acessórios (E2.9); vazio sem grupo ou "não vou"
+  person: { email: string; name: string; pronoun: string };
+  ip: string | null; // IP real (H11); no cron, null
+}
+
+// envio da reserva tem plano de falha: não lança (R11)
+export type ISendAttendanceResult =
+  | { status: "SYNCED"; guestId: string | null; orderId: string | null; changedAt: string | null }
+  | { status: "REJECTED"; error: AppError } // key do Hormônios (SOLD_OUT_ERROR…)
+  | { status: "PENDING"; retryNow: boolean }; // retryNow: VALIDATION_ANSWER_CHANGED; senão espera crescente
+
+// validation.changed já traduzido; o occupied é do dia, por assistência (supportId -> ocupado)
+export interface IWebhookValidation {
+  orderId: string | null;
+  dayKey: string;
+  guestId: string | null;
+  email: string | null;
+  answer: AttendanceAnswer;
+  groupId: string | null;
+  supportTypeIds: string[]; // instrumento + acessórios, como no Transicionais
+  changedAt: string;
+  occupied: Record<string, number> | null;
+}
+
+export type IEventWebhookResult =
+  | { status: "SNAPSHOT"; snapshot: EventSnapshot }
+  | { status: "OTHER_EVENT" } // externalId diferente do atual
+  | { status: "UNMAPPABLE" }; // o retrato não deu para mapear: o usecase chama a rotina
+
+export type ITransicionaisWebhook =
+  | { type: "event.updated"; deliveryId: string; result: IEventWebhookResult }
+  | { type: "validation.changed"; deliveryId: string; validation: IWebhookValidation }
+  | { type: "other"; deliveryId: string; rawType: string };
+
 // encontro atual: o primeiro Público da listagem de manager (E2.7, revista)
 export interface IEventRef {
   externalId: string;
@@ -240,4 +347,11 @@ export interface ITransicionaisRepo {
   closeEvent(ref: IEventRef): Promise<void>;
   // estoque da assistência (E2.9): grava o capacity, mantendo o resto do catálogo dela
   updateSupportCapacity(supportId: string, capacity: number): Promise<void>;
+  // envia o estado atual da reserva (E2.8). Não lança: fora do ar vira PENDING
+  sendAttendance(data: ISendAttendanceData): Promise<ISendAttendanceResult>;
+  // traduz o corpo de um webhook; current = o encontro do retrato (null = retrato local da fase 1).
+  // Corpo inválido -> InvalidParameterError
+  // em rascunho: webhook do Transicionais, ainda não revisado pela Bea. Não usar até a revisão.
+  /** @deprecated Em rascunho, aguardando revisão (webhook do Transicionais). */
+  parseWebhook(body: unknown, current: IEventRef | null): ITransicionaisWebhook;
 }

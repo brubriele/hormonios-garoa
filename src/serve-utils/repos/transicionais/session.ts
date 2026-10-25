@@ -21,8 +21,8 @@ function isUnavailable(status: number): boolean {
 export class TransicionaisSession {
   constructor(private readonly httpClient: HttpClient) {}
 
-  // chamada autenticada: num 401, renova (ou entra de novo) e tenta uma vez mais
-  async request<T>(input: IHttpRequest): Promise<IClientResponse<T>> {
+  // chamada autenticada: num 401 (ou num status de renewOn), renova (ou entra de novo) e tenta uma vez mais
+  async request<T>(input: IHttpRequest, renewOn: readonly number[] = [401]): Promise<IClientResponse<T>> {
     const current = await this.currentTokens();
 
     if ("failure" in current) {
@@ -31,7 +31,7 @@ export class TransicionaisSession {
 
     const first = await this.send<T>(input, current.tokens.access);
 
-    if (first.status !== 401) {
+    if (!renewOn.includes(first.status)) {
       return first;
     }
 

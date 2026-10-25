@@ -1,5 +1,5 @@
 import { AppError } from "../errors/app-error";
-import type { Attendance } from "../models/attendance";
+import type { Attendance, AttendanceSync } from "../models/attendance";
 import type { CurrentEvent } from "../models/current-event";
 import type { IHormoniosRepo } from "../interfaces/hormonios";
 import type { UUID } from "../interfaces/uuid";
@@ -21,6 +21,8 @@ export interface IMyReservationView {
   accessories: IMyAccessoryView[]; // os acessórios do retrato; id que saiu do encontro fica de fora
   name: string;
   pronoun: string;
+  sync: AttendanceSync;
+  syncError: string | null; // key do Hormônios (SOLD_OUT_ERROR…), só quando REJECTED
 }
 
 export class ListMyReservationsUsecase {
@@ -51,6 +53,8 @@ export class ListMyReservationsUsecase {
       accessories: this.buildAccessories(event, attendance.supportIds),
       name: attendance.user.name,
       pronoun: attendance.user.pronoun,
+      sync: attendance.sync,
+      syncError: attendance.sync === "REJECTED" ? attendance.syncError : null,
     }));
   }
 
@@ -64,10 +68,10 @@ export class ListMyReservationsUsecase {
     return this.hormoniosRepo.findCurrentEventOrFail();
   }
 
-  // só as linhas "vou", com e sem instrumento
+  // só as linhas "vou", com e sem instrumento, inclusive as REJECTED (a tela mostra a recusa)
   private async findSupabaseDeviceAttendances(event: CurrentEvent, deviceId: UUID): Promise<Attendance[]> {
     const attendances = await this.hormoniosRepo.listByDevice({ dayKey: event.dayKey, deviceId });
 
-    return attendances.filter((attendance) => attendance.isGoing);
+    return attendances.filter((attendance) => attendance.answer === "vou");
   }
 }

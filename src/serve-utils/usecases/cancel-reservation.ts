@@ -1,17 +1,28 @@
 import { AppError, InvalidParameterError } from "../errors/app-error";
+import type { Attendance } from "../models/attendance";
 import type { CurrentEvent } from "../models/current-event";
 import type { IHormoniosRepo } from "../interfaces/hormonios";
+import type { ITransicionaisRepo } from "../interfaces/transicionais";
 import type { UUID } from "../interfaces/uuid";
+import { SendAttendanceUsecase } from "./send-attendance";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface ICancelReservationInput {
   id: UUID;
   deviceId: UUID;
+  ip: string | null; // IP real (H11), repassado ao Transicionais
 }
 
 export class CancelReservationUsecase {
-  constructor(private readonly hormoniosRepo: IHormoniosRepo) {}
+  private readonly sendAttendance: SendAttendanceUsecase;
+
+  constructor(
+    private readonly hormoniosRepo: IHormoniosRepo,
+    private readonly transicionaisRepo: ITransicionaisRepo,
+  ) {
+    this.sendAttendance = new SendAttendanceUsecase(this.hormoniosRepo, this.transicionaisRepo);
+  }
 
   async execute(input: ICancelReservationInput): Promise<void> {
     try {
@@ -31,12 +42,9 @@ export class CancelReservationUsecase {
 
     const event = await this.findSupabaseCurrentEvent();
 
-    // "Não vou": answer nao-vou, sem grupo e sem acessórios; NotFoundError se não for deste aparelho
-    await this.hormoniosRepo.cancelByDevice({
-      dayKey: event.dayKey,
-      deviceId: input.deviceId,
-      attendanceId: input.id,
-    });
+    const attendance = await this.cancelSupabaseAttendance(input, event);
+
+    await this.sendTransicionaisAttendance(attendance, event, input.ip);
   }
 
   private validateInput(input: ICancelReservationInput) {
@@ -47,5 +55,24 @@ export class CancelReservationUsecase {
 
   private async findSupabaseCurrentEvent(): Promise<CurrentEvent> {
     return this.hormoniosRepo.findCurrentEventOrFail();
+  }
+
+  // "Não vou": answer nao-vou, sem grupo e sem acessórios; NotFoundError se não for deste aparelho
+  private async cancelSupabaseAttendance(input: ICancelReservationInput, event: CurrentEvent): Promise<Attendance> {
+    return this.hormoniosRepo.cancelByDevice({
+      dayKey: event.dayKey,
+      deviceId: input.deviceId,
+      attendanceId: input.id,
+    });
+  }
+
+  // envia DECLINED na hora. Recusou: a linha fica REJECTED e a rota responde o erro traduzido
+  // (dúvida D34). Fora ou lento: PENDING, o cron envia depois
+  private async sendTransicionaisAttendance(attendance: Attendance, event: CurrentEvent, ip: string | null) {
+    const outcome = await this.sendAttendance.execute({ attendance, event, ip });
+
+    if (outcome.error) {
+      throw outcome.error;
+    }
   }
 }

@@ -59,3 +59,9 @@ export class UpstreamUnavailableError extends AppError {
   readonly key = "UPSTREAM_UNAVAILABLE_ERROR";
   readonly status = 503;
 }
+
+// o Transicionais recusou a reserva por outra regra (não é vaga nem prazo)
+export class ReservationRejectedError extends AppError {
+  readonly key = "RESERVATION_REJECTED_ERROR";
+  readonly status = 409;
+}

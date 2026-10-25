@@ -40,4 +40,11 @@ vira model do Hormônios no `mapper*`, e o model vira o corpo da requisição.
 
 # regras 
 - Primeiro escreve o código e depois roda o teste
-- Sempre perguntar antes de rodar o yarn build 
+- Sempre perguntar antes de rodar o yarn build
+- **Spec junto com o código.** Toda entrega que muda `api/`, `src/serve-utils/` ou `supabase/`
+  atualiza `docs/spec/back/fase-<N>.md` (cria a da fase, se não existir, no formato da
+  `fase-1.md`) e a linha do changelog em `docs/spec/back/README.md`. Mudou o front: o mesmo em
+  `docs/spec/front/`.
+- **Doc de usecase.** Usecase criado ou alterado atualiza a seção dele no doc do domínio, em
+  `docs/spec/back/usecases/<dominio>.md`, com a referência ao `.ts` do usecase. É um ADR curto, no
+  modelo de `docs/spec/back/usecases/README.md`. 

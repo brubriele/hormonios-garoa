@@ -1,9 +1,11 @@
 import { AppError, BookingClosedError, InvalidParameterError } from "../errors/app-error";
-import type { Attendance } from "../models/attendance";
+import type { Attendance, AttendanceSync } from "../models/attendance";
 import type { CurrentEvent } from "../models/current-event";
 import type { User } from "../models/user";
 import type { IHormoniosRepo } from "../interfaces/hormonios";
+import type { ITransicionaisRepo } from "../interfaces/transicionais";
 import type { UUID } from "../interfaces/uuid";
+import { SendAttendanceUsecase } from "./send-attendance";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -14,6 +16,7 @@ export interface IReserveInput {
   groupId: string | null; // null = só presença
   supportIds: string[];
   deviceId: UUID;
+  ip: string | null; // IP real (H11), repassado ao Transicionais
 }
 
 export interface IReservationView {
@@ -22,10 +25,18 @@ export interface IReservationView {
   supportIds: string[];
   name: string;
   pronoun: string;
+  sync: AttendanceSync; // PENDING: fora do ar, lento ou retrato local; SYNCED: o Transicionais aceitou
 }
 
 export class ReserveUsecase {
-  constructor(private readonly hormoniosRepo: IHormoniosRepo) {}
+  private readonly sendAttendance: SendAttendanceUsecase;
+
+  constructor(
+    private readonly hormoniosRepo: IHormoniosRepo,
+    private readonly transicionaisRepo: ITransicionaisRepo,
+  ) {
+    this.sendAttendance = new SendAttendanceUsecase(this.hormoniosRepo, this.transicionaisRepo);
+  }
 
   async execute(input: IReserveInput): Promise<IReservationView> {
     try {
@@ -46,6 +57,7 @@ export class ReserveUsecase {
     const event = await this.findSupabaseCurrentEvent(input);
     const user = await this.upsertSupabaseUser(input);
     const attendance = await this.reserveSupabaseAttendance(input, event, user);
+    const sync = await this.sendTransicionaisAttendance(attendance, event, input.ip);
 
     return {
       id: attendance.id,
@@ -53,6 +65,7 @@ export class ReserveUsecase {
       supportIds: attendance.supportIds,
       name: attendance.user.name,
       pronoun: attendance.user.pronoun,
+      sync,
     };
   }
 
@@ -133,5 +146,21 @@ export class ReserveUsecase {
       groupId: input.groupId,
       supportIds: [...new Set(input.supportIds)],
     });
+  }
+
+  // grava local primeiro (PENDING) e envia na hora. Recusou: a linha fica REJECTED e a rota responde
+  // o erro traduzido. Fora ou lento: PENDING, o cron envia depois
+  private async sendTransicionaisAttendance(
+    attendance: Attendance,
+    event: CurrentEvent,
+    ip: string | null,
+  ): Promise<AttendanceSync> {
+    const outcome = await this.sendAttendance.execute({ attendance, event, ip });
+
+    if (outcome.error) {
+      throw outcome.error;
+    }
+
+    return outcome.sync;
   }
 }

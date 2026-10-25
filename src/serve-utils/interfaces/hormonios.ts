@@ -117,6 +117,53 @@ export interface IMoveAttendancesData {
   groupMap: Record<string, string>; // groupId antigo -> novo; fora do mapa vira só presença
 }
 
+export interface IClaimPendingFilter {
+  dayKey: string; // só o dia atual (D11)
+  limit: number;
+}
+
+// resultado de um envio ao Transicionais, gravado só se a linha ainda é a enviada (marcar_sync)
+export type IMarkSyncData =
+  | {
+    mode: "SYNCED";
+    attendanceId: UUID;
+    updatedAt: string; // o lido antes do envio
+    orderId: string | null;
+    changedAt: string | null;
+    guestId: string | null;
+  }
+  | { mode: "REJECTED"; attendanceId: UUID; updatedAt: string; error: string } // key do Hormônios
+  | { mode: "RETRY" | "BACKOFF"; attendanceId: UUID; updatedAt: string }; // próximo ciclo | espera crescente
+
+// webhook validation.changed, já no formato do Hormônios
+export interface IApplyValidationData {
+  orderId: string | null;
+  dayKey: string;
+  guestId: string | null;
+  email: string | null;
+  answer: AttendanceAnswer;
+  groupId: string | null;
+  supportIds: string[]; // só os acessórios
+  changedAt: string;
+}
+
+// APPLIED: gravou; STALE: o webhook é mais velho; LOCAL_NEWER: a mudança local é mais nova;
+// UNKNOWN_PERSON: fora de hg_users (B6); NO_ROW: a pessoa não tem linha no dia
+export type IApplyValidationResult = "APPLIED" | "STALE" | "LOCAL_NEWER" | "UNKNOWN_PERSON" | "NO_ROW";
+
+// ocupado do dia que veio num webhook: groupId -> taken do instrumento, supportId -> taken do acessório
+export interface ISaveVacanciesData {
+  dayKey: string;
+  vacanciesAt: string;
+  groups: Record<string, number>;
+  supports: Record<string, number>;
+}
+
+export interface IWebhookDeliveryData {
+  deliveryId: string;
+  type: string;
+}
+
 export interface IHormoniosRepo {
   findCurrentEvent(): Promise<CurrentEvent | null>;
   findCurrentEventOrFail(): Promise<CurrentEvent>;
@@ -126,7 +173,27 @@ export interface IHormoniosRepo {
   moveAttendances(data: IMoveAttendancesData): Promise<number>;
   upsertUserByEmail(data: IUpsertUserData): Promise<User>;
   reserve(data: IReserveData): Promise<Attendance>;
-  cancelByDevice(filter: ICancelByDeviceFilter): Promise<void>;
+  // devolve a linha cancelada (PENDING), para o envio
+  cancelByDevice(filter: ICancelByDeviceFilter): Promise<Attendance>;
   listByDevice(filter: IListByDeviceFilter): Promise<Attendance[]>;
   listByDay(dayKey: string): Promise<Attendance[]>;
+  // cron de sincronização: as linhas PENDING vencidas do dia, com o next_attempt_at adiado
+  claimPending(filter: IClaimPendingFilter): Promise<Attendance[]>;
+  // true quando gravou (a linha não mudou durante o envio)
+  markSync(data: IMarkSyncData): Promise<boolean>;
+  // em rascunho: webhook do Transicionais, ainda não revisado pela Bea. Não usar até a revisão.
+  /** @deprecated Em rascunho, aguardando revisão (webhook do Transicionais). */
+  applyValidation(data: IApplyValidationData): Promise<IApplyValidationResult>;
+  // true quando gravou (vagas mais novas que as do retrato)
+  // em rascunho: webhook do Transicionais, ainda não revisado pela Bea. Não usar até a revisão.
+  /** @deprecated Em rascunho, aguardando revisão (webhook do Transicionais). */
+  saveVacancies(data: ISaveVacanciesData): Promise<boolean>;
+  // false quando a entrega já foi recebida (deduplicação)
+  // em rascunho: webhook do Transicionais, ainda não revisado pela Bea. Não usar até a revisão.
+  /** @deprecated Em rascunho, aguardando revisão (webhook do Transicionais). */
+  registerWebhookDelivery(data: IWebhookDeliveryData): Promise<boolean>;
+  // desfaz o registro de uma entrega que falhou, para o reenvio do Transicionais processar
+  // em rascunho: webhook do Transicionais, ainda não revisado pela Bea. Não usar até a revisão.
+  /** @deprecated Em rascunho, aguardando revisão (webhook do Transicionais). */
+  releaseWebhookDelivery(deliveryId: string): Promise<void>;
 }

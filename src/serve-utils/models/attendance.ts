@@ -21,6 +21,9 @@ export class Attendance {
     readonly supportIds: string[],
     readonly createdAt: string,
     readonly sync: AttendanceSync = "PENDING",
+    readonly syncError: string | null = null, // key do Hormônios (SOLD_OUT_ERROR…), só quando REJECTED
+    // última mudança local (hg_attendances.updated_at, como veio do banco): trava e idempotência do envio
+    readonly updatedAt: string | null = null,
   ) {
     this.validate();
   }
@@ -56,6 +59,14 @@ export class Attendance {
 
     if (!SYNCS.includes(this.sync)) {
       throw new InvalidParameterError("Field sync is invalid");
+    }
+
+    if (this.syncError !== null && (typeof this.syncError !== "string" || this.syncError.trim() === "")) {
+      throw new InvalidParameterError("Field syncError is invalid");
+    }
+
+    if (this.updatedAt !== null && (typeof this.updatedAt !== "string" || this.updatedAt.trim() === "")) {
+      throw new InvalidParameterError("Field updatedAt is invalid");
     }
   }
 

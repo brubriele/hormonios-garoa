@@ -221,35 +221,35 @@ export default {
 
 ## Tasks
 
-**E2-S1. Migration 2 e de-para** (E2.2)
+**E2-S1. Migration 2 e de-para** (E2.2) ✅ `0002`–`0004`. Sem de-para por nome: as reservas com instrumento viram só presença (D15).
 
 **E2-S2. Cliente do Transicionais**
-- [ ] Token JWT de serviço (`role: SERVICE`) no `Authorization: Bearer` de toda chamada, obtido e renovado no padrão do Transicionais (T2.4), e o IP real (R4).
-- [ ] Timeout de 3 s.
+- [x] Token JWT de serviço (`role: SERVICE`) no `Authorization: Bearer` de toda chamada, obtido e renovado no padrão do Transicionais (T2.4), e o IP real (R4). Feito com o token de membro (E2.6) até existir a role `SERVICE`.
+- [x] Timeout de 3 s.
 
 **E2-S3. `refreshCurrentEvent()`**
-- [ ] Rotina com a trava. `GET /api/ensaio` passa a usá-la e devolve `stale`.
-- [ ] Rota `GET /api/cron/event`.
+- [x] Rotina com a trava. `GET /api/ensaio` passa a usá-la e devolve `stale`.
+- [x] Rota `GET /api/cron/event`.
 - [ ] Testes: rodar duas vezes não grava; trocar a configuração troca o retrato; versão mais velha não sobrescreve; Transicionais fora devolve `stale`.
 
 **E2-S4. Envio das reservas**
-- [ ] Escrita local primeiro e envio na hora (as duas situações).
-- [ ] `claim_pending(n)` e rota `GET /api/cron/sync` com a tabela de respostas e a trava do `updated_at`.
-- [ ] "Minhas reservas" mostra o status: confirmada, pendente ou recusada (com o motivo).
+- [x] Escrita local primeiro e envio na hora (as duas situações).
+- [x] `claim_pending(n)` e rota `GET /api/cron/sync` com a tabela de respostas e a trava do `updated_at`.
+- [ ] "Minhas reservas" mostra o status: confirmada, pendente ou recusada (com o motivo). O BFF já devolve `sync` e `syncError`; falta o front (onda 4).
 - [ ] Testes: envio repetido não duplica; mudança durante o envio continua `PENDING`; 409 vira `REJECTED`; queda vira `PENDING` com espera.
 
 **E2-S5. Webhooks**
-- [ ] Rota, validação do JWT e deduplicação.
-- [ ] `event.updated` com a trava. `validation.changed` com a trava de `changedAt`, a mudança local mais nova e as vagas.
+- [x] Rota, validação do JWT e deduplicação.
+- [x] `event.updated` com a trava. `validation.changed` com a trava de `changedAt`, a mudança local mais nova e as vagas (só por assistência, D36).
 - [ ] Testes: entrega repetida, fora de ordem, token inválido ou vencido, versão igual, mudança local mais nova que o webhook.
 
 **E2-S6. Worker** (`cron/`, os dois triggers, secrets, um por ambiente)
 
-**E2-S7. Produção pelo Transicionais** (E2.5). Mesma tela; o BFF repassa as edições e o "Encerrar ensaio" cria o próximo encontro. O link do WhatsApp continua local.
+**E2-S7. Produção pelo Transicionais** (E2.5) ✅. Mesma tela; o BFF repassa as edições e o "Encerrar ensaio" cria o próximo encontro. O link do WhatsApp continua local.
 
 **E2-W1. Front:** aviso de `stale` e status da reserva.
 
-**Envs novas:** `TRANSICIONAIS_URL` (com `/apps_nodejs`), `TRANSICIONAIS_USER`, `TRANSICIONAIS_PASSWORD` (E2.6), `CRON_SECRET`, `TRANSICIONAIS_JWT_KEY` (para conferir o JWT dos webhooks).
+**Envs novas:** `TRANSICIONAIS_URL` (com `/apps_nodejs`), `TRANSICIONAIS_USER`, `TRANSICIONAIS_PASSWORD` (E2.6), `TRANSICIONAIS_ORG_ID` (rota pública, D14), `CRON_SECRET`, `TRANSICIONAIS_JWT_KEY` (para conferir o JWT dos webhooks).
 
 **Pronto quando:**
 1. Uma reserva feita no Hormônios aparece na lista de convidados do painel do Transicionais, com grupo, assistências e pronome.

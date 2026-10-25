@@ -1,7 +1,10 @@
 import {
   type AppError,
+  BookingClosedError,
   InvalidParameterError,
   NotFoundError,
+  ReservationRejectedError,
+  SoldOutError,
   StockBelowReservationsError,
   UpstreamUnavailableError,
 } from "../../errors/app-error";
@@ -13,18 +16,30 @@ import type {
   IRawConfigDay,
   IRawCreatedEvent,
   IRawDaySupport,
+  IRawDayVacancies,
   IRawErrorBody,
   IRawEventDetails,
   IRawEventPublic,
   IRawEventPublicInput,
   IRawEventSummary,
+  IRawEventUpdatedData,
   IRawManagerSupportType,
   IRawPage,
   IRawPublicEvent,
   IRawSupportTypeUpdateInput,
+  IRawValidationChange,
+  IRawValidationChangedData,
+  IRawValidationChangeInput,
+  IRawValidationChangeResponse,
   IRawVersioned,
+  IRawWebhookEnvelope,
+  IEventWebhookResult,
+  ISendAttendanceData,
+  ISendAttendanceResult,
   ITransicionaisRepo,
+  ITransicionaisWebhook,
   IUpdateTransicionaisEventData,
+  IWebhookValidation,
 } from "../../interfaces/transicionais";
 import { CurrentEvent, Group, Support } from "../../models/current-event";
 import { EventSnapshot } from "../../models/event-snapshot";
@@ -52,6 +67,27 @@ const TRANSICIONAIS_ERRORS: Record<string, () => AppError> = {
   SUPPORT_TYPE_NOT_FOUND: () => new NotFoundError("Support Not Found"),
 };
 
+// envio da reserva: key do Transicionais -> AppError do Hormônios; a linha fica REJECTED (tabela
+// "Tradução das keys do Transicionais" de bff-fase-2-implementacao.md)
+const SEND_REJECTIONS: Record<string, () => AppError> = {
+  VALIDATION_GUEST_GROUP_FULL: () => new SoldOutError("Group is sold out"),
+  VALIDATION_GUEST_EVENT_FULL: () => new SoldOutError("Event is sold out"),
+  VALIDATION_GUEST_FREE_SEATS_FULL: () => new SoldOutError("Free seats are sold out"),
+  VALIDATION_GUEST_ANSWER_CLOSED: () => new BookingClosedError("Booking is closed"),
+  VALIDATION_GUEST_ANSWER_NOT_OPEN: () => new BookingClosedError("Booking is not open"),
+  VALIDATION_DAY_INACTIVE: () => new BookingClosedError("Day is inactive"),
+};
+// a resposta mudou ao mesmo tempo em outro lugar (VAL-19): PENDING, próximo ciclo
+const SEND_RETRY_NOW_KEY = "VALIDATION_ANSWER_CHANGED";
+// outro 400/404/409/422 é recusa de regra: RESERVATION_REJECTED_ERROR
+const SEND_REJECTED_STATUSES = [400, 404, 409, 422];
+// 401/403: a sessão renova o token uma vez e reenvia
+const SEND_RENEW_ON = [401, 403];
+
+const WEBHOOK_EVENT_UPDATED = "event.updated";
+const WEBHOOK_VALIDATION_CHANGED = "validation.changed";
+const ANSWER_ATTENDING = "ATTENDING";
+
 // assistência do instrumento e acessório (E2.9)
 const SUPPORT_INSTRUMENT = "instrumento";
 const SUPPORT_ACCESSORY = "acessorio";
@@ -61,6 +97,34 @@ class VersionConflictError extends Error {}
 
 function isUnavailable(status: number): boolean {
   return status === 0 || status === 429 || status >= 500;
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isDate(value: unknown): value is string {
+  return typeof value === "string" && !Number.isNaN(Date.parse(value));
+}
+
+// id do Transicionais (número ou texto) -> texto do Hormônios; vazio vira null
+function optionalId(value: unknown): string | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+
+  return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
+}
+
+// id do Hormônios -> número do Transicionais
+function numericId(value: string, field: string): number {
+  const id = Number(value);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new Error(`Transicionais ${field} must be a positive integer: ${value}`);
+  }
+
+  return id;
 }
 
 function errorKey(response: IClientResponse<unknown>): string | undefined {
@@ -638,5 +702,232 @@ export class TransicionaisRepo implements ITransicionaisRepo {
     }
 
     return response.data;
+  }
+
+  // ------------ envio da reserva (E2.8) ---------
+
+  // POST v2/community/validations/change com o token de membro, em nome do convidado (setup, item 6).
+  // Não lança: qualquer falha que não é recusa vira PENDING (R11)
+  async sendAttendance(data: ISendAttendanceData): Promise<ISendAttendanceResult> {
+    try {
+      const response = await this.session.request<IRawValidationChangeResponse>(
+        {
+          method: "POST",
+          url: TransicionaisUrlCollection.validationChange(),
+          body: this.mapperValidationChangeInput(data),
+          headers: data.ip ? { "x-forwarded-for": data.ip } : undefined,
+        },
+        SEND_RENEW_ON,
+      );
+
+      return this.mapperSendResult(response, data);
+    } catch (error) {
+      console.error(`[TransicionaisRepo] sendAttendance ${data.attendanceId} failed`, error);
+      return { status: "PENDING", retryNow: false };
+    }
+  }
+
+  // só presença ou "não vou": sem groupId e com supportTypeIds vazio
+  private mapperValidationChangeInput(data: ISendAttendanceData): IRawValidationChangeInput {
+    const attending = data.answer === "vou";
+    const groupId = attending && data.groupId !== null ? numericId(data.groupId, "groupId") : undefined;
+
+    return {
+      type: "ATTENDANCE",
+      configDayId: numericId(data.dayKey, "configDayId"),
+      status: attending ? "ATTENDING" : "DECLINED",
+      ...(groupId === undefined ? {} : { groupId }),
+      supportTypeIds:
+        groupId === undefined ? [] : [...new Set(data.supportTypeIds)].map((id) => numericId(id, "supportTypeId")),
+      person: data.person,
+      idempotencyKey: `${data.attendanceId}:${data.updatedAt}`,
+    };
+  }
+
+  // tabela "Tradução das keys do Transicionais" (envio da reserva)
+  private mapperSendResult(
+    response: IClientResponse<IRawValidationChangeResponse>,
+    data: ISendAttendanceData,
+  ): ISendAttendanceResult {
+    if (!response.error && response.status >= 200 && response.status < 300) {
+      const body = response.data;
+      const content: IRawValidationChange = isObject(body?.content) ? body.content : body ?? {};
+
+      return {
+        status: "SYNCED",
+        guestId: optionalId(content.guestId),
+        orderId: optionalId(content.orderId),
+        changedAt: isDate(content.changedAt) ? content.changedAt : null,
+      };
+    }
+
+    const key = errorKey(response);
+
+    if (isUnavailable(response.status)) {
+      return { status: "PENDING", retryNow: false };
+    }
+
+    // continuou 401/403 depois de renovar: é configuração, não culpa da pessoa
+    if (SEND_RENEW_ON.includes(response.status)) {
+      console.error(`[TransicionaisRepo] sendAttendance ${data.attendanceId} unauthorized (${response.status}): ${key}`);
+      return { status: "PENDING", retryNow: false };
+    }
+
+    if (key === SEND_RETRY_NOW_KEY) {
+      return { status: "PENDING", retryNow: true };
+    }
+
+    const knownError = key ? SEND_REJECTIONS[key] : undefined;
+
+    if (knownError) {
+      return { status: "REJECTED", error: knownError() };
+    }
+
+    if (SEND_REJECTED_STATUSES.includes(response.status)) {
+      console.error(`[TransicionaisRepo] sendAttendance ${data.attendanceId} rejected (${response.status}): ${key}`);
+      return { status: "REJECTED", error: new ReservationRejectedError("Reservation was rejected") };
+    }
+
+    console.error(`[TransicionaisRepo] sendAttendance ${data.attendanceId} unexpected ${response.status}: ${key}`);
+    return { status: "PENDING", retryNow: false };
+  }
+
+  // ------------ webhooks ---------
+
+  // envelope { deliveryId, type, occurredAt, organizationId, data } (bff-fase-2.md, "Webhooks")
+  // em rascunho: webhook do Transicionais, ainda não revisado pela Bea. Não usar até a revisão.
+  /** @deprecated Em rascunho, aguardando revisão (webhook do Transicionais). */
+  parseWebhook(body: unknown, current: IEventRef | null): ITransicionaisWebhook {
+    if (!isObject(body) || typeof body.deliveryId !== "string" || body.deliveryId.trim() === "") {
+      throw new InvalidParameterError("Field deliveryId is invalid");
+    }
+
+    if (typeof body.type !== "string" || body.type.trim() === "") {
+      throw new InvalidParameterError("Field type is invalid");
+    }
+
+    const envelope = body as unknown as IRawWebhookEnvelope;
+
+    if (envelope.type === WEBHOOK_EVENT_UPDATED) {
+      return {
+        type: WEBHOOK_EVENT_UPDATED,
+        deliveryId: envelope.deliveryId,
+        result: this.mapperEventWebhook(envelope, current),
+      };
+    }
+
+    if (envelope.type === WEBHOOK_VALIDATION_CHANGED) {
+      return {
+        type: WEBHOOK_VALIDATION_CHANGED,
+        deliveryId: envelope.deliveryId,
+        validation: this.mapperValidationWebhook(envelope.data),
+      };
+    }
+
+    return { type: "other", deliveryId: envelope.deliveryId, rawType: envelope.type };
+  }
+
+  // o retrato vem no formato do GET público: mesmo mapper, com o dia do retrato atual (dúvida D35)
+  private mapperEventWebhook(envelope: IRawWebhookEnvelope, current: IEventRef | null): IEventWebhookResult {
+    const data = envelope.data;
+
+    if (!isObject(data) || typeof data.externalId !== "string" || !isObject(data.event)) {
+      throw new InvalidParameterError("Field data.event is invalid");
+    }
+
+    const updated = data as unknown as IRawEventUpdatedData;
+
+    if (!current || updated.externalId !== current.externalId) {
+      return { status: "OTHER_EVENT" };
+    }
+
+    const event = updated.event;
+    const version = typeof updated.version === "number" ? updated.version : event.version;
+    const dayId = Number(current.dayId);
+    const day = Array.isArray(event.configDays) ? event.configDays.find((item) => item.id === dayId) : undefined;
+
+    // o dia do retrato não veio (a data mudou no Transicionais) ou falta a version: a rotina relê
+    if (!day || !Number.isInteger(version)) {
+      return { status: "UNMAPPABLE" };
+    }
+
+    const vacanciesAt = [updated.vacanciesAt, envelope.occurredAt].find(isDate) ?? new Date().toISOString();
+    const summary: IRawEventSummary = {
+      id: event.id,
+      name: event.name,
+      location: event.location,
+      startAt: event.startAt,
+      endAt: event.endAt,
+      visibility: event.public?.visibility ?? null,
+      categoryId: event.categoryId ?? null,
+      externalId: updated.externalId,
+      configDayId: dayId,
+      groups: event.groups ?? [],
+    };
+
+    try {
+      return { status: "SNAPSHOT", snapshot: this.mapperSnapshot(summary, { ...event, version }, vacanciesAt) };
+    } catch (error) {
+      console.error("[TransicionaisRepo] event.updated could not be mapped", error);
+      return { status: "UNMAPPABLE" };
+    }
+  }
+
+  private mapperValidationWebhook(data: unknown): IWebhookValidation {
+    if (!isObject(data)) {
+      throw new InvalidParameterError("Field data is invalid");
+    }
+
+    const raw = data as unknown as IRawValidationChangedData;
+    const dayKey = optionalId(raw.configDayId);
+
+    if (!dayKey) {
+      throw new InvalidParameterError("Field data.configDayId is invalid");
+    }
+
+    if (!isDate(raw.changedAt)) {
+      throw new InvalidParameterError("Field data.changedAt is invalid");
+    }
+
+    if (typeof raw.answer !== "string") {
+      throw new InvalidParameterError("Field data.answer is invalid");
+    }
+
+    // TENTATIVE (talvez) não ocupa vaga: no Hormônios é "não vou" (dúvida D37)
+    const attending = raw.answer === ANSWER_ATTENDING;
+    const person = isObject(raw.person) ? raw.person : {};
+
+    return {
+      orderId: optionalId(raw.orderId),
+      dayKey,
+      guestId: optionalId(person.guestId),
+      email: typeof person.email === "string" && person.email.trim() !== "" ? person.email : null,
+      answer: attending ? "vou" : "nao-vou",
+      groupId: attending ? optionalId(raw.groupId) : null,
+      supportTypeIds: attending && Array.isArray(raw.supportTypeIds)
+        ? raw.supportTypeIds.map(optionalId).filter((id): id is string => id !== null)
+        : [],
+      changedAt: raw.changedAt,
+      occupied: this.mapperDayOccupied(raw.dayVacancies),
+    };
+  }
+
+  // ocupado por assistência; o formato por grupo (pessoas) não vira estoque (E2.9, dúvida D36)
+  private mapperDayOccupied(vacancies: IRawDayVacancies | null | undefined): Record<string, number> | null {
+    if (!isObject(vacancies) || !Array.isArray(vacancies.supports)) {
+      return null;
+    }
+
+    const occupied: Record<string, number> = {};
+
+    for (const support of vacancies.supports) {
+      const id = optionalId(support?.id ?? support?.supportTypeId);
+
+      if (id && Number.isInteger(support.occupied) && support.occupied >= 0) {
+        occupied[id] = support.occupied;
+      }
+    }
+
+    return Object.keys(occupied).length > 0 ? occupied : null;
   }
 }
