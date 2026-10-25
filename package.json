@@ -6,7 +6,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "cron:event": "node scripts/cron-event.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
