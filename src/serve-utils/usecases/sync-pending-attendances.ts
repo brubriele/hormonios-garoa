@@ -1,9 +1,12 @@
 import { AppError } from "../errors/app-error";
-import type { Attendance } from "../models/attendance";
+import { createLogger } from "../lib/logger";
+import { type Attendance, AttendanceSync } from "../models/attendance";
 import type { CurrentEvent } from "../models/current-event";
 import type { IHormoniosRepo } from "../interfaces/hormonios";
 import type { ITransicionaisRepo } from "../interfaces/transicionais";
 import { SendAttendanceUsecase, type ISendAttendanceOutcome } from "./send-attendance";
+
+const logger = createLogger("SyncPendingAttendancesUsecase");
 
 // linhas por execução: cada envio tem timeout de 3 s, e os envios vão em paralelo
 const CLAIM_LIMIT = 10;
@@ -35,7 +38,7 @@ export class SyncPendingAttendancesUsecase {
         throw error;
       }
 
-      console.error("[SyncPendingAttendancesUsecase]", error);
+      logger.error({ err: error }, "unexpected error");
       throw new Error("Unexpected error");
     }
   }
@@ -68,9 +71,9 @@ export class SyncPendingAttendancesUsecase {
   private countOutcomes(outcomes: ISendAttendanceOutcome[]): ISyncPendingAttendancesResult {
     return {
       claimed: outcomes.length,
-      synced: outcomes.filter((outcome) => outcome.sync === "SYNCED").length,
-      rejected: outcomes.filter((outcome) => outcome.sync === "REJECTED").length,
-      pending: outcomes.filter((outcome) => outcome.sync === "PENDING").length,
+      synced: outcomes.filter((outcome) => outcome.sync === AttendanceSync.Synced).length,
+      rejected: outcomes.filter((outcome) => outcome.sync === AttendanceSync.Rejected).length,
+      pending: outcomes.filter((outcome) => outcome.sync === AttendanceSync.Pending).length,
     };
   }
 }

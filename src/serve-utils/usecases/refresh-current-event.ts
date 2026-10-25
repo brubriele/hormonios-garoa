@@ -1,8 +1,12 @@
-import { AppError } from "../errors/app-error";
+import { AppError, UpstreamUnavailableError } from "../errors/app-error";
+import { today } from "../lib/date";
+import { createLogger } from "../lib/logger";
 import type { CurrentEvent } from "../models/current-event";
 import type { EventSnapshot } from "../models/event-snapshot";
 import type { IHormoniosRepo } from "../interfaces/hormonios";
-import type { IFindCurrentEventResult, ITransicionaisRepo } from "../interfaces/transicionais";
+import type { IEventRef, ITransicionaisRepo } from "../interfaces/transicionais";
+
+const logger = createLogger("RefreshCurrentEventUsecase");
 
 export interface IRefreshCurrentEventResult {
   changed: boolean; // o retrato gravado mudou
@@ -26,24 +30,24 @@ export class RefreshCurrentEventUsecase {
         throw error;
       }
 
-      console.error("[RefreshCurrentEventUsecase]", error);
+      logger.error({ err: error }, "unexpected error");
       throw new Error("Unexpected error");
     }
   }
 
   private async _execute(): Promise<IRefreshCurrentEventResult> {
     const current = await this.findSupabaseCurrentEvent();
-    const result = await this.findTransicionaisSnapshot();
+    const snapshot = await this.findTransicionaisSnapshot();
 
-    if (result.status !== "FOUND") {
+    if (!snapshot) {
       return { changed: false, available: false }; // não mexe no retrato
     }
 
     if (current && !current.isFromTransicionais) {
-      await this.migrateSupabaseAttendances(current, result.snapshot);
+      await this.migrateSupabaseAttendances(current, snapshot);
     }
 
-    const changed = await this.hormoniosRepo.saveSnapshot(result.snapshot);
+    const changed = await this.hormoniosRepo.saveSnapshot(snapshot);
 
     return { changed, available: true };
   }
@@ -52,14 +56,40 @@ export class RefreshCurrentEventUsecase {
     return this.hormoniosRepo.findCurrentEvent();
   }
 
-  private async findTransicionaisSnapshot(): Promise<IFindCurrentEventResult> {
-    const result = await this.transicionaisRepo.findCurrentEvent();
+  // null = o encontro não existe ou o Transicionais está fora do ar (plano de falha: fica o retrato)
+  private async findTransicionaisSnapshot(): Promise<EventSnapshot | null> {
+    try {
+      const ref = await this.findTransicionaisCurrentRef();
 
-    if (result.status === "NOT_FOUND") {
-      console.error("[RefreshCurrentEventUsecase] no public Transicionais event from today on");
+      return ref ? await this.findTransicionaisPublicEvent(ref) : null;
+    } catch (error) {
+      if (error instanceof UpstreamUnavailableError) {
+        return null;
+      }
+
+      throw error;
+    }
+  }
+
+  // o encontro atual é o primeiro Público da listagem, de hoje em diante (E2.7)
+  private async findTransicionaisCurrentRef(): Promise<IEventRef | null> {
+    const ref = (await this.transicionaisRepo.listPublicEventsFrom(today()))[0] ?? null;
+
+    if (!ref) {
+      logger.warn("no public Transicionais event from today on");
     }
 
-    return result;
+    return ref;
+  }
+
+  private async findTransicionaisPublicEvent(ref: IEventRef): Promise<EventSnapshot | null> {
+    const snapshot = await this.transicionaisRepo.findPublicEvent(ref);
+
+    if (!snapshot) {
+      logger.warn({ externalId: ref.externalId, dayId: ref.dayId }, "public Transicionais event not found");
+    }
+
+    return snapshot;
   }
 
   // primeira leitura sobre o retrato local da fase 1: as reservas passam ao dia do Transicionais,

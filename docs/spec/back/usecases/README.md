@@ -29,7 +29,7 @@
 
 | Doc | Usecases |
 |---|---|
-| [`ensaio.md`](ensaio.md) | `GetEvent`, `RefreshCurrentEvent` e o módulo `event-summary` (formatos de resposta) |
+| [`ensaio.md`](ensaio.md) | `GetEvent`, `RefreshCurrentEvent` e a conta das vagas e os formatos de resposta (models + mappers) |
 | [`reservas.md`](reservas.md) | `Reserve`, `CancelReservation`, `ListMyReservations`, `SendAttendance` |
 | [`producao.md`](producao.md) | `AdminSummary`, `UpdateEvent`, `NewEvent` (o login não tem usecase) |
 | [`sincronizacao.md`](sincronizacao.md) | `SyncPendingAttendances`, `ReceiveTransicionaisWebhook` |

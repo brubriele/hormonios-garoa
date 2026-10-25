@@ -1,21 +1,22 @@
-import { HttpClient, type IHttpRequest } from "../../clients/http-client";
+import { HttpClient, HttpMethod, type IHttpRequest } from "../../clients/http-client";
+import { UpstreamResponseError } from "../../errors/infra-error";
 import type { IClientResponse } from "../../interfaces/client-response";
-import type { IRawLogin, IRawRefresh } from "../../interfaces/transicionais";
+import { isUnavailable } from "../../lib/upstream";
+import { type ISessionTokens, LoginResponse } from "./responses/login.response";
 import { TransicionaisUrlCollection } from "./url-collection";
 
-interface ITokens {
-  access: string;
-  refresh: string;
-}
-
 // login que não chegou a uma resposta útil (rede, timeout, 429, 5xx): o repo trata como "fora do ar"
-type ISessionResult = { tokens: ITokens } | { failure: IClientResponse<never> };
-
-let tokens: ITokens | null = null; // memória da instância (E2.6)
-
-function isUnavailable(status: number): boolean {
-  return status === 0 || status === 429 || status >= 500;
+interface ISessionTokensResult {
+  tokens: ISessionTokens;
 }
+
+interface ISessionFailureResult {
+  failure: IClientResponse<never>;
+}
+
+type ISessionResult = ISessionTokensResult | ISessionFailureResult;
+
+let tokens: ISessionTokens | null = null; // memória da instância (E2.6)
 
 // token de membro do Transicionais (E2.6). Login, refresh e o reenvio depois de um 401 ficam aqui (R10)
 export class TransicionaisSession {
@@ -57,9 +58,9 @@ export class TransicionaisSession {
   }
 
   // tenta o refresh; se falhar, login de novo
-  private async renew(previous: ITokens): Promise<ISessionResult> {
-    const response = await this.httpClient.request<IRawRefresh>({
-      method: "POST",
+  private async renew(previous: ISessionTokens): Promise<ISessionResult> {
+    const response = await this.httpClient.request<unknown>({
+      method: HttpMethod.Post,
       url: TransicionaisUrlCollection.refreshToken(),
       headers: { authorization: `Bearer ${previous.refresh}` },
     });
@@ -68,12 +69,12 @@ export class TransicionaisSession {
       return { failure: { status: response.status, error: response.error } };
     }
 
-    if (response.error || !response.data?.token) {
+    if (response.error || response.data === undefined) {
       tokens = null;
       return this.login();
     }
 
-    tokens = { access: response.data.token, refresh: response.data.refresh };
+    tokens = LoginResponse.toDomain(response.data, "refreshToken");
     return { tokens };
   }
 
@@ -82,11 +83,12 @@ export class TransicionaisSession {
     const password = process.env.TRANSICIONAIS_PASSWORD;
 
     if (!username || !password) {
+      // check-ignore throw-error: env ausente é configuração (E7), não falha do Transicionais
       throw new Error("TRANSICIONAIS_USER or TRANSICIONAIS_PASSWORD is not set");
     }
 
-    const response = await this.httpClient.request<IRawLogin>({
-      method: "POST",
+    const response = await this.httpClient.request<unknown>({
+      method: HttpMethod.Post,
       url: TransicionaisUrlCollection.login(),
       body: { username, password }, // uma organização só: entra direto nela
     });
@@ -96,11 +98,11 @@ export class TransicionaisSession {
     }
 
     // 400/404: credencial ou organização errada; é configuração, não queda
-    if (response.error || !response.data?.token) {
-      throw new Error(`Transicionais login failed with ${response.status}`);
+    if (response.error || response.data === undefined) {
+      throw new UpstreamResponseError("login", response.status, response.error?.message);
     }
 
-    tokens = { access: response.data.token, refresh: response.data.refresh };
+    tokens = LoginResponse.toDomain(response.data, "login");
     return { tokens };
   }
 }

@@ -1,4 +1,5 @@
 import { AppError, InvalidParameterError } from "../errors/app-error";
+import { createLogger } from "../lib/logger";
 import type { Attendance } from "../models/attendance";
 import type { CurrentEvent } from "../models/current-event";
 import type { IHormoniosRepo } from "../interfaces/hormonios";
@@ -6,10 +7,16 @@ import type { ITransicionaisRepo } from "../interfaces/transicionais";
 import type { UUID } from "../interfaces/uuid";
 import { SendAttendanceUsecase } from "./send-attendance";
 
+const logger = createLogger("CancelReservationUsecase");
+
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export interface ICancelReservationInput {
+// o corpo do POST /api/reserva/desfazer
+export interface ICancelReservationBody {
   id: UUID;
+}
+
+export interface ICancelReservationInput extends ICancelReservationBody {
   deviceId: UUID;
   ip: string | null; // IP real (H11), repassado ao Transicionais
 }
@@ -32,7 +39,7 @@ export class CancelReservationUsecase {
         throw error;
       }
 
-      console.error("[CancelReservationUsecase]", error);
+      logger.error({ err: error }, "unexpected error");
       throw new Error("Unexpected error");
     }
   }

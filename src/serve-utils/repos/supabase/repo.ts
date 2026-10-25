@@ -9,25 +9,37 @@ import {
   SoldOutError,
 } from "../../errors/app-error";
 import { SupabaseClient } from "../../clients/supabase-client";
-import { Attendance } from "../../models/attendance";
-import { CurrentEvent, Group, Support } from "../../models/current-event";
+import { ApplyValidationRequest } from "./requests/apply-validation.request";
+import { CancelByDeviceRequest } from "./requests/cancel-by-device.request";
+import { ClaimPendingRequest } from "./requests/claim-pending.request";
+import { MarkSyncRequest } from "./requests/mark-sync.request";
+import { MoveAttendancesRequest } from "./requests/move-attendances.request";
+import { RegisterWebhookDeliveryRequest } from "./requests/register-webhook-delivery.request";
+import { ReserveRequest } from "./requests/reserve.request";
+import { SaveSnapshotRequest } from "./requests/save-snapshot.request";
+import { SaveVacanciesRequest } from "./requests/save-vacancies.request";
+import { SaveWhatsappRequest } from "./requests/save-whatsapp.request";
+import { UpsertUserRequest } from "./requests/upsert-user.request";
+import { ApplyValidationResponse } from "./responses/apply-validation.response";
+import { AttendanceResponse } from "./responses/attendance.response";
+import { CurrentEventResponse } from "./responses/current-event.response";
+import { MovedCountResponse } from "./responses/moved-count.response";
+import { SavedResponse } from "./responses/saved.response";
+import { UserResponse } from "./responses/user.response";
+import { WebhookDeliveryResponse } from "./responses/webhook-delivery.response";
+import type { ApplyValidationResult, Attendance } from "../../models/attendance";
+import { DatabaseError } from "../../errors/infra-error";
+import type { CurrentEvent } from "../../models/current-event";
 import type { EventSnapshot } from "../../models/event-snapshot";
-import { User } from "../../models/user";
+import type { User } from "../../models/user";
 import type {
   IApplyValidationData,
-  IApplyValidationResult,
   ICancelByDeviceFilter,
   IClaimPendingFilter,
   IHormoniosRepo,
   IListByDeviceFilter,
   IMarkSyncData,
   IMoveAttendancesData,
-  IRawAttendance,
-  IRawAttendanceData,
-  IRawAttendanceWithUser,
-  IRawCurrentEvent,
-  IRawCurrentEventData,
-  IRawUser,
   IReserveData,
   ISaveVacanciesData,
   IUpsertUserData,
@@ -51,111 +63,20 @@ const SQL_ERRORS: Record<string, () => AppError> = {
 export class HormoniosRepo implements IHormoniosRepo {
   constructor(private readonly supabaseClient: SupabaseClient) {}
 
-  private mapperCurrentEvent(raw: IRawCurrentEvent): CurrentEvent {
-    const data = raw.data;
-
-    return new CurrentEvent(
-      data.dayKey,
-      data.date,
-      data.time,
-      data.location,
-      data.bookingOpen,
-      data.whatsappUrl,
-      (data.groups ?? []).map(
-        (group) =>
-          new Group(
-            group.id,
-            group.name,
-            group.stockTotal ?? null,
-            group.active,
-            raw.external_id ? group.taken ?? 0 : null,
-            group.instrumentSupportId ?? null,
-            group.rotativo ?? false,
-          ),
-      ),
-      // retrato da fase 1 sem os campos novos: sem limite, não rotativo, vale para todos os grupos
-      (data.supports ?? []).map(
-        (support) =>
-          new Support(
-            support.id,
-            support.name,
-            support.stockTotal ?? null,
-            raw.external_id ? support.taken ?? 0 : null,
-            support.rotativo ?? false,
-            support.groupIds ?? [],
-          ),
-      ),
-      raw.external_id ?? null,
-      raw.fetched_at ?? null,
-    );
-  }
-
-  private mapperCurrentEventData(event: CurrentEvent): IRawCurrentEventData {
-    return {
-      dayKey: event.dayKey,
-      date: event.date,
-      time: event.time,
-      location: event.location,
-      bookingOpen: event.bookingOpen,
-      whatsappUrl: event.whatsappUrl,
-      groups: event.groups.map((group) => ({
-        id: group.id,
-        name: group.name,
-        stockTotal: group.stockTotal,
-        active: group.active,
-        ...(group.taken === null ? {} : { taken: group.taken }),
-        ...(group.instrumentSupportId === null ? {} : { instrumentSupportId: group.instrumentSupportId }),
-        rotativo: group.rotativo,
-      })),
-      supports: event.supports.map((support) => ({
-        id: support.id,
-        name: support.name,
-        stockTotal: support.stockTotal,
-        ...(support.taken === null ? {} : { taken: support.taken }),
-        rotativo: support.rotativo,
-        groupIds: support.groupIds,
-      })),
-    };
-  }
-
-  private mapperUser(raw: IRawUser): User {
-    return new User(raw.id, raw.email, raw.name, raw.pronoun);
-  }
-
-  private mapperAttendance(raw: IRawAttendance, user: User): Attendance {
-    return new Attendance(
-      raw.id,
-      user,
-      raw.day_key,
-      raw.device_id,
-      raw.data.answer,
-      raw.data.groupId ?? null,
-      raw.data.supportIds ?? [],
-      raw.created_at,
-      raw.transicionais_sync ?? "PENDING",
-      raw.transicionais_sync === "REJECTED" ? raw.sync_error ?? null : null,
-      raw.updated_at ?? null,
-    );
-  }
-
-  private mapperAttendanceWithUser(raw: IRawAttendanceWithUser): Attendance {
-    return this.mapperAttendance(raw, this.mapperUser(raw.hg_users));
-  }
-
   async findCurrentEvent(): Promise<CurrentEvent | null> {
-    const response = await this.supabaseClient.query<IRawCurrentEvent>((sdk) =>
+    const response = await this.supabaseClient.query<unknown>((sdk) =>
       sdk.from("hg_current_event").select("*").eq("id", CURRENT_EVENT_ID).maybeSingle(),
     );
 
     if (response.error) {
-      throw new Error(`Supabase findCurrentEvent failed with ${response.status}: ${response.error.message}`);
+      throw new DatabaseError("findCurrentEvent", response.status, response.error.message);
     }
 
     if (!response.data) {
       return null;
     }
 
-    return this.mapperCurrentEvent(response.data);
+    return CurrentEventResponse.toDomain(response.data);
   }
 
   async findCurrentEventOrFail(): Promise<CurrentEvent> {
@@ -170,88 +91,64 @@ export class HormoniosRepo implements IHormoniosRepo {
 
   // trava do retrato na função gravar_retrato; o whatsappUrl gravado fica
   async saveSnapshot(snapshot: EventSnapshot): Promise<boolean> {
-    const { whatsappUrl: _local, ...data } = this.mapperCurrentEventData(snapshot.event);
-
-    const response = await this.supabaseClient.query<boolean>((sdk) =>
-      sdk.rpc("gravar_retrato", {
-        p_external_id: snapshot.externalId,
-        p_version: snapshot.version,
-        p_vacancies_at: snapshot.vacanciesAt,
-        p_data: data,
-      }),
+    const response = await this.supabaseClient.query<unknown>((sdk) =>
+      sdk.rpc("gravar_retrato", SaveSnapshotRequest.fromDomain(snapshot)),
     );
 
     if (response.error) {
-      throw new Error(`Supabase gravar_retrato failed with ${response.status}: ${response.error.message}`);
+      throw new DatabaseError("gravar_retrato", response.status, response.error.message);
     }
 
-    return response.data === true;
+    return SavedResponse.toDomain(response.data, "gravar_retrato");
   }
 
   async saveWhatsappUrl(url: string): Promise<void> {
-    const response = await this.supabaseClient.query<null>((sdk) => sdk.rpc("gravar_whatsapp", { p_url: url }));
+    const response = await this.supabaseClient.query<unknown>((sdk) =>
+      sdk.rpc("gravar_whatsapp", SaveWhatsappRequest.fromDomain(url)),
+    );
 
     if (response.error?.message === "EVENT_NOT_FOUND") {
       throw new NotFoundError("Current event Not Found");
     }
 
     if (response.error) {
-      throw new Error(`Supabase gravar_whatsapp failed with ${response.status}: ${response.error.message}`);
+      throw new DatabaseError("gravar_whatsapp", response.status, response.error.message);
     }
   }
 
   async moveAttendances(data: IMoveAttendancesData): Promise<number> {
-    const response = await this.supabaseClient.query<number>((sdk) =>
-      sdk.rpc("migrar_fase1", {
-        p_old_day_key: data.oldDayKey,
-        p_new_day_key: data.newDayKey,
-        p_group_map: data.groupMap,
-      }),
+    const response = await this.supabaseClient.query<unknown>((sdk) =>
+      sdk.rpc("migrar_fase1", MoveAttendancesRequest.fromDomain(data)),
     );
 
     if (response.error) {
-      throw new Error(`Supabase migrar_fase1 failed with ${response.status}: ${response.error.message}`);
+      throw new DatabaseError("migrar_fase1", response.status, response.error.message);
     }
 
-    return response.data ?? 0;
+    return MovedCountResponse.toDomain(response.data, "migrar_fase1");
   }
 
   // o mesmo e-mail com outro nome troca o nome e o pronome
   async upsertUserByEmail(data: IUpsertUserData): Promise<User> {
-    const response = await this.supabaseClient.query<IRawUser>((sdk) =>
+    const response = await this.supabaseClient.query<unknown>((sdk) =>
       sdk
         .from("hg_users")
-        .upsert(
-          { email: data.email, name: data.name, pronoun: data.pronoun, updated_at: new Date().toISOString() },
-          { onConflict: "email" },
-        )
+        .upsert(UpsertUserRequest.fromDomain(data, new Date().toISOString()), { onConflict: "email" })
         .select("*")
         .single(),
     );
 
     if (response.error || !response.data) {
-      throw new Error(`Supabase upsertUserByEmail failed with ${response.status}: ${response.error?.message}`);
+      throw new DatabaseError("upsertUserByEmail", response.status, response.error?.message);
     }
 
-    return this.mapperUser(response.data);
+    return UserResponse.toDomain(response.data, "upsertUserByEmail");
   }
 
+  // a trava da última vaga fica na função reservar (R12)
   async reserve(data: IReserveData): Promise<Attendance> {
-    const attendanceData: IRawAttendanceData = {
-      answer: "vou",
-      groupId: data.groupId,
-      supportIds: data.supportIds,
-    };
-
-    const response = await this.supabaseClient.query<IRawAttendance>((sdk) =>
-      sdk
-        .rpc("reservar", {
-          p_user_id: data.user.id,
-          p_day_key: data.dayKey,
-          p_device_id: data.deviceId,
-          p_data: attendanceData,
-        })
-        .single(),
+    const response = await this.supabaseClient.query<unknown>((sdk) =>
+      sdk.rpc("reservar", ReserveRequest.fromDomain(data)).single(),
     );
 
     const knownError = response.error && SQL_ERRORS[response.error.message];
@@ -261,27 +158,18 @@ export class HormoniosRepo implements IHormoniosRepo {
     }
 
     if (response.error || !response.data) {
-      throw new Error(`Supabase reservar failed with ${response.status}: ${response.error?.message}`);
+      throw new DatabaseError("reservar", response.status, response.error?.message);
     }
 
-    return this.mapperAttendance(response.data, data.user);
+    return AttendanceResponse.toDomainForUser(response.data, data.user, "reservar");
   }
 
   // "Não vou": libera a vaga do instrumento; só a linha deste aparelho. Volta a PENDING, para o envio
   async cancelByDevice(filter: ICancelByDeviceFilter): Promise<Attendance> {
-    const cancelled: IRawAttendanceData = { answer: "nao-vou", groupId: null, supportIds: [] };
-
-    const response = await this.supabaseClient.query<IRawAttendanceWithUser[]>((sdk) =>
+    const response = await this.supabaseClient.query<unknown>((sdk) =>
       sdk
         .from("hg_attendances")
-        .update({
-          data: cancelled,
-          transicionais_sync: "PENDING",
-          sync_error: null,
-          attempts: 0,
-          next_attempt_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
+        .update(CancelByDeviceRequest.fromDomain(new Date().toISOString()))
         .eq("id", filter.attendanceId)
         .eq("day_key", filter.dayKey)
         .eq("device_id", filter.deviceId)
@@ -289,20 +177,20 @@ export class HormoniosRepo implements IHormoniosRepo {
     );
 
     if (response.error) {
-      throw new Error(`Supabase cancelByDevice failed with ${response.status}: ${response.error.message}`);
+      throw new DatabaseError("cancelByDevice", response.status, response.error.message);
     }
 
-    const row = response.data?.[0];
+    const attendance = AttendanceResponse.toDomainList(response.data, "cancelByDevice")[0];
 
-    if (!row) {
+    if (!attendance) {
       throw new NotFoundError("Reservation Not Found");
     }
 
-    return this.mapperAttendanceWithUser(row);
+    return attendance;
   }
 
   async listByDevice(filter: IListByDeviceFilter): Promise<Attendance[]> {
-    const response = await this.supabaseClient.query<IRawAttendanceWithUser[]>((sdk) =>
+    const response = await this.supabaseClient.query<unknown>((sdk) =>
       sdk
         .from("hg_attendances")
         .select(ATTENDANCE_WITH_USER)
@@ -312,14 +200,14 @@ export class HormoniosRepo implements IHormoniosRepo {
     );
 
     if (response.error) {
-      throw new Error(`Supabase listByDevice failed with ${response.status}: ${response.error.message}`);
+      throw new DatabaseError("listByDevice", response.status, response.error.message);
     }
 
-    return (response.data ?? []).map((raw) => this.mapperAttendanceWithUser(raw));
+    return AttendanceResponse.toDomainList(response.data, "listByDevice");
   }
 
   async listByDay(dayKey: string): Promise<Attendance[]> {
-    const response = await this.supabaseClient.query<IRawAttendanceWithUser[]>((sdk) =>
+    const response = await this.supabaseClient.query<unknown>((sdk) =>
       sdk
         .from("hg_attendances")
         .select(ATTENDANCE_WITH_USER)
@@ -328,128 +216,94 @@ export class HormoniosRepo implements IHormoniosRepo {
     );
 
     if (response.error) {
-      throw new Error(`Supabase listByDay failed with ${response.status}: ${response.error.message}`);
+      throw new DatabaseError("listByDay", response.status, response.error.message);
     }
 
-    return (response.data ?? []).map((raw) => this.mapperAttendanceWithUser(raw));
+    return AttendanceResponse.toDomainList(response.data, "listByDay");
   }
 
   // claim_pending trava e adia as linhas; o PostgREST embute o hg_users na resposta da função
   async claimPending(filter: IClaimPendingFilter): Promise<Attendance[]> {
-    // função que devolve setof: o SDK tipa como linha ou lista
-    const response = await this.supabaseClient.query<IRawAttendanceWithUser | (IRawAttendanceWithUser | null)[] | null>(
-      (sdk) =>
-        sdk.rpc("claim_pending", { p_day_key: filter.dayKey, p_limit: filter.limit }).select(ATTENDANCE_WITH_USER),
+    const response = await this.supabaseClient.query<unknown>((sdk) =>
+      sdk.rpc("claim_pending", ClaimPendingRequest.fromDomain(filter)).select(ATTENDANCE_WITH_USER),
     );
 
     if (response.error) {
-      throw new Error(`Supabase claim_pending failed with ${response.status}: ${response.error.message}`);
+      throw new DatabaseError("claim_pending", response.status, response.error.message);
     }
 
-    const rows = Array.isArray(response.data) ? response.data : response.data ? [response.data] : [];
-
-    return rows
-      .filter((raw): raw is IRawAttendanceWithUser => raw !== null)
-      .map((raw) => this.mapperAttendanceWithUser(raw));
+    return AttendanceResponse.toDomainList(response.data, "claim_pending");
   }
 
   // trava do updated_at na função marcar_sync
   async markSync(data: IMarkSyncData): Promise<boolean> {
-    const response = await this.supabaseClient.query<boolean>((sdk) =>
-      sdk.rpc("marcar_sync", {
-        p_id: data.attendanceId,
-        p_updated_at: data.updatedAt,
-        p_mode: data.mode,
-        p_order_id: data.mode === "SYNCED" ? data.orderId : null,
-        p_changed_at: data.mode === "SYNCED" ? data.changedAt : null,
-        p_guest_id: data.mode === "SYNCED" ? data.guestId : null,
-        p_error: data.mode === "REJECTED" ? data.error : null,
-      }),
+    const response = await this.supabaseClient.query<unknown>((sdk) =>
+      sdk.rpc("marcar_sync", MarkSyncRequest.fromDomain(data)),
     );
 
     if (response.error) {
-      throw new Error(`Supabase marcar_sync failed with ${response.status}: ${response.error.message}`);
+      throw new DatabaseError("marcar_sync", response.status, response.error.message);
     }
 
-    return response.data === true;
+    return SavedResponse.toDomain(response.data, "marcar_sync");
   }
 
   // travas de changedAt e da mudança local mais nova na função aplicar_validacao
   // em rascunho: webhook do Transicionais, ainda não revisado pela Bea. Não usar até a revisão.
   /** @deprecated Em rascunho, aguardando revisão (webhook do Transicionais). */
-  async applyValidation(data: IApplyValidationData): Promise<IApplyValidationResult> {
-    const attendanceData: IRawAttendanceData = {
-      answer: data.answer,
-      groupId: data.groupId,
-      supportIds: data.supportIds,
-    };
-
-    const response = await this.supabaseClient.query<IApplyValidationResult>((sdk) =>
-      sdk.rpc("aplicar_validacao", {
-        p_order_id: data.orderId,
-        p_day_key: data.dayKey,
-        p_guest_id: data.guestId,
-        p_email: data.email,
-        p_data: attendanceData,
-        p_changed_at: data.changedAt,
-      }),
+  async applyValidation(data: IApplyValidationData): Promise<ApplyValidationResult> {
+    const response = await this.supabaseClient.query<unknown>((sdk) =>
+      sdk.rpc("aplicar_validacao", ApplyValidationRequest.fromDomain(data)),
     );
 
-    if (response.error || !response.data) {
-      throw new Error(`Supabase aplicar_validacao failed with ${response.status}: ${response.error?.message}`);
+    if (response.error) {
+      throw new DatabaseError("aplicar_validacao", response.status, response.error.message);
     }
 
-    return response.data;
+    return ApplyValidationResponse.toDomain(response.data, "aplicar_validacao");
   }
 
   // em rascunho: webhook do Transicionais, ainda não revisado pela Bea. Não usar até a revisão.
   /** @deprecated Em rascunho, aguardando revisão (webhook do Transicionais). */
   async saveVacancies(data: ISaveVacanciesData): Promise<boolean> {
-    const response = await this.supabaseClient.query<boolean>((sdk) =>
-      sdk.rpc("gravar_vagas", {
-        p_day_key: data.dayKey,
-        p_vacancies_at: data.vacanciesAt,
-        p_taken: { groups: data.groups, supports: data.supports },
-      }),
+    const response = await this.supabaseClient.query<unknown>((sdk) =>
+      sdk.rpc("gravar_vagas", SaveVacanciesRequest.fromDomain(data)),
     );
 
     if (response.error) {
-      throw new Error(`Supabase gravar_vagas failed with ${response.status}: ${response.error.message}`);
+      throw new DatabaseError("gravar_vagas", response.status, response.error.message);
     }
 
-    return response.data === true;
+    return SavedResponse.toDomain(response.data, "gravar_vagas");
   }
 
   // insert ... on conflict do nothing: sem linha de volta = entrega repetida
   // em rascunho: webhook do Transicionais, ainda não revisado pela Bea. Não usar até a revisão.
   /** @deprecated Em rascunho, aguardando revisão (webhook do Transicionais). */
   async registerWebhookDelivery(data: IWebhookDeliveryData): Promise<boolean> {
-    const response = await this.supabaseClient.query<{ delivery_id: string }[]>((sdk) =>
+    const response = await this.supabaseClient.query<unknown>((sdk) =>
       sdk
         .from("hg_webhook_deliveries")
-        .upsert(
-          { delivery_id: data.deliveryId, type: data.type },
-          { onConflict: "delivery_id", ignoreDuplicates: true },
-        )
+        .upsert(RegisterWebhookDeliveryRequest.fromDomain(data), { onConflict: "delivery_id", ignoreDuplicates: true })
         .select("delivery_id"),
     );
 
     if (response.error) {
-      throw new Error(`Supabase registerWebhookDelivery failed with ${response.status}: ${response.error.message}`);
+      throw new DatabaseError("registerWebhookDelivery", response.status, response.error.message);
     }
 
-    return (response.data ?? []).length > 0;
+    return WebhookDeliveryResponse.toDomain(response.data, "registerWebhookDelivery");
   }
 
   // em rascunho: webhook do Transicionais, ainda não revisado pela Bea. Não usar até a revisão.
   /** @deprecated Em rascunho, aguardando revisão (webhook do Transicionais). */
   async releaseWebhookDelivery(deliveryId: string): Promise<void> {
-    const response = await this.supabaseClient.query<null>((sdk) =>
+    const response = await this.supabaseClient.query<unknown>((sdk) =>
       sdk.from("hg_webhook_deliveries").delete().eq("delivery_id", deliveryId),
     );
 
     if (response.error) {
-      throw new Error(`Supabase releaseWebhookDelivery failed with ${response.status}: ${response.error.message}`);
+      throw new DatabaseError("releaseWebhookDelivery", response.status, response.error.message);
     }
   }
 }

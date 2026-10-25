@@ -115,6 +115,19 @@ retrato local da fase 1: linhas `vou` que não estão `REJECTED`.
 `UNAUTHORIZED_ERROR` (401) vale também para cron e webhook. `SOLD_OUT_ERROR` e
 `BOOKING_CLOSED_ERROR` também vêm da recusa do Transicionais.
 
+**Falha de fonte (`InfraError`, `errors/infra-error.ts`).** Não é `AppError`: a rota responde 500
+`INTERNAL_ERROR`, e o log traz a `key` e a `source` (`supabase` ou `transicionais`).
+
+| `key` (só no log) | Quando |
+|---|---|
+| `DATABASE_ERROR` | o Supabase devolveu erro fora do `SQL_ERRORS` |
+| `UPSTREAM_RESPONSE_ERROR` | o Transicionais devolveu um status sem tratamento (inclui 401/403 depois de renovar) |
+| `INVALID_RESPONSE_ERROR` | a resposta não tem o formato do schema zod, ou o model a recusou |
+| `ANSWER_CHANGED_ERROR` | `VALIDATION_ANSWER_CHANGED` no envio: o usecase deixa `PENDING` (`RETRY`), não chega à rota |
+| `VERSION_CONFLICT_ERROR` | `EVENT_VERSION_CONFLICT` na Produção: o usecase relê a `version` e tenta uma vez mais; repetiu, 500 |
+
+Um `Error` sem `key` no log é bug ou env ausente.
+
 ## Rotas
 
 | Rota | Request | Response | `key` de erro |
@@ -171,6 +184,21 @@ acessórios" se nenhum) e, no acessório, o instrumento dela (D30, D31).
 | RT16 | Depois de gravar no Transicionais, a Produção relê o retrato. Fora do ar (antes ou na releitura): 503 (D12). Se o retrato ainda é o local da fase 1, a Produção lê o Transicionais antes. |
 | RT17 | `novo-ensaio`: cria o próximo encontro (mesmo nome e ciclo, local "A definir", data do dia atual + 7, mesmo horário, mesmos grupos e assistências, reservas fechadas), apaga o antigo e relê (D2, D16, D18). Se o delete falhar, só registra (D13). O resumo volta sem presenças, com a data e a hora do novo. |
 
+## Estrutura do código (refatoração de 2026-10-25)
+
+Sem mudança de comportamento nas rotas (as respostas foram comparadas com `diff` antes e depois).
+
+| Peça | Onde | O que mudou |
+|---|---|---|
+| Formato cru das fontes | `repos/<fonte>/responses/*.response.ts` e `requests/*.request.ts` | schema zod + `toDomain`/`fromDomain`. Saíram os `IRaw*` de `interfaces/` e os `mapper*` dos repos. A resposta é validada por `parseResponse` (fora do formato: `INVALID_RESPONSE_ERROR`); o corpo do webhook, por `parseInput` (400). |
+| Models novos | `models/` | `EventDay`, `EventPublication`, `GroupVacancy`, `ManagedEvent`, `SupportType` (com `SupportTypeKind`) e os do webhook. |
+| Conta das vagas | `models/current-event.ts` | métodos de `Group` e `Support` que recebem as reservas: `countTaken`, `available`, `soldOut`, `isBelowReservations` (D29). `CurrentEvent` ganhou `findSupport`, `findStock` (o estoque ajustável pelo id da assistência) e `goingAttendances`. |
+| Respostas das rotas | `models/` + `usecases/mappers/` | a resposta é model: `EventView` (`<ensaio>`, com `EventInstrument` e `EventAccessory`), `AdminSummary` (`<resumo>`, com `AdminEvent`, `StockItem`, `StockReservation` e `AdminAttendance`) e `MyReservation` (`minhas-reservas`, com `MyReservationAccessory`). Montados por `event-view.mapper.ts`, `admin-summary.mapper.ts` e `my-reservation.mapper.ts`, que só formatam. O JSON é o mesmo de antes. O `usecases/event-summary.ts` deixou de existir. |
+| Ids do Transicionais | `repos/transicionais/transicionais-id.ts` | `TransicionaisIdSchema` (número ou texto → `string`) e `numericId` (`string` → número, na ida). |
+| Regra fora do repo | usecases | o repo só faz I/O (R12): o "primeiro encontro de hoje" e a data de busca do `findManagedEvent(ref, from)` vêm do usecase; o envio da reserva devolve o aceito ou lança, e o `SendAttendanceUsecase` escolhe o `SyncMode` (tabela do envio). |
+| Log | `lib/logger.ts` | uma linha JSON por registro (`level`, `time`, `scope`, campos, `msg`; o erro em `err`, com `key` e `source` no `InfraError`). Substitui os `console.*`. |
+| Conjuntos fechados | enums | `HttpMethod`, `SupportTypeKind` (também o `type` do `stock[]` do `<resumo>`), `AttendanceSync`, `SyncMode` etc. Os textos não mudaram. |
+
 ## Tradução Hormônios ↔ Transicionais
 
 Só no repo `repos/transicionais/`. A leitura são dois GETs (D14): a listagem de manager
@@ -222,7 +250,7 @@ ficou `PENDING`. Não envia: retrato local da fase 1, linha de outro dia ou que 
 | `VALIDATION_GUEST_ANSWER_CLOSED`, `…_ANSWER_NOT_OPEN`, `VALIDATION_DAY_INACTIVE` | `REJECTED`, `BOOKING_CLOSED_ERROR` | 409 `BOOKING_CLOSED_ERROR` |
 | `VALIDATION_ANSWER_CHANGED` | `PENDING`, modo `RETRY` (`next_attempt_at = now()`) | 201 `PENDING` / 204 |
 | outro 400/404/409/422 | `REJECTED`, `RESERVATION_REJECTED_ERROR` (inclui acessório esgotado lá, D39) | 409 `RESERVATION_REJECTED_ERROR` |
-| 401/403 depois de renovar | `PENDING`, modo `BACKOFF` + `console.error` | 201 `PENDING` / 204 |
+| 401/403 depois de renovar | `PENDING`, modo `BACKOFF` + log de erro | 201 `PENDING` / 204 |
 | 0 (rede, timeout), 429, 5xx, outro status, exceção | `PENDING`, modo `BACKOFF` (`attempts + 1`, espera 1, 2, 4, 8, 16, depois 30 min) | 201 `PENDING` / 204 |
 
 - `marcar_sync` só grava se o `updated_at` é o lido antes do envio e a linha está `PENDING`. Se a
@@ -255,8 +283,8 @@ constante. Para chamar à mão: `yarn cron:event` e `yarn cron:sync` (`scripts/c
 | W1 | **JWT** (`verifyWebhookJwt`): HS256 com `TRANSICIONAIS_JWT_KEY`, `exp` no futuro e `role: "SERVICE"`. `aud` é opcional; se vier, precisa ter `hormonios`. Falhou: 401. |
 | W2 | Sem `deliveryId` ou `type`, ou `data` fora do formato: 400, sem gravar. |
 | W3 | **Deduplicação:** grava o `deliveryId` em `hg_webhook_deliveries` antes de processar. Já existia: 204 sem processar. O processamento falhou: apaga o registro e responde 500, para o reenvio passar (D38). |
-| W4 | Tipo desconhecido: grava, `console.error` e 204. |
-| W5 | **`event.updated`:** mesmo mapper do GET público, com o dia do retrato atual (D35). `externalId` de outro encontro ou retrato local da fase 1: ignora. Grava com `gravar_retrato` (mesma trava). Sem o dia no `configDays`, sem `version` ou com mapper falho: chama `refreshCurrentEvent()`. |
+| W4 | Tipo desconhecido: grava, registra no log e 204. |
+| W5 | **`event.updated`:** mesma tradução do GET público (`PublicEventResponse`), com o dia do retrato atual (D35). `externalId` de outro encontro ou retrato local da fase 1: ignora. Grava com `gravar_retrato` (mesma trava). Sem o dia no `configDays`, sem `version` ou com a tradução falha: chama `refreshCurrentEvent()`. |
 | W6 | **`validation.changed`:** `aplicar_validacao` acha a linha pelo `orderId`; senão a pessoa pelo `guestId` (primeiro) ou pelo e-mail, e a linha pelo dia. Aplica só se `changedAt` > `transicionais_changed_at` e se não há mudança local mais nova (`PENDING` com `updated_at` > `changedAt`). Grava `data`, `order_id`, `changed_at` e `SYNCED`. As assistências de instrumento saem de `supportTypeIds` (D37). |
 | W7 | Pessoa fora de `hg_users` (B6) ou sem linha no dia: não cria linha (D37). |
 | W8 | **Vagas:** só `data.dayVacancies.supports: [{ id \| supportTypeId, occupied }]` é usado, por `gravar_vagas` (D36). Sem `supports`, as vagas esperam o cron de 5 min. |
@@ -266,7 +294,7 @@ constante. Para chamar à mão: `yarn cron:event` e `yarn cron:sync` (`scripts/c
 | Falha | Comportamento |
 |---|---|
 | Transicionais fora ou lento (> 3 s) na leitura | `GET /api/ensaio` responde o último retrato com `stale: true` e o `fetchedAt` dele. |
-| Nenhum encontro Público de hoje em diante | Igual a fora do ar: fica o último retrato, `stale: true`, e `console.error`. |
+| Nenhum encontro Público de hoje em diante | Igual a fora do ar: fica o último retrato, `stale: true`, e um aviso no log. |
 | Transicionais fora na reserva ou no "Não vou" | A linha fica `PENDING` contra as vagas do retrato. O cron envia depois. |
 | Vaga tomada lá enquanto ele estava fora | O envio volta recusado e a linha fica `REJECTED`, com a `key` em `syncError`. |
 | Transicionais fora numa ação da Produção | 503 `UPSTREAM_UNAVAILABLE_ERROR`. Repetir é seguro (D12). |

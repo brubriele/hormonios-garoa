@@ -1,17 +1,16 @@
 import { AppError } from "../errors/app-error";
+import { createLogger } from "../lib/logger";
 import type { Attendance } from "../models/attendance";
 import type { CurrentEvent } from "../models/current-event";
+import type { EventView } from "../models/event-view";
 import type { IHormoniosRepo } from "../interfaces/hormonios";
 import type { ITransicionaisRepo } from "../interfaces/transicionais";
-import { toEventView, type IEventView } from "./event-summary";
+import { EventViewMapper } from "./mappers/event-view.mapper";
 import { RefreshCurrentEventUsecase } from "./refresh-current-event";
 
 const MAX_AGE_MS = 5 * 60 * 1000;
 
-export interface IPublicEventView extends IEventView {
-  stale: boolean; // true = o Transicionais não respondeu e é o último retrato
-  fetchedAt: string | null; // ISO da última leitura do Transicionais
-}
+const logger = createLogger("GetEventUsecase");
 
 export class GetEventUsecase {
   private readonly refreshCurrentEvent: RefreshCurrentEventUsecase;
@@ -23,7 +22,7 @@ export class GetEventUsecase {
     this.refreshCurrentEvent = new RefreshCurrentEventUsecase(this.hormoniosRepo, this.transicionaisRepo);
   }
 
-  async execute(): Promise<IPublicEventView> {
+  async execute(): Promise<EventView> {
     try {
       return await this._execute(); // sem await o catch nao pega a rejeicao
     } catch (error) {
@@ -31,12 +30,12 @@ export class GetEventUsecase {
         throw error;
       }
 
-      console.error("[GetEventUsecase]", error);
+      logger.error({ err: error }, "unexpected error");
       throw new Error("Unexpected error");
     }
   }
 
-  private async _execute(): Promise<IPublicEventView> {
+  private async _execute(): Promise<EventView> {
     const cached = await this.hormoniosRepo.findCurrentEvent();
 
     if (cached && !this.needsRefresh(cached)) {
@@ -49,10 +48,10 @@ export class GetEventUsecase {
     return this.buildView(event, !available);
   }
 
-  private async buildView(event: CurrentEvent, stale: boolean): Promise<IPublicEventView> {
+  private async buildView(event: CurrentEvent, stale: boolean): Promise<EventView> {
     const attendances = await this.findSupabaseAttendances(event.dayKey);
 
-    return { ...toEventView(event, attendances), stale, fetchedAt: event.fetchedAt };
+    return EventViewMapper.toView(event, attendances, stale);
   }
 
   // retrato vazio, local da fase 1 ou com mais de 5 min

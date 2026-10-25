@@ -1,14 +1,39 @@
-import { InvalidParameterError } from "../errors/app-error";
+import { ErrorKey, InvalidParameterError } from "../errors/app-error";
 import type { UUID } from "../interfaces/uuid";
 import { User } from "./user";
 
-export type AttendanceAnswer = "vou" | "nao-vou";
+export enum AttendanceAnswer {
+  Going = "vou",
+  NotGoing = "nao-vou",
+}
 
-const ANSWERS: readonly AttendanceAnswer[] = ["vou", "nao-vou"];
+// status do envio ao Transicionais (R5)
+export enum AttendanceSync {
+  Pending = "PENDING",
+  Synced = "SYNCED",
+  Rejected = "REJECTED",
+}
 
-export type AttendanceSync = "PENDING" | "SYNCED" | "REJECTED";
+// como gravar o resultado de um envio ao Transicionais (função marcar_sync)
+export enum SyncMode {
+  Synced = "SYNCED",
+  Rejected = "REJECTED",
+  Retry = "RETRY", // fica PENDING para o próximo ciclo
+  Backoff = "BACKOFF", // fica PENDING com espera crescente
+}
 
-const SYNCS: readonly AttendanceSync[] = ["PENDING", "SYNCED", "REJECTED"];
+// resultado de um validation.changed aplicado à reserva (função aplicar_validacao)
+export enum ApplyValidationResult {
+  Applied = "APPLIED", // gravou
+  Stale = "STALE", // o webhook é mais velho
+  LocalNewer = "LOCAL_NEWER", // a mudança local é mais nova
+  UnknownPerson = "UNKNOWN_PERSON", // fora de hg_users (B6)
+  NoRow = "NO_ROW", // a pessoa não tem linha no dia
+}
+
+const ANSWERS = Object.values(AttendanceAnswer);
+const SYNCS = Object.values(AttendanceSync);
+const ERROR_KEYS = Object.values(ErrorKey);
 
 export class Attendance {
   constructor(
@@ -20,8 +45,8 @@ export class Attendance {
     readonly groupId: string | null, // null = só presença
     readonly supportIds: string[],
     readonly createdAt: string,
-    readonly sync: AttendanceSync = "PENDING",
-    readonly syncError: string | null = null, // key do Hormônios (SOLD_OUT_ERROR…), só quando REJECTED
+    readonly sync: AttendanceSync = AttendanceSync.Pending,
+    readonly syncError: ErrorKey | null = null, // só quando REJECTED
     // última mudança local (hg_attendances.updated_at, como veio do banco): trava e idempotência do envio
     readonly updatedAt: string | null = null,
   ) {
@@ -61,7 +86,7 @@ export class Attendance {
       throw new InvalidParameterError("Field sync is invalid");
     }
 
-    if (this.syncError !== null && (typeof this.syncError !== "string" || this.syncError.trim() === "")) {
+    if (this.syncError !== null && !ERROR_KEYS.includes(this.syncError)) {
       throw new InvalidParameterError("Field syncError is invalid");
     }
 
@@ -72,10 +97,10 @@ export class Attendance {
 
   // REJECTED não ocupa vaga e não conta como reserva
   get isGoing(): boolean {
-    return this.answer === "vou" && this.sync !== "REJECTED";
+    return this.answer === AttendanceAnswer.Going && this.sync !== AttendanceSync.Rejected;
   }
 
   get isPending(): boolean {
-    return this.sync === "PENDING";
+    return this.sync === AttendanceSync.Pending;
   }
 }

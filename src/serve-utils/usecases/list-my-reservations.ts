@@ -1,34 +1,22 @@
 import { AppError } from "../errors/app-error";
-import type { Attendance, AttendanceSync } from "../models/attendance";
+import { createLogger } from "../lib/logger";
+import { type Attendance, AttendanceAnswer } from "../models/attendance";
 import type { CurrentEvent } from "../models/current-event";
+import type { MyReservation } from "../models/my-reservation";
 import type { IHormoniosRepo } from "../interfaces/hormonios";
 import type { UUID } from "../interfaces/uuid";
+import { MyReservationMapper } from "./mappers/my-reservation.mapper";
+
+const logger = createLogger("ListMyReservationsUsecase");
 
 export interface IListMyReservationsInput {
   deviceId: UUID;
 }
 
-export interface IMyAccessoryView {
-  id: string;
-  name: string;
-}
-
-export interface IMyReservationView {
-  id: UUID;
-  groupId: string | null;
-  groupName: string | null;
-  supportIds: string[];
-  accessories: IMyAccessoryView[]; // os acessórios do retrato; id que saiu do encontro fica de fora
-  name: string;
-  pronoun: string;
-  sync: AttendanceSync;
-  syncError: string | null; // key do Hormônios (SOLD_OUT_ERROR…), só quando REJECTED
-}
-
 export class ListMyReservationsUsecase {
   constructor(private readonly hormoniosRepo: IHormoniosRepo) {}
 
-  async execute(input: IListMyReservationsInput): Promise<IMyReservationView[]> {
+  async execute(input: IListMyReservationsInput): Promise<MyReservation[]> {
     try {
       return await this._execute(input); // sem await o catch nao pega a rejeicao
     } catch (error) {
@@ -36,32 +24,16 @@ export class ListMyReservationsUsecase {
         throw error;
       }
 
-      console.error("[ListMyReservationsUsecase]", error);
+      logger.error({ err: error }, "unexpected error");
       throw new Error("Unexpected error");
     }
   }
 
-  private async _execute(input: IListMyReservationsInput): Promise<IMyReservationView[]> {
+  private async _execute(input: IListMyReservationsInput): Promise<MyReservation[]> {
     const event = await this.findSupabaseCurrentEvent();
     const attendances = await this.findSupabaseDeviceAttendances(event, input.deviceId);
 
-    return attendances.map((attendance) => ({
-      id: attendance.id,
-      groupId: attendance.groupId,
-      groupName: attendance.groupId === null ? null : event.findGroup(attendance.groupId)?.name ?? null,
-      supportIds: attendance.supportIds,
-      accessories: this.buildAccessories(event, attendance.supportIds),
-      name: attendance.user.name,
-      pronoun: attendance.user.pronoun,
-      sync: attendance.sync,
-      syncError: attendance.sync === "REJECTED" ? attendance.syncError : null,
-    }));
-  }
-
-  private buildAccessories(event: CurrentEvent, supportIds: string[]): IMyAccessoryView[] {
-    return event.supports
-      .filter((support) => supportIds.includes(support.id))
-      .map((support) => ({ id: support.id, name: support.name }));
+    return attendances.map((attendance) => MyReservationMapper.toView(event, attendance));
   }
 
   private async findSupabaseCurrentEvent(): Promise<CurrentEvent> {
@@ -72,6 +44,6 @@ export class ListMyReservationsUsecase {
   private async findSupabaseDeviceAttendances(event: CurrentEvent, deviceId: UUID): Promise<Attendance[]> {
     const attendances = await this.hormoniosRepo.listByDevice({ dayKey: event.dayKey, deviceId });
 
-    return attendances.filter((attendance) => attendance.answer === "vou");
+    return attendances.filter((attendance) => attendance.answer === AttendanceAnswer.Going);
   }
 }

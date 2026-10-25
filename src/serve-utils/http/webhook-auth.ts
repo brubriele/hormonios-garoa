@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { UnauthorizedError } from "../errors/app-error";
 
 const encoder = new TextEncoder();
@@ -5,12 +6,17 @@ const decoder = new TextDecoder();
 const WEBHOOK_ROLE = "SERVICE";
 const WEBHOOK_AUDIENCE = "hormonios";
 
-export interface IWebhookJwtPayload {
-  role: string;
-  exp: number; // segundos desde a época
-  aud?: string | string[];
-  [claim: string]: unknown;
-}
+// cabeçalho do JWT: só HS256
+const JwtHeaderSchema = z.object({ alg: z.literal("HS256") });
+
+// claims do JWT do Transicionais (as outras ficam como vieram)
+const WebhookJwtPayloadSchema = z.looseObject({
+  role: z.string(),
+  exp: z.number(), // segundos desde a época
+  aud: z.union([z.string(), z.array(z.string())]).optional(),
+});
+
+export type IWebhookJwtPayload = z.infer<typeof WebhookJwtPayloadSchema>;
 
 function readKey(): string {
   const key = process.env.TRANSICIONAIS_JWT_KEY;
@@ -33,12 +39,8 @@ function decodeJson(segment: string): unknown {
   return JSON.parse(decoder.decode(base64UrlToBytes(segment)));
 }
 
-function isObject(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
 // aud é opcional; se vier, precisa ser o do Hormônios
-function hasAudience(aud: unknown): boolean {
+function hasAudience(aud: IWebhookJwtPayload["aud"]): boolean {
   if (aud === undefined) {
     return true;
   }
@@ -67,25 +69,15 @@ async function parseToken(token: string): Promise<IWebhookJwtPayload | null> {
   }
 
   try {
-    const head = decodeJson(header);
-
-    if (!isObject(head) || head.alg !== "HS256") {
-      return null;
-    }
+    JwtHeaderSchema.parse(decodeJson(header));
 
     if (!(await verifySignature(`${header}.${payload}`, signature))) {
       return null;
     }
 
-    const claims = decodeJson(payload);
-
-    if (!isObject(claims)) {
-      return null;
-    }
-
-    return claims as IWebhookJwtPayload;
+    return WebhookJwtPayloadSchema.parse(decodeJson(payload));
   } catch {
-    return null; // base64 ou JSON inválido
+    return null; // base64, JSON ou formato (zod) inválido
   }
 }
 
@@ -106,7 +98,7 @@ export async function verifyWebhookJwt(request: Request): Promise<IWebhookJwtPay
     throw new UnauthorizedError("Webhook token is invalid");
   }
 
-  if (typeof payload.exp !== "number" || payload.exp * 1000 <= Date.now()) {
+  if (payload.exp * 1000 <= Date.now()) {
     throw new UnauthorizedError("Webhook token expired");
   }
 

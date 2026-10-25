@@ -1,11 +1,43 @@
 import { InvalidParameterError } from "../errors/app-error";
+import type { Attendance } from "./attendance";
 
 function isStock(value: number | null): boolean {
   return value === null || (Number.isInteger(value) && value >= 0);
 }
 
+// a reserva ocupa vaga a mais do que o taken do retrato? No retrato do Transicionais (taken não null),
+// só a "vou" local PENDING (a SYNCED já está no taken); no retrato local da fase 1, toda "vou"
+function countsOverTaken(taken: number | null, attendance: Attendance): boolean {
+  return attendance.isGoing && (taken === null || attendance.isPending);
+}
+
+// o que tem estoque no encontro (instrumento ou acessório): a conta das vagas é a mesma
+abstract class Stock {
+  abstract readonly stockTotal: number | null; // null = sem limite
+  abstract readonly taken: number | null; // occupied do dia no Transicionais; null = retrato local
+  abstract readonly rotativo: boolean; // pode passar da capacidade
+
+  // vagas ocupadas pelas reservas do encontro
+  abstract countTaken(attendances: Attendance[]): number;
+
+  // estoque - ocupado, nunca abaixo de 0; null = sem limite
+  available(attendances: Attendance[]): number | null {
+    return this.stockTotal === null ? null : Math.max(0, this.stockTotal - this.countTaken(attendances));
+  }
+
+  // rotativo nunca esgota
+  soldOut(attendances: Attendance[]): boolean {
+    return !this.rotativo && this.available(attendances) === 0;
+  }
+
+  // o estoque novo fica abaixo do ocupado? Rotativo pode passar da capacidade (D29)
+  isBelowReservations(capacity: number, attendances: Attendance[]): boolean {
+    return !this.rotativo && capacity < this.countTaken(attendances);
+  }
+}
+
 // o instrumento do encontro: o grupo do Transicionais com a assistência type='instrumento' dele (E2.9)
-export class Group {
+export class Group extends Stock {
   constructor(
     readonly id: string, // grupo do Transicionais (o id da reserva)
     readonly name: string, // título da assistência do instrumento
@@ -17,6 +49,7 @@ export class Group {
     readonly instrumentSupportId: string | null = null,
     readonly rotativo: boolean = false, // pode passar da capacidade
   ) {
+    super();
     this.validate();
   }
 
@@ -52,11 +85,21 @@ export class Group {
       throw new InvalidParameterError("Field group.rotativo is invalid");
     }
   }
+
+  // vagas ocupadas: o taken do Transicionais + as "vou" locais PENDING do grupo; no retrato local da
+  // fase 1 (taken null), as "vou" do grupo (REJECTED não conta)
+  countTaken(attendances: Attendance[]): number {
+    const local = attendances.filter(
+      (attendance) => attendance.groupId === this.id && countsOverTaken(this.taken, attendance),
+    );
+
+    return (this.taken ?? 0) + local.length;
+  }
 }
 
 // acessório: assistência type='acessorio'. Os defaults são os do retrato local da fase 1
 // (sem limite, não rotativo, vale para todos os grupos)
-export class Support {
+export class Support extends Stock {
   constructor(
     readonly id: string,
     readonly name: string,
@@ -65,6 +108,7 @@ export class Support {
     readonly rotativo: boolean = false,
     readonly groupIds: string[] = [], // vazio = vale para todos os grupos
   ) {
+    super();
     this.validate();
   }
 
@@ -99,6 +143,16 @@ export class Support {
 
   appliesTo(groupId: string): boolean {
     return this.groupIds.length === 0 || this.groupIds.includes(groupId);
+  }
+
+  // acessórios ocupados, com a mesma regra do grupo: taken + as "vou" locais PENDING com o acessório;
+  // no retrato local da fase 1 (taken null), as "vou" com o acessório
+  countTaken(attendances: Attendance[]): number {
+    const local = attendances.filter(
+      (attendance) => attendance.supportIds.includes(this.id) && countsOverTaken(this.taken, attendance),
+    );
+
+    return (this.taken ?? 0) + local.length;
   }
 }
 
@@ -171,5 +225,22 @@ export class CurrentEvent {
   // acessórios que valem para o instrumento do grupo (groupIds vazio ou com o grupo)
   supportsForGroup(groupId: string): Support[] {
     return this.supports.filter((support) => support.appliesTo(groupId));
+  }
+
+  findSupport(id: string): Support | null {
+    return this.supports.find((support) => support.id === id) ?? null;
+  }
+
+  // o estoque ajustável pela Produção (E2.9): o acessório com o id ou o grupo cujo instrumentSupportId
+  // é o id
+  findStock(supportId: string): Group | Support | null {
+    return this.findSupport(supportId)
+      ?? this.groups.find((group) => group.instrumentSupportId === supportId)
+      ?? null;
+  }
+
+  // as reservas que ocupam vaga no encontro (REJECTED fica de fora)
+  goingAttendances(attendances: Attendance[]): Attendance[] {
+    return attendances.filter((attendance) => attendance.isGoing);
   }
 }

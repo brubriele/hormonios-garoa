@@ -47,10 +47,11 @@ export function handle(fn: (request: Request) => Promise<IHttpResult>) {
       return Response.json(result.body, { status: result.status ?? 200, headers });
     } catch (error) {
       if (error instanceof AppError) {
+        logger.warn({ key: error.key, status: error.status }, error.message);
         return Response.json({ key: error.key, message: error.message }, { status: error.status });
       }
 
-      console.error("[handle]", error);
+      logger.error({ err: error }, "unhandled error");
       return Response.json({ key: "INTERNAL_ERROR", message: "Unexpected error" }, { status: 500 });
     }
   };

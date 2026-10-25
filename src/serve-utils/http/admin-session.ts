@@ -5,7 +5,13 @@ const ADMIN_COOKIE = "hg_admin";
 const TWELVE_HOURS_SECONDS = 60 * 60 * 12;
 const encoder = new TextEncoder();
 
-function readEnv(name: "COOKIE_KEY" | "ADMIN_KEY"): string {
+// envs que a sessão da Produção lê
+enum AdminEnv {
+  CookieKey = "COOKIE_KEY",
+  AdminKey = "ADMIN_KEY",
+}
+
+function readEnv(name: AdminEnv): string {
   const value = process.env[name];
 
   if (!value) {
@@ -18,7 +24,7 @@ function readEnv(name: "COOKIE_KEY" | "ADMIN_KEY"): string {
 async function hmacKey(): Promise<CryptoKey> {
   return globalThis.crypto.subtle.importKey(
     "raw",
-    encoder.encode(readEnv("COOKIE_KEY")),
+    encoder.encode(readEnv(AdminEnv.CookieKey)),
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign", "verify"],
@@ -44,7 +50,7 @@ async function verify(payload: string, signature: string): Promise<boolean> {
 
 // HMAC(candidate) === HMAC(ADMIN_KEY), sem comparar a chave com ===
 export async function isAdminKey(candidate: string): Promise<boolean> {
-  return verify(readEnv("ADMIN_KEY"), await sign(candidate));
+  return verify(readEnv(AdminEnv.AdminKey), await sign(candidate));
 }
 
 export async function createAdminCookie(): Promise<string> {

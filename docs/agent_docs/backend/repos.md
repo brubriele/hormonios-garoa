@@ -1,12 +1,16 @@
 # Repos e UrlCollection (`src/serve-utils/repos/<fonte>/`)
 
 > Índice: [`README.md`](README.md). Usa: [`clients.md`](clients.md), [`interfaces.md`](interfaces.md), [`models.md`](models.md).
+> Tradução do formato cru: [`requests-responses.md`](requests-responses.md).
 > Contrato do Transicionais: seção "Contrato do Transicionais" da skill `code-pattern`
-> (`.claude/skills/code-pattern/SKILL.md`). Ele é só referência para a tradução no `mapper*`. Não
-> dita os nomes nem os formatos do Hormônios.
+> (`.claude/skills/code-pattern/SKILL.md`). Ele é só referência para a tradução nos responses e
+> requests. Não dita os nomes nem os formatos do Hormônios.
 
-Cada fonte (API externa ou SDK) tem uma pasta com o par `url-collection.ts` + `repo.ts`. Uma fonte
-sem URL própria, como o Supabase via SDK, tem só o `repo.ts`.
+Cada fonte (API externa ou SDK) tem uma pasta com `url-collection.ts` + `repo.ts` + `responses/` e
+`requests/`. Uma fonte sem URL própria, como o Supabase via SDK, não tem `url-collection.ts`.
+
+**O repo só faz I/O:** monta a chamada, trata o status e traduz pelo response/request. Regra de
+negócio fica no usecase (R12).
 
 ## Regras
 
@@ -16,12 +20,13 @@ sem URL própria, como o Supabase via SDK, tem só o `repo.ts`.
 | R2 | A env (`TRANSICIONAIS_URL`) é lida **na chamada**, não no import, e lança se estiver vazia. |
 | R3 | Parâmetro de caminho passa por `encodeURIComponent`. |
 | R4 | O repo implementa a interface da fonte (`implements ITransicionaisRepo`). |
-| R5 | O repo converte `IRaw*` em model num `private mapper<Nome>`. O formato cru não sai do repo. |
+| R5 | O repo converte pela classe da finalidade: `XResponse.toDomain(raw)` na volta e `XRequest.fromDomain(model)` na ida ([`requests-responses.md`](requests-responses.md)). **Sem `mapper*` no repo.** O client é chamado com `unknown` (`query<unknown>`, `get<unknown>`): quem dá o tipo é o schema. |
 | R6 | `find<Nome>` devolve `T \| null`. `find<Nome>OrFail` chama o `find` e lança `NotFoundError`. |
 | R7 | Validações vêm primeiro, com retorno antecipado. |
-| R8 | **O repo trata a `IClientResponse`** do client: decide o que cada `status` significa para aquela operação (ex.: `404` vira `null` num `find`), e um `error` que não tem tratamento vira `Error` com o `status` na mensagem. |
+| R8 | **O repo trata a `IClientResponse`** do client: decide o que cada `status` significa para aquela operação (ex.: `404` vira `null` num `find`). Um `error` sem tratamento vira `InfraError` com o nome da operação e o `status`: `DatabaseError` (Supabase) ou `UpstreamResponseError` (Transicionais). **Nunca `throw new Error`**: ele fica para bug ([`errors.md`](errors.md)). |
 | R10 | **Token do Transicionais:** só pela `TransicionaisSession` (`repos/transicionais/session.ts`). Login, refresh e o reenvio depois de um 401 ficam nela. Usecase e rota nunca veem token. |
-| R11 | **`key` de erro do Transicionais:** o repo lê `error.details.key` e a traduz num `AppError` do Hormônios por um mapa (`TRANSICIONAIS_ERRORS`), como o `SQL_ERRORS` da R9. A mensagem do Transicionais nunca chega à tela (E2.3). Falha de rede, timeout, 429 e 5xx não viram `AppError`: o repo devolve o resultado como "fora do ar" quando a operação tem plano de falha (envio da reserva, leitura do retrato), ou lança `UpstreamUnavailableError` (503) nas ações da Produção. |
+| R11 | **`key` de erro do Transicionais:** o repo lê `error.details.key` e a traduz num `AppError` do Hormônios por um mapa (`TRANSICIONAIS_ERRORS`), como o `SQL_ERRORS` da R9. A mensagem do Transicionais nunca chega à tela (E2.3). Falha de rede, timeout, 429 e 5xx (`isUnavailable`, `lib/upstream.ts`) viram `UpstreamUnavailableError`. **O que fazer com a queda é regra do usecase**: o plano de falha (manter o retrato, deixar `PENDING`) é um `catch` no usecase, e não um resultado especial do repo. |
+| R12 | **Repo sem regra de negócio.** Escolher entre itens (o "primeiro encontro de hoje"), decidir a partir do estado (trocar de dia, abrir/fechar), orquestrar várias chamadas (criar e desfazer) e validar entrada são do usecase. O repo oferece operações simples (`listPublicEventsFrom(date)`, `findPublicEvent(ref)`). **Exceção:** o que precisa de transação ou trava fica no repo ou na função SQL (a última vaga na `reservar`, a trava do `updated_at` no `marcar_sync`, o `skip locked` no `claim_pending`). |
 | R9 | **Supabase:** `repos/supabase/repo.ts`, sem UrlCollection. Toda consulta passa por `supabaseClient.query(...)`. A função SQL sinaliza um erro de negócio com `raise exception '<CODIGO>'`, e o repo traduz o código em `AppError` por um mapa (`SQL_ERRORS`). Um código fora do mapa segue a R8. |
 
 ## Exemplo
@@ -51,47 +56,59 @@ export class TransicionaisUrlCollection {
 ```
 
 ```ts
-// src/serve-utils/repos/transicionais/repo.ts
-import { NotFoundError } from "../../errors/app-error";
+// src/serve-utils/repos/transicionais/repo.ts (trecho)
+import { UpstreamUnavailableError } from "../../errors/app-error";
+import { UpstreamResponseError } from "../../errors/infra-error";
 import { HttpClient } from "../../clients/http-client";
-import { BasicEvent } from "../../models/basic-event";
-import type { IFindEventFilter, IRawEvent, ITransicionaisRepo } from "../../interfaces/transicionais";
+import type { IEventRef, ITransicionaisRepo } from "../../interfaces/transicionais";
+import { isUnavailable } from "../../lib/upstream";
+import type { EventSnapshot } from "../../models/event-snapshot";
+import { PublicEventResponse } from "./responses/public-event.response";
 import { TransicionaisUrlCollection } from "./url-collection";
 
 export class TransicionaisRepo implements ITransicionaisRepo {
   constructor(private readonly httpClient: HttpClient) {}
 
-  private mapperEvent(raw: IRawEvent): BasicEvent {
-    return new BasicEvent(raw.id, raw.name);
-  }
-
-  async findEvent(filter: IFindEventFilter): Promise<BasicEvent | null> {
-    const response = await this.httpClient.get<IRawEvent>(
-      TransicionaisUrlCollection.eventById(filter.id),
+  // 404 -> null; fora do ar -> UpstreamUnavailableError; qual encontro buscar é regra do usecase
+  async findPublicEvent(ref: IEventRef): Promise<EventSnapshot | null> {
+    const vacanciesAt = new Date().toISOString();
+    const response = await this.httpClient.get<unknown>(
+      TransicionaisUrlCollection.publicEvent(ref.externalId, ref.dayId),
     );
 
     if (response.status === 404) { // validacoes vem primeiro, para evitar codigo horizontal
       return null;
     }
 
-    if (response.error || !response.data) {
-      throw new Error(`Transicionais findEvent failed with ${response.status}: ${response.error?.message}`);
+    if (isUnavailable(response.status)) {
+      throw new UpstreamUnavailableError("Transicionais is unavailable");
     }
 
-    return this.mapperEvent(response.data);
-  }
-
-  async findEventOrFail(filter: IFindEventFilter): Promise<BasicEvent> {
-    const event = await this.findEvent(filter);
-
-    if (!event) {
-      throw new NotFoundError("Event Not Found");
+    if (response.error || response.data === undefined) {
+      throw new UpstreamResponseError("publicEvent", response.status, response.error?.message);
     }
 
-    return event;
+    return PublicEventResponse.toDomain(response.data, ref, vacanciesAt);
   }
+}
+```
 
-  // ------------ other api operation ---------
+O usecase decide o resto (E2.7 e plano de falha):
+
+```ts
+// src/serve-utils/usecases/refresh-current-event.ts (trecho)
+private async findTransicionaisSnapshot(): Promise<EventSnapshot | null> {
+  try {
+    const ref = (await this.transicionaisRepo.listPublicEventsFrom(today()))[0] ?? null; // o primeiro (E2.7)
+
+    return ref ? await this.transicionaisRepo.findPublicEvent(ref) : null;
+  } catch (error) {
+    if (error instanceof UpstreamUnavailableError) {
+      return null; // fora do ar: fica o retrato
+    }
+
+    throw error;
+  }
 }
 ```
 
@@ -102,7 +119,7 @@ memória da função (uma instância serve vários pedidos) e nunca sai do repo.
 
 ```ts
 // src/serve-utils/repos/transicionais/session.ts
-import { HttpClient, type IHttpRequest } from "../../clients/http-client";
+import { HttpClient, HttpMethod, type IHttpRequest } from "../../clients/http-client";
 import type { IClientResponse } from "../../interfaces/client-response";
 import type { IRawLogin } from "../../interfaces/transicionais";
 import { TransicionaisUrlCollection } from "./url-collection";
@@ -148,7 +165,7 @@ export class TransicionaisSession {
     }
 
     const response = await this.httpClient.request<IRawLogin>({
-      method: "POST",
+      method: HttpMethod.Post,
       url: TransicionaisUrlCollection.login(),
       body: { username, password },
     });
@@ -175,9 +192,9 @@ const SQL_ERRORS: Record<string, () => AppError> = {
   SOLD_OUT: () => new SoldOutError("Group is sold out"),
 };
 
-async reserve(input: IReserveInput): Promise<Attendance> {
-  const response = await this.supabaseClient.query<IRawAttendance>((sdk) =>
-    sdk.rpc("reservar", { p_user_id: input.userId, p_day_key: input.dayKey, p_device_id: input.deviceId, p_data: input.data }).single(),
+async reserve(data: IReserveData): Promise<Attendance> {
+  const response = await this.supabaseClient.query<unknown>((sdk) =>
+    sdk.rpc("reservar", ReserveRequest.fromDomain(data)).single(), // a trava da última vaga fica na função (R12)
   );
 
   const knownError = response.error && SQL_ERRORS[response.error.message];
@@ -187,9 +204,9 @@ async reserve(input: IReserveInput): Promise<Attendance> {
   }
 
   if (response.error || !response.data) {
-    throw new Error(`Supabase reservar failed with ${response.status}: ${response.error?.message}`);
+    throw new DatabaseError("reservar", response.status, response.error?.message);
   }
 
-  return this.mapperAttendance(response.data);
+  return AttendanceResponse.toDomainForUser(response.data, data.user, "reservar");
 }
 ```

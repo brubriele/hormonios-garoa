@@ -45,6 +45,8 @@ valer mesmo com o Transicionais fora.
 **Decisão.**
 - Linhas `vou` do aparelho no dia atual, **inclusive as `REJECTED`**, com `sync` e `syncError`.
 - `groupName` e `accessories` vêm do retrato. Um acessório que saiu do retrato fica de fora (D30).
+- Responde uma lista do model `MyReservation`, montado pelo `MyReservationMapper`
+  (`usecases/mappers/my-reservation.mapper.ts`): junta a reserva e o ensaio, só formatando (U9).
 
 **Consequências.**
 - O BFF já dá o status do envio. O front ainda não o mostra (onda 4).
@@ -60,10 +62,14 @@ valer mesmo com o Transicionais fora.
 - Só envia linha `PENDING` do dia atual, com retrato do Transicionais.
 - Manda o estado atual da linha (R8): a assistência do instrumento + os acessórios, e a
   `idempotencyKey` `<id>:<updated_at>` (E2.8).
+- O repo devolve o aceito ou lança; **a decisão é do usecase** (R12), pelo tipo do erro:
+  aceito → `SYNCED`; `AnswerChangedError` (`InfraError`) → `RETRY`; `UpstreamUnavailableError` →
+  `BACKOFF`; recusa (`AppError`) → `REJECTED` com a `key`; qualquer outro erro (inclui
+  `UpstreamResponseError` do 401/403 depois de renovar) → `BACKOFF` e log de erro.
 - Grava o resultado com `marcar_sync`, só se o `updated_at` não mudou. Devolve `sync` e, se
   `REJECTED`, o erro traduzido.
 
 **Consequências.**
-- **Não relança** (foge da U5): qualquer erro vira `PENDING` e `console.error`. A falha do envio
-  nunca derruba a reserva local.
+- **Não relança** (foge da U5): qualquer erro vira `PENDING` e um log de erro (`logger.error`). A
+  falha do envio nunca derruba a reserva local.
 - O formato da resposta do `validations/change` não foi conferido numa chamada real (D33).

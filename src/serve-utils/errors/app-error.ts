@@ -1,5 +1,20 @@
+// a key é o contrato com o front (E2) e o sync_error gravado da reserva recusada
+export enum ErrorKey {
+  InvalidParameter = "INVALID_PARAMETER_ERROR",
+  NotFound = "NOT_FOUND_ERROR",
+  Unauthorized = "UNAUTHORIZED_ERROR",
+  BookingClosed = "BOOKING_CLOSED_ERROR",
+  SoldOut = "SOLD_OUT_ERROR",
+  AccessorySoldOut = "ACCESSORY_SOLD_OUT_ERROR",
+  AlreadyReserved = "ALREADY_RESERVED_ERROR",
+  EventChanged = "EVENT_CHANGED_ERROR",
+  StockBelowReservations = "STOCK_BELOW_RESERVATIONS_ERROR",
+  UpstreamUnavailable = "UPSTREAM_UNAVAILABLE_ERROR",
+  ReservationRejected = "RESERVATION_REJECTED_ERROR",
+}
+
 export abstract class AppError extends Error {
-  abstract readonly key: string;
+  abstract readonly key: ErrorKey;
   abstract readonly status: number;
 
   constructor(message: string) {
@@ -9,59 +24,59 @@ export abstract class AppError extends Error {
 }
 
 export class InvalidParameterError extends AppError {
-  readonly key = "INVALID_PARAMETER_ERROR";
+  readonly key = ErrorKey.InvalidParameter;
   readonly status = 400;
 }
 
 export class NotFoundError extends AppError {
-  readonly key = "NOT_FOUND_ERROR";
+  readonly key = ErrorKey.NotFound;
   readonly status = 404;
 }
 
 export class UnauthorizedError extends AppError {
-  readonly key = "UNAUTHORIZED_ERROR";
+  readonly key = ErrorKey.Unauthorized;
   readonly status = 401;
 }
 
 export class BookingClosedError extends AppError {
-  readonly key = "BOOKING_CLOSED_ERROR";
+  readonly key = ErrorKey.BookingClosed;
   readonly status = 409;
 }
 
 export class SoldOutError extends AppError {
-  readonly key = "SOLD_OUT_ERROR";
+  readonly key = ErrorKey.SoldOut;
   readonly status = 409;
 }
 
 // o acessório pedido na reserva esgotou (E2.9)
 export class AccessorySoldOutError extends AppError {
-  readonly key = "ACCESSORY_SOLD_OUT_ERROR";
+  readonly key = ErrorKey.AccessorySoldOut;
   readonly status = 409;
 }
 
 export class AlreadyReservedError extends AppError {
-  readonly key = "ALREADY_RESERVED_ERROR";
+  readonly key = ErrorKey.AlreadyReserved;
   readonly status = 409;
 }
 
 export class EventChangedError extends AppError {
-  readonly key = "EVENT_CHANGED_ERROR";
+  readonly key = ErrorKey.EventChanged;
   readonly status = 409;
 }
 
 export class StockBelowReservationsError extends AppError {
-  readonly key = "STOCK_BELOW_RESERVATIONS_ERROR";
+  readonly key = ErrorKey.StockBelowReservations;
   readonly status = 409;
 }
 
 // o Transicionais não respondeu (rede, timeout, 429, 5xx) numa ação da Produção
 export class UpstreamUnavailableError extends AppError {
-  readonly key = "UPSTREAM_UNAVAILABLE_ERROR";
+  readonly key = ErrorKey.UpstreamUnavailable;
   readonly status = 503;
 }
 
 // o Transicionais recusou a reserva por outra regra (não é vaga nem prazo)
 export class ReservationRejectedError extends AppError {
-  readonly key = "RESERVATION_REJECTED_ERROR";
+  readonly key = ErrorKey.ReservationRejected;
   readonly status = 409;
 }

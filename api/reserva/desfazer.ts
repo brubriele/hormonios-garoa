@@ -8,12 +8,12 @@ import { TransicionaisRepo } from "../../src/serve-utils/repos/transicionais/rep
 import { TransicionaisSession } from "../../src/serve-utils/repos/transicionais/session";
 import {
   CancelReservationUsecase,
-  type ICancelReservationInput,
+  type ICancelReservationBody,
 } from "../../src/serve-utils/usecases/cancel-reservation";
 
 export const POST = handle(async (request) => {
   const { deviceId, cookie } = getOrCreateDevice(request);
-  const body = await readJson<Omit<ICancelReservationInput, "deviceId" | "ip">>(request);
+  const body = await readJson<ICancelReservationBody>(request);
 
   const httpClient = new HttpClient();
   const usecase = new CancelReservationUsecase(

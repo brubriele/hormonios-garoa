@@ -1,89 +1,11 @@
-import type { Attendance, AttendanceAnswer, AttendanceSync } from "../models/attendance";
+import type { ErrorKey } from "../errors/app-error";
+import type { ApplyValidationResult, Attendance, AttendanceAnswer, SyncMode } from "../models/attendance";
 import type { CurrentEvent } from "../models/current-event";
 import type { EventSnapshot } from "../models/event-snapshot";
 import type { User } from "../models/user";
 import type { UUID } from "./uuid";
 
-// formatos crus do Supabase; nunca saem do repo
-
-export interface IRawUser {
-  id: UUID;
-  email: string;
-  name: string;
-  pronoun: string;
-  data: Record<string, unknown>;
-  created_at: string;
-  updated_at: string;
-}
-
-// jsonb do retrato (hg_current_event.data): os nomes são os que a função reservar lê (0003)
-export interface IRawGroup {
-  id: string;
-  name: string;
-  stockTotal: number | null; // null = sem limite
-  active: boolean;
-  taken?: number; // só no retrato do Transicionais: occupied do instrumento no dia
-  instrumentSupportId?: string | null; // só no retrato do Transicionais: assistência do instrumento
-  rotativo?: boolean; // ausente (fase 1) = false
-}
-
-// campos novos ausentes no retrato da fase 1: sem limite, não rotativo, vale para todos os grupos
-export interface IRawSupport {
-  id: string;
-  name: string;
-  stockTotal?: number | null; // null ou ausente = sem limite
-  taken?: number; // só no retrato do Transicionais: occupied do acessório no dia
-  rotativo?: boolean;
-  groupIds?: string[]; // vazio ou ausente = todos os grupos
-}
-
-export interface IRawCurrentEventData {
-  dayKey: string;
-  date: string;
-  time: string;
-  location: string;
-  bookingOpen: boolean;
-  whatsappUrl: string;
-  groups: IRawGroup[];
-  supports: IRawSupport[];
-}
-
-export interface IRawCurrentEvent {
-  id: number;
-  data: IRawCurrentEventData;
-  external_id: string | null;
-  version: number | null;
-  vacancies_at: string | null;
-  fetched_at: string | null;
-  updated_at: string;
-}
-
-export interface IRawAttendanceData {
-  answer: AttendanceAnswer;
-  groupId: string | null;
-  supportIds: string[];
-}
-
-export interface IRawAttendance {
-  id: UUID;
-  user_id: UUID;
-  day_key: string;
-  device_id: UUID;
-  data: IRawAttendanceData;
-  transicionais_sync: AttendanceSync;
-  transicionais_order_id: string | null;
-  transicionais_changed_at: string | null;
-  sync_error: string | null;
-  attempts: number;
-  next_attempt_at: string;
-  created_at: string;
-  updated_at: string;
-}
-
-// hg_attendances com o hg_users embutido (select "*, hg_users(*)")
-export interface IRawAttendanceWithUser extends IRawAttendance {
-  hg_users: IRawUser;
-}
+// o formato cru fica nos schemas de repos/supabase/responses/ e requests/
 
 export interface IUpsertUserData {
   email: string; // já normalizado
@@ -122,18 +44,30 @@ export interface IClaimPendingFilter {
   limit: number;
 }
 
+// a trava do envio: grava só se a linha ainda é a enviada (marcar_sync)
+export interface IMarkSyncLock {
+  attendanceId: UUID;
+  updatedAt: string; // o lido antes do envio
+}
+
+export interface IMarkSyncedData extends IMarkSyncLock {
+  mode: SyncMode.Synced;
+  orderId: string | null;
+  changedAt: string | null;
+  guestId: string | null;
+}
+
+export interface IMarkRejectedData extends IMarkSyncLock {
+  mode: SyncMode.Rejected;
+  error: ErrorKey; // key do Hormônios
+}
+
+export interface IMarkPendingData extends IMarkSyncLock {
+  mode: SyncMode.Retry | SyncMode.Backoff; // próximo ciclo | espera crescente
+}
+
 // resultado de um envio ao Transicionais, gravado só se a linha ainda é a enviada (marcar_sync)
-export type IMarkSyncData =
-  | {
-    mode: "SYNCED";
-    attendanceId: UUID;
-    updatedAt: string; // o lido antes do envio
-    orderId: string | null;
-    changedAt: string | null;
-    guestId: string | null;
-  }
-  | { mode: "REJECTED"; attendanceId: UUID; updatedAt: string; error: string } // key do Hormônios
-  | { mode: "RETRY" | "BACKOFF"; attendanceId: UUID; updatedAt: string }; // próximo ciclo | espera crescente
+export type IMarkSyncData = IMarkSyncedData | IMarkRejectedData | IMarkPendingData;
 
 // webhook validation.changed, já no formato do Hormônios
 export interface IApplyValidationData {
@@ -146,10 +80,6 @@ export interface IApplyValidationData {
   supportIds: string[]; // só os acessórios
   changedAt: string;
 }
-
-// APPLIED: gravou; STALE: o webhook é mais velho; LOCAL_NEWER: a mudança local é mais nova;
-// UNKNOWN_PERSON: fora de hg_users (B6); NO_ROW: a pessoa não tem linha no dia
-export type IApplyValidationResult = "APPLIED" | "STALE" | "LOCAL_NEWER" | "UNKNOWN_PERSON" | "NO_ROW";
 
 // ocupado do dia que veio num webhook: groupId -> taken do instrumento, supportId -> taken do acessório
 export interface ISaveVacanciesData {
@@ -183,7 +113,7 @@ export interface IHormoniosRepo {
   markSync(data: IMarkSyncData): Promise<boolean>;
   // em rascunho: webhook do Transicionais, ainda não revisado pela Bea. Não usar até a revisão.
   /** @deprecated Em rascunho, aguardando revisão (webhook do Transicionais). */
-  applyValidation(data: IApplyValidationData): Promise<IApplyValidationResult>;
+  applyValidation(data: IApplyValidationData): Promise<ApplyValidationResult>;
   // true quando gravou (vagas mais novas que as do retrato)
   // em rascunho: webhook do Transicionais, ainda não revisado pela Bea. Não usar até a revisão.
   /** @deprecated Em rascunho, aguardando revisão (webhook do Transicionais). */

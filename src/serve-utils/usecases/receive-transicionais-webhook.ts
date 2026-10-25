@@ -1,6 +1,9 @@
 import { AppError } from "../errors/app-error";
+import { createLogger } from "../lib/logger";
+import { AttendanceAnswer } from "../models/attendance";
 import type { CurrentEvent } from "../models/current-event";
 import type { EventSnapshot } from "../models/event-snapshot";
+import { EventWebhookStatus, WebhookType } from "../models/transicionais-webhook";
 import type { IHormoniosRepo } from "../interfaces/hormonios";
 import type {
   IEventRef,
@@ -10,6 +13,8 @@ import type {
   IWebhookValidation,
 } from "../interfaces/transicionais";
 import { RefreshCurrentEventUsecase } from "./refresh-current-event";
+
+const logger = createLogger("ReceiveTransicionaisWebhookUsecase");
 
 export interface IReceiveTransicionaisWebhookInput {
   body: unknown; // corpo cru do webhook: só o repo do Transicionais o lê
@@ -41,7 +46,7 @@ export class ReceiveTransicionaisWebhookUsecase {
         throw error;
       }
 
-      console.error("[ReceiveTransicionaisWebhookUsecase]", error);
+      logger.error({ err: error }, "unexpected error");
       throw new Error("Unexpected error");
     }
   }
@@ -87,30 +92,30 @@ export class ReceiveTransicionaisWebhookUsecase {
     try {
       await this.hormoniosRepo.releaseWebhookDelivery(deliveryId);
     } catch (error) {
-      console.error(`[ReceiveTransicionaisWebhookUsecase] could not release delivery ${deliveryId}`, error);
+      logger.error({ err: error, deliveryId }, "could not release webhook delivery (D38)");
     }
   }
 
   private async applyWebhook(webhook: ITransicionaisWebhook, current: CurrentEvent | null): Promise<void> {
-    if (webhook.type === "event.updated") {
+    if (webhook.type === WebhookType.EventUpdated) {
       return this.applyEventUpdated(webhook.result);
     }
 
-    if (webhook.type === "validation.changed") {
+    if (webhook.type === WebhookType.ValidationChanged) {
       return this.applyValidationChanged(webhook.validation, current);
     }
 
-    console.error(`[ReceiveTransicionaisWebhookUsecase] ignored webhook type ${webhook.rawType}`);
+    logger.warn({ type: webhook.rawType }, "ignored webhook type");
   }
 
   // mesma trava do retrato (gravar_retrato); externalId de outro encontro é ignorado. O retrato que
   // não deu para mapear (o dia mudou) é relido pela rotina (dúvida D35)
   private async applyEventUpdated(result: IEventWebhookResult): Promise<void> {
-    if (result.status === "OTHER_EVENT") {
+    if (result.status === EventWebhookStatus.OtherEvent) {
       return;
     }
 
-    if (result.status === "SNAPSHOT") {
+    if (result.status === EventWebhookStatus.Snapshot) {
       await this.saveSupabaseSnapshot(result.snapshot);
       return;
     }
@@ -125,7 +130,7 @@ export class ReceiveTransicionaisWebhookUsecase {
   // regras 1 a 6 da seção Webhooks: a reserva (pelas travas da função aplicar_validacao) e as vagas.
   // Pessoa fora de hg_users (B6): só as vagas
   private async applyValidationChanged(validation: IWebhookValidation, current: CurrentEvent | null): Promise<void> {
-    const groupId = validation.answer === "vou" ? validation.groupId : null;
+    const groupId = validation.answer === AttendanceAnswer.Going ? validation.groupId : null;
 
     await this.hormoniosRepo.applyValidation({
       orderId: validation.orderId,

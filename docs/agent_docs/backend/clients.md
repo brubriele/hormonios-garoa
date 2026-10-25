@@ -21,8 +21,15 @@
 // src/serve-utils/clients/http-client.ts
 import type { IClientResponse } from "../interfaces/client-response";
 
+export enum HttpMethod {
+  Get = "GET",
+  Post = "POST",
+  Put = "PUT",
+  Delete = "DELETE",
+}
+
 export interface IHttpRequest {
-  method?: "GET" | "POST" | "PUT" | "DELETE";
+  method?: HttpMethod; // padrão GET
   url: string;
   body?: unknown;
   headers?: Record<string, string>;
@@ -37,7 +44,7 @@ export class HttpClient {
   async request<T>(input: IHttpRequest): Promise<IClientResponse<T>> {
     try {
       const response = await fetch(input.url, {
-        method: input.method ?? "GET",
+        method: input.method ?? HttpMethod.Get,
         headers: { "content-type": "application/json", ...input.headers },
         body: input.body === undefined ? undefined : JSON.stringify(input.body),
         signal: AbortSignal.timeout(input.timeoutMs ?? 3000),

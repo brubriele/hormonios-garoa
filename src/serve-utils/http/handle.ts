@@ -1,4 +1,7 @@
 import { AppError, InvalidParameterError } from "../errors/app-error";
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("handle");
 
 export interface IHttpResult {
   status?: number; // padrão: 200 com body, 204 sem
@@ -19,12 +22,12 @@ export function handle(fn: (request: Request) => Promise<IHttpResult>) {
 
       return Response.json(result.body, { status: result.status ?? 200, headers });
     } catch (error) {
-      console.error(error)
       if (error instanceof AppError) {
+        logger.warn({ key: error.key, status: error.status }, error.message);
         return Response.json({ key: error.key, message: error.message }, { status: error.status });
       }
 
-      console.error("[handle]", error);
+      logger.error({ err: error }, "unhandled error");
       return Response.json({ key: "INTERNAL_ERROR", message: "Unexpected error" }, { status: 500 });
     }
   };

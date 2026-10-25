@@ -1,6 +1,6 @@
 # Models (`src/serve-utils/models/`)
 
-> Índice: [`README.md`](README.md). Quem cria models: [`repos.md`](repos.md) (no `mapper*`).
+> Índice: [`README.md`](README.md). Quem cria models: os responses ([`requests-responses.md`](requests-responses.md), no `toDomain`).
 
 ## Regras
 
@@ -11,6 +11,11 @@
 | M3 | Validação inválida lança `InvalidParameterError` com o nome do campo na mensagem. |
 | M4 | String obrigatória não aceita vazia (`trim() === ""`). `typeof` já cobre `null`. |
 | M5 | O model não conhece API, Supabase nem HTTP. |
+| M6 | **Conjunto fechado de valores é `enum` de string** (`enum AttendanceSync { Pending = "PENDING", … }`), declarado no arquivo do model que o usa. Nada de união de strings nem de texto solto na comparação (`attendance.sync === AttendanceSync.Rejected`, e não `=== "REJECTED"`). Sem `const enum` (o esbuild do Vite e da Vercel não o compila entre arquivos). |
+| M7 | **Um enum por conceito.** Se o conceito existe no domínio, o enum é o do model, e o response da fonte usa ele (`z.enum(SupportTypeKind)`), sem um enum com os mesmos valores na pasta da fonte. Só o valor que **não** existe no domínio (ex.: `ValidationAnswer.Tentative` do Transicionais) fica num enum do response/request. A saída de uma rota também usa o enum do model (o `type` do estoque é `SupportTypeKind`). |
+| M9 | **Regra de um domínio é método do model**, mesmo quando ela precisa de outro model como entrada: a conta das vagas é `group.countTaken(attendances)`, `available(attendances)`, `soldOut(attendances)` e `isBelowReservations(capacity, attendances)`. A saída que junta os dois é do mapper ([`usecases.md`](usecases.md), U9). |
+| M10 | **A saída de uma rota também é model** (`EventView`, `AdminSummary`, `StockItem`, `MyReservation`), com as regras M1–M8. O JSON da resposta são os campos `readonly` do construtor: nada de getter ou campo a mais que mude o que sai. |
+| M8 | Para conferir um enum no `validate`: `Object.values(<Enum>).includes(valor)`. |
 
 ## Exemplo
 

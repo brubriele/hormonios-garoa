@@ -1,13 +1,17 @@
 import { AppError } from "../errors/app-error";
+import { createLogger } from "../lib/logger";
+import type { AdminSummary } from "../models/admin-summary";
 import type { Attendance } from "../models/attendance";
 import type { CurrentEvent } from "../models/current-event";
 import type { IHormoniosRepo } from "../interfaces/hormonios";
-import { toAdminSummary, type IAdminSummary } from "./event-summary";
+import { AdminSummaryMapper } from "./mappers/admin-summary.mapper";
+
+const logger = createLogger("AdminSummaryUsecase");
 
 export class AdminSummaryUsecase {
   constructor(private readonly hormoniosRepo: IHormoniosRepo) {}
 
-  async execute(): Promise<IAdminSummary> {
+  async execute(): Promise<AdminSummary> {
     try {
       return await this._execute(); // sem await o catch nao pega a rejeicao
     } catch (error) {
@@ -15,16 +19,16 @@ export class AdminSummaryUsecase {
         throw error;
       }
 
-      console.error("[AdminSummaryUsecase]", error);
+      logger.error({ err: error }, "unexpected error");
       throw new Error("Unexpected error");
     }
   }
 
-  private async _execute(): Promise<IAdminSummary> {
+  private async _execute(): Promise<AdminSummary> {
     const event = await this.findSupabaseCurrentEvent();
     const attendances = await this.findSupabaseAttendances(event.dayKey);
 
-    return toAdminSummary(event, attendances);
+    return AdminSummaryMapper.toView(event, attendances);
   }
 
   private async findSupabaseCurrentEvent(): Promise<CurrentEvent> {

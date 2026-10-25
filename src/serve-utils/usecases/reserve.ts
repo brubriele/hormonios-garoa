@@ -1,4 +1,5 @@
 import { AppError, BookingClosedError, InvalidParameterError } from "../errors/app-error";
+import { createLogger } from "../lib/logger";
 import type { Attendance, AttendanceSync } from "../models/attendance";
 import type { CurrentEvent } from "../models/current-event";
 import type { User } from "../models/user";
@@ -7,14 +8,20 @@ import type { ITransicionaisRepo } from "../interfaces/transicionais";
 import type { UUID } from "../interfaces/uuid";
 import { SendAttendanceUsecase } from "./send-attendance";
 
+const logger = createLogger("ReserveUsecase");
+
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export interface IReserveInput {
+// o corpo do POST /api/reserva
+export interface IReserveBody {
   email: string;
   name: string;
   pronoun: string;
   groupId: string | null; // null = só presença
   supportIds: string[];
+}
+
+export interface IReserveInput extends IReserveBody {
   deviceId: UUID;
   ip: string | null; // IP real (H11), repassado ao Transicionais
 }
@@ -46,7 +53,7 @@ export class ReserveUsecase {
         throw error;
       }
 
-      console.error("[ReserveUsecase]", error);
+      logger.error({ err: error }, "unexpected error");
       throw new Error("Unexpected error");
     }
   }

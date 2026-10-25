@@ -6,11 +6,11 @@ import { handle, readJson } from "../../src/serve-utils/http/handle";
 import { HormoniosRepo } from "../../src/serve-utils/repos/supabase/repo";
 import { TransicionaisRepo } from "../../src/serve-utils/repos/transicionais/repo";
 import { TransicionaisSession } from "../../src/serve-utils/repos/transicionais/session";
-import { ReserveUsecase, type IReserveInput } from "../../src/serve-utils/usecases/reserve";
+import { ReserveUsecase, type IReserveBody } from "../../src/serve-utils/usecases/reserve";
 
 export const POST = handle(async (request) => {
   const { deviceId, cookie } = getOrCreateDevice(request);
-  const body = await readJson<Omit<IReserveInput, "deviceId" | "ip">>(request);
+  const body = await readJson<IReserveBody>(request);
 
   const httpClient = new HttpClient();
   const usecase = new ReserveUsecase(

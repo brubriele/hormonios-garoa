@@ -11,6 +11,7 @@ export class TransicionaisUrlCollection {
     const url = process.env.TRANSICIONAIS_URL;
 
     if (!url) {
+      // check-ignore throw-error: env ausente é configuração (E7)
       throw new Error("TRANSICIONAIS_URL is not set");
     }
 
@@ -22,6 +23,7 @@ export class TransicionaisUrlCollection {
     const orgId = process.env.TRANSICIONAIS_ORG_ID;
 
     if (!orgId) {
+      // check-ignore throw-error: env ausente é configuração (E7)
       throw new Error("TRANSICIONAIS_ORG_ID is not set");
     }
 
@@ -60,7 +62,7 @@ export class TransicionaisUrlCollection {
     return `${this.events()}?${query.toString()}`;
   }
 
-  static eventCategory(id: number): string {
+  static eventCategory(id: string): string {
     return `${this.eventById(id)}/category`;
   }
 
@@ -68,20 +70,20 @@ export class TransicionaisUrlCollection {
     return `${this.apiUrl}/${this.EVENT_PATH}/delete`;
   }
 
-  static eventById(id: number): string {
+  static eventById(id: string): string {
     return `${this.apiUrl}/${this.EVENT_PATH}/${encodeURIComponent(id)}`;
   }
 
-  static eventDays(id: number): string {
+  static eventDays(id: string): string {
     return `${this.eventById(id)}/config-day`;
   }
 
-  static eventGroups(id: number): string {
+  static eventGroups(id: string): string {
     return `${this.eventById(id)}/groups`;
   }
 
   // catálogo da assistência: capacity, groupIds e rotativo (E2.9)
-  static supportType(id: number): string {
+  static supportType(id: string): string {
     return `${this.apiUrl}/${this.SUPPORT_TYPE_PATH}/${encodeURIComponent(id)}`;
   }
 
