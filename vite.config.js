@@ -50,7 +50,10 @@ function vercelApiDev() {
           response.headers.forEach((value, key) => {
             if (key !== 'set-cookie') res.setHeader(key, value)
           })
+          // pelo IP da rede (http://10.0.0.x), o navegador descarta cookie Secure; localhost é exceção
+          const local = /^(localhost|127\.0\.0\.1)(:|$)/.test(req.headers.host ?? '')
           const cookies = response.headers.getSetCookie()
+            .map((cookie) => local ? cookie : cookie.replace(/; Secure/i, ''))
           if (cookies.length) res.setHeader('set-cookie', cookies)
           res.end(Buffer.from(await response.arrayBuffer()))
         } catch (error) {
@@ -67,6 +70,7 @@ function vercelApiDev() {
 
 export default defineConfig({
   plugins: [vercelApiDev()],
+  server: { host: true }, // escuta em 0.0.0.0: abre pelo IP local da máquina (celular na mesma rede)
   build: {
     rollupOptions: {
       input: {

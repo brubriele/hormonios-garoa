@@ -33,6 +33,12 @@ export class SoldOutError extends AppError {
   readonly status = 409;
 }
 
+// o acessório pedido na reserva esgotou (E2.9)
+export class AccessorySoldOutError extends AppError {
+  readonly key = "ACCESSORY_SOLD_OUT_ERROR";
+  readonly status = 409;
+}
+
 export class AlreadyReservedError extends AppError {
   readonly key = "ALREADY_RESERVED_ERROR";
   readonly status = 409;
@@ -46,4 +52,10 @@ export class EventChangedError extends AppError {
 export class StockBelowReservationsError extends AppError {
   readonly key = "STOCK_BELOW_RESERVATIONS_ERROR";
   readonly status = 409;
+}
+
+// o Transicionais não respondeu (rede, timeout, 429, 5xx) numa ação da Produção
+export class UpstreamUnavailableError extends AppError {
+  readonly key = "UPSTREAM_UNAVAILABLE_ERROR";
+  readonly status = 503;
 }

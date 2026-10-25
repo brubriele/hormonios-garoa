@@ -2,12 +2,28 @@ import { AppError } from "../errors/app-error";
 import type { Attendance } from "../models/attendance";
 import type { CurrentEvent } from "../models/current-event";
 import type { IHormoniosRepo } from "../interfaces/hormonios";
+import type { ITransicionaisRepo } from "../interfaces/transicionais";
 import { toEventView, type IEventView } from "./event-summary";
+import { RefreshCurrentEventUsecase } from "./refresh-current-event";
+
+const MAX_AGE_MS = 5 * 60 * 1000;
+
+export interface IPublicEventView extends IEventView {
+  stale: boolean; // true = o Transicionais não respondeu e é o último retrato
+  fetchedAt: string | null; // ISO da última leitura do Transicionais
+}
 
 export class GetEventUsecase {
-  constructor(private readonly hormoniosRepo: IHormoniosRepo) {}
+  private readonly refreshCurrentEvent: RefreshCurrentEventUsecase;
 
-  async execute(): Promise<IEventView> {
+  constructor(
+    private readonly hormoniosRepo: IHormoniosRepo,
+    private readonly transicionaisRepo: ITransicionaisRepo,
+  ) {
+    this.refreshCurrentEvent = new RefreshCurrentEventUsecase(this.hormoniosRepo, this.transicionaisRepo);
+  }
+
+  async execute(): Promise<IPublicEventView> {
     try {
       return await this._execute(); // sem await o catch nao pega a rejeicao
     } catch (error) {
@@ -20,11 +36,41 @@ export class GetEventUsecase {
     }
   }
 
-  private async _execute(): Promise<IEventView> {
-    const event = await this.findSupabaseCurrentEvent();
+  private async _execute(): Promise<IPublicEventView> {
+    const cached = await this.hormoniosRepo.findCurrentEvent();
+
+    if (cached && !this.needsRefresh(cached)) {
+      return this.buildView(cached, false);
+    }
+
+    const available = await this.refreshTransicionaisEvent();
+    const event = available || !cached ? await this.findSupabaseCurrentEvent() : cached;
+
+    return this.buildView(event, !available);
+  }
+
+  private async buildView(event: CurrentEvent, stale: boolean): Promise<IPublicEventView> {
     const attendances = await this.findSupabaseAttendances(event.dayKey);
 
-    return toEventView(event, attendances);
+    return { ...toEventView(event, attendances), stale, fetchedAt: event.fetchedAt };
+  }
+
+  // retrato vazio, local da fase 1 ou com mais de 5 min
+  private needsRefresh(event: CurrentEvent | null): boolean {
+    if (!event || !event.isFromTransicionais || !event.fetchedAt) {
+      return true;
+    }
+
+    return Date.now() - Date.parse(event.fetchedAt) > MAX_AGE_MS;
+  }
+
+  // true quando o Transicionais respondeu; qualquer falha deixa o último retrato
+  private async refreshTransicionaisEvent(): Promise<boolean> {
+    try {
+      return (await this.refreshCurrentEvent.execute()).available;
+    } catch {
+      return false; // o RefreshCurrentEventUsecase já registrou
+    }
   }
 
   private async findSupabaseCurrentEvent(): Promise<CurrentEvent> {

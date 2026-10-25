@@ -19,6 +19,7 @@ export function handle(fn: (request: Request) => Promise<IHttpResult>) {
 
       return Response.json(result.body, { status: result.status ?? 200, headers });
     } catch (error) {
+      console.error(error)
       if (error instanceof AppError) {
         return Response.json({ key: error.key, message: error.message }, { status: error.status });
       }

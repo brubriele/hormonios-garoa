@@ -91,7 +91,7 @@ export class ReserveUsecase {
     const event = await this.hormoniosRepo.findCurrentEventOrFail();
 
     this.validateBookingOpen(event);
-    this.validateSupports(event, input.supportIds);
+    this.validateSupports(event, input.groupId, input.supportIds);
 
     return event;
   }
@@ -103,8 +103,13 @@ export class ReserveUsecase {
     }
   }
 
-  private validateSupports(event: CurrentEvent, supportIds: string[]) {
-    const known = new Set(event.supports.map((support) => support.id));
+  // cada acessório precisa valer para o instrumento (E2.9); sem groupId, supportIds já está vazio
+  private validateSupports(event: CurrentEvent, groupId: string | null, supportIds: string[]) {
+    if (groupId === null) {
+      return;
+    }
+
+    const known = new Set(event.supportsForGroup(groupId).map((support) => support.id));
 
     if (supportIds.some((id) => !known.has(id))) {
       throw new InvalidParameterError("Field supportIds is invalid");

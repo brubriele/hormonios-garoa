@@ -6,6 +6,10 @@ export type AttendanceAnswer = "vou" | "nao-vou";
 
 const ANSWERS: readonly AttendanceAnswer[] = ["vou", "nao-vou"];
 
+export type AttendanceSync = "PENDING" | "SYNCED" | "REJECTED";
+
+const SYNCS: readonly AttendanceSync[] = ["PENDING", "SYNCED", "REJECTED"];
+
 export class Attendance {
   constructor(
     readonly id: UUID,
@@ -16,6 +20,7 @@ export class Attendance {
     readonly groupId: string | null, // null = só presença
     readonly supportIds: string[],
     readonly createdAt: string,
+    readonly sync: AttendanceSync = "PENDING",
   ) {
     this.validate();
   }
@@ -48,9 +53,18 @@ export class Attendance {
     if (typeof this.createdAt !== "string" || this.createdAt.trim() === "") {
       throw new InvalidParameterError("Field createdAt is invalid");
     }
+
+    if (!SYNCS.includes(this.sync)) {
+      throw new InvalidParameterError("Field sync is invalid");
+    }
   }
 
+  // REJECTED não ocupa vaga e não conta como reserva
   get isGoing(): boolean {
-    return this.answer === "vou";
+    return this.answer === "vou" && this.sync !== "REJECTED";
+  }
+
+  get isPending(): boolean {
+    return this.sync === "PENDING";
   }
 }

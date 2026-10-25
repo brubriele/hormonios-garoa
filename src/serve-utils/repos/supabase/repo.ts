@@ -1,4 +1,5 @@
 import {
+  AccessorySoldOutError,
   AlreadyReservedError,
   AppError,
   BookingClosedError,
@@ -10,11 +11,13 @@ import {
 import { SupabaseClient } from "../../clients/supabase-client";
 import { Attendance } from "../../models/attendance";
 import { CurrentEvent, Group, Support } from "../../models/current-event";
+import type { EventSnapshot } from "../../models/event-snapshot";
 import { User } from "../../models/user";
 import type {
   ICancelByDeviceFilter,
   IHormoniosRepo,
   IListByDeviceFilter,
+  IMoveAttendancesData,
   IRawAttendance,
   IRawAttendanceData,
   IRawAttendanceWithUser,
@@ -35,6 +38,8 @@ const SQL_ERRORS: Record<string, () => AppError> = {
   INVALID_GROUP: () => new InvalidParameterError("Field groupId is invalid"),
   ALREADY_RESERVED: () => new AlreadyReservedError("Email already has a reservation for this event"),
   SOLD_OUT: () => new SoldOutError("Group is sold out"),
+  ACCESSORY_SOLD_OUT: () => new AccessorySoldOutError("Accessory is sold out"),
+  INVALID_SUPPORT: () => new InvalidParameterError("Field supportIds is invalid"),
 };
 
 export class HormoniosRepo implements IHormoniosRepo {
@@ -50,8 +55,32 @@ export class HormoniosRepo implements IHormoniosRepo {
       data.location,
       data.bookingOpen,
       data.whatsappUrl,
-      (data.groups ?? []).map((group) => new Group(group.id, group.name, group.stockTotal, group.active)),
-      (data.supports ?? []).map((support) => new Support(support.id, support.name)),
+      (data.groups ?? []).map(
+        (group) =>
+          new Group(
+            group.id,
+            group.name,
+            group.stockTotal ?? null,
+            group.active,
+            raw.external_id ? group.taken ?? 0 : null,
+            group.instrumentSupportId ?? null,
+            group.rotativo ?? false,
+          ),
+      ),
+      // retrato da fase 1 sem os campos novos: sem limite, não rotativo, vale para todos os grupos
+      (data.supports ?? []).map(
+        (support) =>
+          new Support(
+            support.id,
+            support.name,
+            support.stockTotal ?? null,
+            raw.external_id ? support.taken ?? 0 : null,
+            support.rotativo ?? false,
+            support.groupIds ?? [],
+          ),
+      ),
+      raw.external_id ?? null,
+      raw.fetched_at ?? null,
     );
   }
 
@@ -68,8 +97,18 @@ export class HormoniosRepo implements IHormoniosRepo {
         name: group.name,
         stockTotal: group.stockTotal,
         active: group.active,
+        ...(group.taken === null ? {} : { taken: group.taken }),
+        ...(group.instrumentSupportId === null ? {} : { instrumentSupportId: group.instrumentSupportId }),
+        rotativo: group.rotativo,
       })),
-      supports: event.supports.map((support) => ({ id: support.id, name: support.name })),
+      supports: event.supports.map((support) => ({
+        id: support.id,
+        name: support.name,
+        stockTotal: support.stockTotal,
+        ...(support.taken === null ? {} : { taken: support.taken }),
+        rotativo: support.rotativo,
+        groupIds: support.groupIds,
+      })),
     };
   }
 
@@ -87,6 +126,7 @@ export class HormoniosRepo implements IHormoniosRepo {
       raw.data.groupId ?? null,
       raw.data.supportIds ?? [],
       raw.created_at,
+      raw.transicionais_sync ?? "PENDING",
     );
   }
 
@@ -120,21 +160,52 @@ export class HormoniosRepo implements IHormoniosRepo {
     return event;
   }
 
-  async saveCurrentEvent(event: CurrentEvent): Promise<CurrentEvent> {
-    const response = await this.supabaseClient.query<IRawCurrentEvent>((sdk) =>
-      sdk
-        .from("hg_current_event")
-        .update({ data: this.mapperCurrentEventData(event), updated_at: new Date().toISOString() })
-        .eq("id", CURRENT_EVENT_ID)
-        .select("*")
-        .single(),
+  // trava do retrato na função gravar_retrato; o whatsappUrl gravado fica
+  async saveSnapshot(snapshot: EventSnapshot): Promise<boolean> {
+    const { whatsappUrl: _local, ...data } = this.mapperCurrentEventData(snapshot.event);
+
+    const response = await this.supabaseClient.query<boolean>((sdk) =>
+      sdk.rpc("gravar_retrato", {
+        p_external_id: snapshot.externalId,
+        p_version: snapshot.version,
+        p_vacancies_at: snapshot.vacanciesAt,
+        p_data: data,
+      }),
     );
 
-    if (response.error || !response.data) {
-      throw new Error(`Supabase saveCurrentEvent failed with ${response.status}: ${response.error?.message}`);
+    if (response.error) {
+      throw new Error(`Supabase gravar_retrato failed with ${response.status}: ${response.error.message}`);
     }
 
-    return this.mapperCurrentEvent(response.data);
+    return response.data === true;
+  }
+
+  async saveWhatsappUrl(url: string): Promise<void> {
+    const response = await this.supabaseClient.query<null>((sdk) => sdk.rpc("gravar_whatsapp", { p_url: url }));
+
+    if (response.error?.message === "EVENT_NOT_FOUND") {
+      throw new NotFoundError("Current event Not Found");
+    }
+
+    if (response.error) {
+      throw new Error(`Supabase gravar_whatsapp failed with ${response.status}: ${response.error.message}`);
+    }
+  }
+
+  async moveAttendances(data: IMoveAttendancesData): Promise<number> {
+    const response = await this.supabaseClient.query<number>((sdk) =>
+      sdk.rpc("migrar_fase1", {
+        p_old_day_key: data.oldDayKey,
+        p_new_day_key: data.newDayKey,
+        p_group_map: data.groupMap,
+      }),
+    );
+
+    if (response.error) {
+      throw new Error(`Supabase migrar_fase1 failed with ${response.status}: ${response.error.message}`);
+    }
+
+    return response.data ?? 0;
   }
 
   // o mesmo e-mail com outro nome troca o nome e o pronome

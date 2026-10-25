@@ -18,7 +18,8 @@ webhooks).
   ("Produção só leitura") saiu.
 - **E2.6. Auth por login de membro, até existir a role `SERVICE`.** O BFF entra pelo
   `POST auth/login` com `TRANSICIONAIS_USER` e `TRANSICIONAIS_PASSWORD`.
-- **E2.7. O encontro atual fica no Supabase.** `CURRENT_EVENT` é só o valor inicial.
+- **E2.7. O encontro atual vem da API, sem env:** o primeiro encontro Público da listagem de
+  manager com data de hoje em diante. Os ids de grupos e assistências são os do Transicionais.
 - **E2.8. A reserva vai com o token de membro**, que também escreve como convidado:
   `POST v2/community/validations/change` com a pessoa no corpo (setup, item 6).
 - **Setup do Transicionais:** [`transicionais/setup-hormonios.md`](transicionais/setup-hormonios.md).
@@ -39,7 +40,6 @@ onda 5.
 |---|---|
 | `TRANSICIONAIS_URL` | base da API, **com** o prefixo `/apps_nodejs` (`http://localhost:4500/apps_nodejs` ou `https://dev-api.transicionais.com.br/apps_nodejs`). A url-collection não repete o prefixo. |
 | `TRANSICIONAIS_USER`, `TRANSICIONAIS_PASSWORD` | login do membro ADMIN do BFF (`hormonios-bff` do setup; antes do setup, `admin1` de [`transicionais-dev-users.md`](../agent_docs/backend/transicionais-dev-users.md)) |
-| `CURRENT_EVENT` | JSON `{ "customId", "externalId", "dayId" }`. Valor inicial do encontro atual (E2.7) |
 | `CRON_SECRET` | `Authorization: Bearer` das rotas `/api/cron/*` (o mesmo no Worker) |
 | `TRANSICIONAIS_JWT_KEY` | chave para conferir o JWT dos webhooks |
 
@@ -51,11 +51,11 @@ onda 5.
 | `date` / `time` | `configDays[].current` (`YYYY-MM-DD`) / `configDays[].startTime` (`HH:mm`) |
 | `location` | `location` do encontro |
 | `bookingOpen` | `public.answerWindow.open && !public.answerWindow.closed` (a escrita é dúvida D1) |
-| `groups[].id` | `String(groupId)` do Transicionais |
+| `groups[].id` | `String(groupId)` do Transicionais (sem de-para) |
 | `groups[].name` | `groups[].name` |
 | `groups[].stockTotal` | `public.vacancies.groups[].total` |
 | `groups[].active` | o grupo está nos grupos esperados do encontro |
-| `supports[].id` | **continua `talabarte` e `baqueta`**: o repo liga pelo título ("Talabarte", "Baqueta / maçaneta") ao id do Transicionais, nas duas direções. O front usa esses ids. |
+| `supports[].id` | `String(id)` da assistência no Transicionais. O front deixa de fixar `talabarte`/`baqueta` (Passo C). |
 | `whatsappUrl` | **só do Hormônios**, em `hg_current_event.data` |
 | `answer: "vou"` / `"nao-vou"` | `status: ATTENDING` / `DECLINED` |
 
@@ -148,10 +148,10 @@ mudanças. Toda resposta é JSON. O erro é sempre `{ key, message }`.
    `EVENT_VERSION_CONFLICT`) e `createNextEvent(...)` (cria o encontro, o dia, os grupos e o
    público, copiando grupos, assistências e limites do atual). Os `IRaw*` em
    `interfaces/transicionais.ts`. Mapper pela tabela de tradução.
-4. **`usecases/refresh-current-event.ts`** (`refreshCurrentEvent()`, R13 revista): lê o encontro
-   atual do Supabase (`external_id` + `dayKey`); se não houver, usa `CURRENT_EVENT`. Grava com a
-   trava (`version`, depois `vacanciesAt`). Na primeira leitura sobre o retrato local da fase 1,
-   chama `migrar_fase1`. Mantém o `whatsappUrl` local.
+4. **`usecases/refresh-current-event.ts`** (`refreshCurrentEvent()`, R13 revista): acha o encontro
+   atual pela listagem de manager (E2.7) e lê o completo. Grava com a trava (`version`, depois
+   `vacanciesAt`). Na primeira leitura sobre o retrato local da fase 1, chama `migrar_fase1` (as
+   reservas com instrumento viram só presença: os ids locais não existem no Transicionais). Mantém o `whatsappUrl` local.
 5. **`GET /api/ensaio`**: chama a rotina quando o retrato é local, de outro `externalId` ou tem
    mais de 5 min. Falhou → último retrato com `stale: true`.
 6. **`GET /api/cron/event`**: `requireCron` + rotina.
@@ -182,6 +182,9 @@ mudanças. Toda resposta é JSON. O erro é sempre `{ key, message }`.
 
 - `cron/wrangler.toml` e `cron/worker.js`, como em `bff-fase-2.md`, e um `cron/README.md` curto
   (secrets e um Worker por ambiente).
+- **Assistências pelos ids da API:** as duas caixas da folha (talabarte e baqueta) passam a ser
+  montadas a partir de `event.supports`, com o mesmo visual e os mesmos textos. Saem as constantes
+  `STRAP`/`BEATER`.
 - `stale: true` → aviso "Informações podem estar desatualizadas." no topo da home. Sem `stale`,
   nada muda.
 - "Minhas reservas": `PENDING` mostra "Pendente: confirmamos assim que possível."; `REJECTED`

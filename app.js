@@ -14,6 +14,7 @@ const OPERATIONAL_VIEWS = ["presence","instruments","my-reservations"];
 
 const ERROR_MESSAGES = {
   SOLD_OUT_ERROR: "Este instrumento acabou de esgotar.",
+  ACCESSORY_SOLD_OUT_ERROR: "Este acessório acabou de esgotar.",
   ALREADY_RESERVED_ERROR: "Este e-mail já tem reserva neste ensaio.",
   BOOKING_CLOSED_ERROR: "As reservas estão fechadas no momento.",
   EVENT_CHANGED_ERROR: "O ensaio mudou. Atualizamos a página.",
@@ -126,9 +127,6 @@ function formatDate(value){
   return new Intl.DateTimeFormat("pt-BR",{weekday:"long",day:"2-digit",month:"long"}).format(d);
 }
 
-// Acessórios: os ids de event.supports que substituem needsStrap / needsBeater.
-const STRAP="talabarte", BEATER="baqueta";
-
 function loadingHtml(){ return `<div class="empty-state">Carregando…</div>`; }
 
 function closedHtml(){
@@ -196,13 +194,15 @@ function renderInstruments(){
   if(!state.event){ el.innerHTML=state.eventError?retryHtml("Não foi possível carregar os instrumentos."):loadingHtml(); bindRetry(el); return; }
   if(!isBookingOpen()){ el.innerHTML=closedHtml(); return; }
 
-  el.innerHTML=state.event.groups.map((g,n)=>{
-    const avail=g.available;
+  el.innerHTML=state.event.instruments.map((g,n)=>{
+    // available null = sem limite: só o rótulo, sem número
+    const avail=g.available, sold=g.soldOut;
+    const count=avail===null?"":`<strong>${escapeHtml(avail)}</strong>`;
     return `<div class="instrument-row">
       <div class="instrument-code">I / ${String(n+1).padStart(2,"0")}</div>
       <div class="instrument-name">${escapeHtml(g.name)}</div>
-      <div class="instrument-availability ${avail===0?"sold":""}"><strong>${escapeHtml(avail)}</strong>${avail===1?"disponível":"disponíveis"}</div>
-      <button class="reserve-btn" ${avail===0?"disabled":""} data-reserve="${escapeHtml(g.id)}">${avail===0?"Esgotado":"Reservar →"}</button>
+      <div class="instrument-availability ${sold?"sold":""}">${count}${avail===1?"disponível":"disponíveis"}</div>
+      <button class="reserve-btn" ${sold?"disabled":""} data-reserve="${escapeHtml(g.id)}">${sold?"Esgotado":"Reservar →"}</button>
     </div>`;
   }).join("");
 
@@ -240,11 +240,14 @@ function showStatus(msg){
 function openReserve(id){
   if(!isBookingOpen()){showToast("As reservas estão fechadas no momento.");navigate("home");return;}
 
-  const i=state.event.groups.find(x=>x.id===id);
+  const i=state.event.instruments.find(x=>x.id===id);
   if(!i)return;
 
   document.querySelector("#reserve-instrument-id").value=id;
   document.querySelector("#reserve-instrument-label").textContent=i.name;
+  document.querySelector("#reserve-accessories").innerHTML=(i.accessories||[]).map(a=>
+    `<label class="toggle-row"><input type="checkbox" value="${escapeHtml(a.id)}" ${a.soldOut?"disabled":""}><span>Preciso de ${escapeHtml(a.name)}${a.soldOut?" (esgotado)":""}</span></label>`
+  ).join("");
 
   const mine=state.mine[0];
   const email=document.querySelector("#reserve-email");
@@ -271,11 +274,9 @@ function reserveInstrument(e){
 
   const id=document.querySelector("#reserve-instrument-id").value;
   if(state.mine.some(x=>x.groupId===id)){showToast("Você já reservou este instrumento.");return}
-  if((state.event.groups.find(x=>x.id===id)?.available ?? 0)<=0){showToast("Este instrumento acabou de ficar esgotado.");return}
+  if(state.event.instruments.find(x=>x.id===id)?.soldOut ?? true){showToast("Este instrumento acabou de ficar esgotado.");return}
 
-  const supportIds=[];
-  if(document.querySelector("#needs-strap").checked) supportIds.push(STRAP);
-  if(document.querySelector("#needs-beater").checked) supportIds.push(BEATER);
+  const supportIds=[...document.querySelectorAll("#reserve-accessories input:checked")].map(x=>x.value);
 
   const body={
     email:document.querySelector("#reserve-email").value.trim(),
@@ -311,8 +312,8 @@ function renderMyReservations(){
   el.innerHTML=state.mine.map(x=>{
     // groupId null = só presença: a linha mostra "Presença confirmada" (dúvida 18)
     const title=x.groupId ? (x.groupName || "Instrumento") : "Presença confirmada";
-    const strap=x.supportIds.includes(STRAP), beater=x.supportIds.includes(BEATER);
-    const meta=x.groupId ? `${strap?"Talabarte · ":""}${beater?"Baqueta/maçaneta":(!strap?"Sem acessórios":"")}` : "";
+    const names=(x.accessories||[]).map(a=>a.name).join(" · ");
+    const meta=x.groupId ? escapeHtml(names || "Sem acessórios") : "";
     return `<div class="reservation-row">
       <div><strong>${escapeHtml(title)}</strong><small>${escapeHtml(x.name)} · ${escapeHtml(x.pronoun)}</small></div>
       <div class="meta"><small>${meta}</small></div>
@@ -447,14 +448,17 @@ function renderAdmin(){
       <p class="form-hint">Se preenchido, o botão “Abrir grupo HG · Ensaios” aparece automaticamente na tela de reservas fechadas.</p>
     </div>
 
-    <div class="admin-subsection"><h3>ESTOQUE</h3><div class="admin-table">${r.groups.map(g=>{
-      const list=res.filter(x=>x.groupId===g.id);
+    <div class="admin-subsection"><h3>ESTOQUE</h3><div class="admin-table">${(r.stock||[]).map(g=>{
+      // stockTotal null = sem limite: sem ajuste de estoque
+      const list=g.reservations||[];
+      const unlimited=g.stockTotal===null;
+      const avail=g.available===null?"sem limite":`${escapeHtml(g.available)} disponíveis`;
       return `
       <div class="admin-line">
-        <div><strong>${escapeHtml(g.name)}</strong><small class="admin-stock"> ${list.length} reservados · ${escapeHtml(g.available)} disponíveis</small></div>
-        <div class="stock-controls"><button data-stock="-1" data-id="${escapeHtml(g.id)}">−</button><strong>${escapeHtml(g.stockTotal)}</strong><button data-stock="1" data-id="${escapeHtml(g.id)}">+</button></div>
+        <div><strong>${escapeHtml(g.name)}</strong><small class="admin-stock"> ${list.length} reservados · ${avail}</small></div>
+        <div class="stock-controls"><button data-stock="-1" data-id="${escapeHtml(g.id)}" ${unlimited?"disabled":""}>−</button><strong>${unlimited?"—":escapeHtml(g.stockTotal)}</strong><button data-stock="1" data-id="${escapeHtml(g.id)}" ${unlimited?"disabled":""}>+</button></div>
         <div class="admin-reservations">${list.map(x=>`${escapeHtml(x.name)} — ${escapeHtml(x.pronoun)}`).join("<br>")||"—"}</div>
-        <div class="admin-options">${list.map(x=>`${x.supportIds.includes(STRAP)?"talabarte ":""}${x.supportIds.includes(BEATER)?"baqueta/maçaneta":""}`).filter(Boolean).join("<br>")||"—"}</div>
+        <div class="admin-options">${list.map(x=>escapeHtml(x.detail||"")).filter(Boolean).join("<br>")||"—"}</div>
       </div>`;
     }).join("")}</div></div>
 
@@ -503,15 +507,16 @@ function toggleBooking(button){
 }
 
 function adjustStock(button,id,delta){
-  const g=state.admin.event.groups.find(x=>x.id===id);
-  if(!g)return;
+  const g=state.admin.event.stock.find(x=>x.id===id);
+  if(!g || g.stockTotal===null)return;
   const stockTotal=Math.max(0,g.stockTotal+delta);
-  if(stockTotal<state.admin.attendances.filter(x=>x.groupId===id).length){
+  // rotativo: as reservas não ocupam o estoque, então o BFF decide
+  if(!g.rotativo && stockTotal<g.reservations.length){
     showToast("O estoque total não pode ficar abaixo das reservas atuais.");
     return;
   }
   if(stockTotal===g.stockTotal)return;
-  run(button,()=>updateEvent({groups:[{id,stockTotal}]}));
+  run(button,()=>updateEvent({stocks:[{id,stockTotal}]}));
 }
 
 function resetRehearsal(button){
@@ -557,7 +562,7 @@ async function handleError(err){
     await loadPublic();
     navigate("home");
   }
-  if(key==="SOLD_OUT_ERROR"){
+  if(key==="SOLD_OUT_ERROR" || key==="ACCESSORY_SOLD_OUT_ERROR"){
     document.querySelector("#reserve-dialog").close();
     await loadPublic();
   }

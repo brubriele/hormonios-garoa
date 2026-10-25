@@ -23,13 +23,14 @@
 | R9 | Idempotência no Hormônios: uma linha por pessoa e dia (`unique (user_id, day_key)`). | conversa |
 | R11 | **Webhook `event.updated`:** o retrato inteiro do encontro público, trocado de uma vez e só se for mais novo. | conversa |
 | R12 | **Webhook `validation.changed`:** atualiza a reserva da pessoa (pelo `orderId` ou pelo e-mail) e as vagas do dia. | conversa |
-| R13 | **O encontro atual vem da configuração** (`CURRENT_EVENT`), e uma rotina só a resolve: `refreshCurrentEvent()`. Ela roda quando a API precisa e num cron. | conversa |
+| R13 | **O encontro atual vem da configuração** (~~`CURRENT_EVENT`~~ revisto pela E2.7: vem da listagem da API), e uma rotina só a resolve: `refreshCurrentEvent()`. Ela roda quando a API precisa e num cron. | conversa |
 | R14 | **Os crons são disparados por um Cloudflare Worker** (plano gratuito), que chama as rotas `/api/cron/*` do BFF. A lógica fica no BFF. | conversa |
 | ~~E2.1~~ | **Substituída pela E2.5 (2026-10-24).** ~~A **Produção do Hormônios passa a ser só leitura** para ensaio, instrumentos e vagas, que agora se editam no painel do Transicionais. O link do WhatsApp continua sendo do Hormônios.~~ | — |
 | E2.5 | **A complexidade do Transicionais é transparente para o Hormônios.** A Produção mantém a mesma tela. Salvar ensaio, estoque e abrir/fechar reservas são repassados pelo BFF às rotas `manager-events/*`. "Encerrar ensaio" cria o próximo encontro no Transicionais (mesmos grupos, assistências e limites), e ele passa a ser o atual. O link do WhatsApp continua do Hormônios. | Bea, 2026-10-24 |
 | E2.6 | **Até existir a role `SERVICE` (T2.4), o BFF entra como membro** pelo `POST auth/login`, com `TRANSICIONAIS_USER`/`TRANSICIONAIS_PASSWORD` (ADMIN da organização). Token e refresh ficam na memória da função; num 401, renova e, se não der, entra de novo. | Bea, 2026-10-24 |
-| E2.7 | **O encontro atual fica no Supabase** (`hg_current_event.external_id` e `dayKey`). `CURRENT_EVENT` é só o valor inicial, porque "Encerrar ensaio" troca o encontro sem mexer em env. Revê a R13. | Bea, 2026-10-24 |
+| E2.7 | **O encontro atual vem da API, sem env.** É o primeiro encontro Público da listagem de manager (`GET v2/manager-events/details?startAt=<hoje>&orderBy=startAt:asc`), que já traz os grupos; o completo vem de `GET v2/manager-events/details/{id}`. Os ids de grupos e assistências são os do Transicionais (sem de-para). "Encerrar ensaio" cria o próximo e apaga o antigo, e a listagem passa a achar o novo. O `CURRENT_EVENT` saiu. Revê a R13. | Bea, 2026-10-24 |
 | E2.8 | **A reserva vai com o token de membro**, que também escreve como convidado: `POST v2/community/validations/change` com `person: { email, name, pronoun }` e `idempotencyKey` (setup, item 6). Substitui a rota de serviço da T2.5 até ela existir. | Bea, 2026-10-24 |
+| E2.9 | **O estoque é o `capacity` das assistências (`manager-support-types`), não a vaga do grupo.** O instrumento é a assistência `type='instrumento'`, ligada ao grupo pelo `groupIds` dela. Os acessórios são as `type='acessorio'` que valem para o grupo do instrumento (`groupIds` com o grupo ou vazio = todos). O ocupado é o `occupied` de `configDays[].summary.supports` do dia. `rotativo: true` pode passar da capacidade; sem rotativo, a reserva é recusada (instrumento e acessório). `public.vacancies` (pessoas por grupo) não aparece no front. A Produção ajusta o `capacity` (`PUT manager-support-types/{id}`, objeto inteiro). Continuam as duas leituras: a listagem de manager só acha o encontro (`externalId`, `configDayId`); grupos, local, assistências e estoque vêm do GET público. Revê a D17. Contrato: [`transicionais/public-event-exemplo.json`](transicionais/public-event-exemplo.json). | Bea, 2026-10-25 |
 | E2.3 | **O Transicionais é invisível para quem reserva.** A tela nunca cita o Transicionais. Não há aceite de termos dele nem login. O BFF traduz a `key` de erro do back numa mensagem do Hormônios (vaga esgotada, prazo encerrado, reservas fechadas). | conversa |
 | E2.4 | **E-mail de membro responde como membro.** O serviço do Transicionais faz o roteamento (T2.5). Para o BFF não muda nada: a resposta volta com o `orderId` do mesmo jeito, e as regras do membro valem (escala, VAL-01 a VAL-07). Se o membro não estiver escalado, o back recusa e a reserva fica `REJECTED` (E2.3). | conversa |
 | E2.2 | **Migração da fase 1:** os instrumentos locais são ligados aos grupos do Transicionais pelo nome (tabela de-para na migration). As reservas da fase 1 trocam `day_key` pelo `configDayId` e entram como `PENDING`. | padrão adotado |
@@ -72,9 +73,8 @@ create table hg_webhook_deliveries (
 
 A configuração (env `CURRENT_EVENT`, `{ customId, externalId, dayId }`) diz qual é o encontro atual.
 
-> **Revisto pela E2.7:** o encontro atual é lido do Supabase (`hg_current_event.external_id` e
-> `dayKey`). A env `CURRENT_EVENT` só vale enquanto o Supabase ainda não tem um. "Encerrar ensaio"
-> grava o novo lá.
+> **Revisto pela E2.7:** não há mais `CURRENT_EVENT`. O encontro atual é o primeiro Público da
+> listagem de manager com data de hoje em diante. O `external_id` gravado serve só para a trava.
 
 1. Chama `GET v2/community/organizations/{customId}/events/{externalId}?dayId=` (timeout de 3 s). É a rota pública.
 2. Grava em `hg_current_event`, com uma trava:
@@ -249,7 +249,7 @@ export default {
 
 **E2-W1. Front:** aviso de `stale` e status da reserva.
 
-**Envs novas:** `TRANSICIONAIS_URL` (com `/apps_nodejs`), `TRANSICIONAIS_USER`, `TRANSICIONAIS_PASSWORD` (E2.6), `CURRENT_EVENT` (valor inicial, E2.7), `CRON_SECRET`, `TRANSICIONAIS_JWT_KEY` (para conferir o JWT dos webhooks).
+**Envs novas:** `TRANSICIONAIS_URL` (com `/apps_nodejs`), `TRANSICIONAIS_USER`, `TRANSICIONAIS_PASSWORD` (E2.6), `CRON_SECRET`, `TRANSICIONAIS_JWT_KEY` (para conferir o JWT dos webhooks).
 
 **Pronto quando:**
 1. Uma reserva feita no Hormônios aparece na lista de convidados do painel do Transicionais, com grupo, assistências e pronome.

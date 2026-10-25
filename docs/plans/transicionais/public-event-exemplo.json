@@ -1,0 +1,89 @@
+{
+  "_comment": "GET v2/community/organizations/{customId}/events/{externalId}?dayId= (contrato novo, E2.9). Recorte do encontro 201 do dev, colado pela Bea em 2026-10-25: 6 das 17 assistências e 3 dos 10 grupos.",
+  "id": 201,
+  "name": "Ensaio",
+  "location": "São Paulo — SP",
+  "categoryId": 201,
+  "organizationId": "00000000-0000-4000-8000-000000000003",
+  "calendarId": "00000000-0000-4000-9000-0000000000c3",
+  "createdAt": "2026-10-25T07:54:57.000Z",
+  "startAt": "2026-11-01",
+  "endAt": "2026-11-01",
+  "version": 0,
+  "categoryName": "Ensaio",
+  "categoryDescription": "Ensaio aberto da bateria",
+  "categoryArchivedAt": null,
+  "organizationCustomId": "hormonios-da-garoa",
+  "organizationName": "Hormônios da Garoa",
+  "public": {
+    "publicDescription": "Ensaio aberto da bateria Hormônios da Garoa.",
+    "releaseAt": null,
+    "membersEarlyAt": null,
+    "guestDeadlineMinutes": 0,
+    "supports": [
+      { "id": 213, "organizationId": "00000000-0000-4000-8000-000000000003", "title": "Agogô", "description": null, "type": "instrumento", "isActive": true, "externalSupportId": 15 },
+      { "id": 208, "organizationId": "00000000-0000-4000-8000-000000000003", "title": "Caixa", "description": null, "type": "instrumento", "isActive": true, "externalSupportId": 10 },
+      { "id": 210, "organizationId": "00000000-0000-4000-8000-000000000003", "title": "Surdo 1", "description": null, "type": "instrumento", "isActive": true, "externalSupportId": 12 },
+      { "id": 207, "organizationId": "00000000-0000-4000-8000-000000000003", "title": "Baqueta madeira", "description": null, "type": "acessorio", "isActive": true, "externalSupportId": 9 },
+      { "id": 202, "organizationId": "00000000-0000-4000-8000-000000000003", "title": "Maçaneta", "description": null, "type": "acessorio", "isActive": true, "externalSupportId": 4 },
+      { "id": 203, "organizationId": "00000000-0000-4000-8000-000000000003", "title": "Talabarte em X", "description": null, "type": "acessorio", "isActive": true, "externalSupportId": 5 }
+    ],
+    "vacancies": {
+      "total": { "isSnapshot": false, "free": null, "total": null, "canChange": true, "isChecked": false },
+      "groups": [
+        { "externalGroupId": 14, "groupId": 206, "isSnapshot": false, "free": null, "total": null, "canChange": true, "isChecked": false },
+        { "externalGroupId": 9, "groupId": 201, "isSnapshot": false, "free": null, "total": null, "canChange": true, "isChecked": false },
+        { "externalGroupId": 11, "groupId": 203, "isSnapshot": false, "free": null, "total": null, "canChange": true, "isChecked": false }
+      ],
+      "configDayId": 20001,
+      "withoutGroup": { "isSnapshot": false, "free": null, "total": null, "canChange": true, "isChecked": false }
+    },
+    "answerWindow": {
+      "open": true,
+      "closed": false,
+      "deadlineAt": "2026-11-02T03:00:00.000Z",
+      "memberOpensAt": null,
+      "groupRequired": false
+    },
+    "deletedAt": null,
+    "id": "00000000-0000-4000-b000-000000000201",
+    "organizationId": "00000000-0000-4000-8000-000000000003",
+    "eventDetailsId": 201,
+    "visibility": "PUBLIC",
+    "createdAt": "2026-10-25T07:54:57.000Z",
+    "updatedAt": null
+  },
+  "configDays": [
+    {
+      "isActive": true,
+      "startTime": null,
+      "endTime": null,
+      "inMemory": false,
+      "current": "2026-11-01",
+      "dayOfWeek": 1,
+      "utcDayOfWeek": 1,
+      "weekOfYear": 44,
+      "id": 20001,
+      "type": "VALIDATION",
+      "eventId": 201,
+      "summary": {
+        "answers": { "attending": 0, "declined": 0, "tentative": 0, "pending": 0 },
+        "members": { "attending": 0, "declined": 0, "tentative": 0, "pending": 0 },
+        "guests": { "attending": 0, "declined": 0, "tentative": 0 },
+        "supports": [
+          { "id": 213, "organizationId": "00000000-0000-4000-8000-000000000003", "title": "Agogô", "description": null, "type": "instrumento", "isActive": true, "capacity": 4, "rotativo": false, "requiredForActivity": true, "createdAt": "2026-10-25T07:54:57.000Z", "totalSupports": 0, "occupied": 0, "groupIds": [206], "members": 0, "guests": 0, "confirmed": 0 },
+          { "id": 208, "organizationId": "00000000-0000-4000-8000-000000000003", "title": "Caixa", "description": null, "type": "instrumento", "isActive": true, "capacity": 6, "rotativo": false, "requiredForActivity": true, "createdAt": "2026-10-25T07:54:57.000Z", "totalSupports": 0, "occupied": 0, "groupIds": [201], "members": 0, "guests": 0, "confirmed": 0 },
+          { "id": 210, "organizationId": "00000000-0000-4000-8000-000000000003", "title": "Surdo 1", "description": null, "type": "instrumento", "isActive": true, "capacity": 2, "rotativo": false, "requiredForActivity": true, "createdAt": "2026-10-25T07:54:57.000Z", "totalSupports": 0, "occupied": 0, "groupIds": [203], "members": 0, "guests": 0, "confirmed": 0 },
+          { "id": 207, "organizationId": "00000000-0000-4000-8000-000000000003", "title": "Baqueta madeira", "description": null, "type": "acessorio", "isActive": true, "capacity": 15, "rotativo": false, "requiredForActivity": true, "createdAt": "2026-10-25T07:54:57.000Z", "totalSupports": 0, "occupied": 0, "groupIds": [], "members": 0, "guests": 0, "confirmed": 0 },
+          { "id": 202, "organizationId": "00000000-0000-4000-8000-000000000003", "title": "Maçaneta", "description": null, "type": "acessorio", "isActive": true, "capacity": null, "rotativo": false, "requiredForActivity": true, "createdAt": "2026-10-25T07:54:57.000Z", "totalSupports": 0, "occupied": 0, "groupIds": [203, 204, 205, 209], "members": 0, "guests": 0, "confirmed": 0 },
+          { "id": 203, "organizationId": "00000000-0000-4000-8000-000000000003", "title": "Talabarte em X", "description": null, "type": "acessorio", "isActive": true, "capacity": 5, "rotativo": false, "requiredForActivity": true, "createdAt": "2026-10-25T07:54:57.000Z", "totalSupports": 0, "occupied": 0, "groupIds": [201, 203, 204, 205, 207, 208, 209], "members": 0, "guests": 0, "confirmed": 0 }
+        ]
+      }
+    }
+  ],
+  "groups": [
+    { "id": 201, "name": "Caixa", "description": "Naipe de Caixa", "created_at": "2026-10-25T04:54:53.000Z", "deleted_at": null, "organization_id": "00000000-0000-4000-8000-000000000003", "archivedAt": null, "externalGroupId": 9 },
+    { "id": 203, "name": "Surdo 1", "description": "Naipe de Surdo 1", "created_at": "2026-10-25T04:54:53.000Z", "deleted_at": null, "organization_id": "00000000-0000-4000-8000-000000000003", "archivedAt": null, "externalGroupId": 11 },
+    { "id": 206, "name": "Agogô", "description": "Naipe de Agogô", "created_at": "2026-10-25T04:54:53.000Z", "deleted_at": null, "organization_id": "00000000-0000-4000-8000-000000000003", "archivedAt": null, "externalGroupId": 14 }
+  ]
+}

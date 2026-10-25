@@ -8,11 +8,17 @@ export interface IListMyReservationsInput {
   deviceId: UUID;
 }
 
+export interface IMyAccessoryView {
+  id: string;
+  name: string;
+}
+
 export interface IMyReservationView {
   id: UUID;
   groupId: string | null;
   groupName: string | null;
   supportIds: string[];
+  accessories: IMyAccessoryView[]; // os acessórios do retrato; id que saiu do encontro fica de fora
   name: string;
   pronoun: string;
 }
@@ -42,9 +48,16 @@ export class ListMyReservationsUsecase {
       groupId: attendance.groupId,
       groupName: attendance.groupId === null ? null : event.findGroup(attendance.groupId)?.name ?? null,
       supportIds: attendance.supportIds,
+      accessories: this.buildAccessories(event, attendance.supportIds),
       name: attendance.user.name,
       pronoun: attendance.user.pronoun,
     }));
+  }
+
+  private buildAccessories(event: CurrentEvent, supportIds: string[]): IMyAccessoryView[] {
+    return event.supports
+      .filter((support) => supportIds.includes(support.id))
+      .map((support) => ({ id: support.id, name: support.name }));
   }
 
   private async findSupabaseCurrentEvent(): Promise<CurrentEvent> {
