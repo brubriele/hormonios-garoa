@@ -33,7 +33,7 @@ outra implementação de `Logger`.
 ```ts
 import { createLogger } from "../lib/logger";
 
-const logger = createLogger("RefreshCurrentEventUsecase");
+const logger = createLogger("ReceivingCurrentEventUsecase");
 
 logger.warn({ externalId: ref.externalId, dayId: ref.dayId }, "public Transicionais event not found");
 logger.error({ err: error }, "unexpected error");

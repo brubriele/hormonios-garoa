@@ -2,7 +2,7 @@ import type { ErrorKey } from "../../../errors/app-error";
 import type { IMarkSyncData } from "../../../interfaces/hormonios";
 import type { ITransicionaisErrorCause } from "../../../interfaces/transicionais";
 import type { UUID } from "../../../interfaces/uuid";
-import { SyncMode } from "../../../models/attendance";
+import { SyncMode } from "../../../models/booking";
 
 // parâmetros do rpc marcar_sync (a trava do updated_at fica na função); o que não é do modo vai null
 export interface IMarkSyncParams {
@@ -22,7 +22,7 @@ export class MarkSyncRequest {
     const synced = data.mode === SyncMode.Synced ? data : null;
 
     return {
-      p_id: data.attendanceId,
+      p_id: data.bookingId,
       p_updated_at: data.updatedAt,
       p_mode: data.mode,
       p_order_id: synced ? synced.orderId : null,

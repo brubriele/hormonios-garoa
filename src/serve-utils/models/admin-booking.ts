@@ -1,20 +1,20 @@
 import { z } from "zod";
 import type { UUID } from "../interfaces/uuid";
-import { AttendanceSync } from "./attendance";
+import { BookingSync } from "./booking";
 import { NonBlankSchema, validateSchema } from "./model-schema";
 
-const AdminAttendanceSchema = z.object({
+const AdminBookingSchema = z.object({
   id: NonBlankSchema,
   name: z.string(),
   pronoun: z.string(),
   groupId: z.string().nullable(),
   supportIds: z.array(z.string()),
   createdAt: z.string(),
-  sync: z.enum(AttendanceSync),
+  sync: z.enum(BookingSync),
 });
 
 // uma presença que conta (vou e não REJECTED), no resumo da Produção (D30)
-export class AdminAttendance {
+export class AdminBooking {
   constructor(
     readonly id: UUID,
     readonly name: string,
@@ -22,12 +22,12 @@ export class AdminAttendance {
     readonly groupId: string | null, // null = só presença
     readonly supportIds: string[],
     readonly createdAt: string,
-    readonly sync: AttendanceSync,
+    readonly sync: BookingSync,
   ) {
     this.validate();
   }
 
   private validate() {
-    validateSchema(AdminAttendanceSchema, this, "adminAttendance");
+    validateSchema(AdminBookingSchema, this, "adminBooking");
   }
 }

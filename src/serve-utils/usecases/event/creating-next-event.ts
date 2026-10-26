@@ -1,36 +1,38 @@
-import { AppError, NotFoundError, UpstreamUnavailableError } from "../errors/app-error";
-import { InfraSource, InvalidResponseError } from "../errors/infra-error";
-import { addDays, today } from "../lib/date";
-import { createLogger } from "../lib/logger";
-import type { AdminSummary } from "../models/admin-summary";
-import type { CurrentEvent } from "../models/current-event";
-import type { EventDay } from "../models/event-day";
-import type { ManagedEvent } from "../models/managed-event";
-import type { IHormoniosRepo } from "../interfaces/hormonios";
-import type { IEventRef, ITransicionaisRepo } from "../interfaces/transicionais";
-import { AdminSummaryMapper } from "./mappers/admin-summary.mapper";
-import { RefreshCurrentEventUsecase } from "./refresh-current-event";
-import { buildPublication } from "./update-event";
+import { AppError, NextEventPendingError, NotFoundError, UpstreamUnavailableError } from "../../errors/app-error";
+import { InfraSource, InvalidResponseError } from "../../errors/infra-error";
+import { addDays } from "../../lib/date";
+import { createLogger } from "../../lib/logger";
+import type { CurrentEventSummary } from "../../models/current-event-summary";
+import type { CurrentEvent } from "../../models/current-event";
+import type { EventDay } from "../../models/event-day";
+import type { EventSnapshot } from "../../models/event-snapshot";
+import type { ManagedEvent } from "../../models/managed-event";
+import type { IHormoniosRepo } from "../../interfaces/hormonios";
+import type { IEventRef, ITransicionaisRepo } from "../../interfaces/transicionais";
+import { CurrentEventSummaryMapper } from "./mappers/current-event-summary.mapper";
+import { ReceivingCurrentEventUsecase } from "../sync/receiving-current-event";
+import { buildPublication } from "./updating-current-event";
 
-const logger = createLogger("NewEventUsecase");
+const logger = createLogger("CreatingNextEventUsecase");
 
 // "Encerrar ensaio" (dúvida D2): o próximo é uma semana depois, com o local a definir
 const NEXT_EVENT_DAYS = 7;
 const NEXT_EVENT_LOCATION = "A definir";
 
-// "Encerrar ensaio" (E2.5): cria o próximo encontro no Transicionais, apaga o atual, e o novo passa a
-// ser o primeiro Público da listagem (E2.7, revista)
-export class NewEventUsecase {
-  private readonly refreshCurrentEvent: RefreshCurrentEventUsecase;
+// "Encerrar ensaio" (E2.5): cria o próximo encontro no Transicionais e grava o retrato dele. O antigo
+// fica no Transicionais; o refresh segue o encontro do retrato (E2.7, revista). Com o Transicionais
+// fora, o próximo nasce só no local e o cron o cria lá depois (D51)
+export class CreatingNextEventUsecase {
+  private readonly receivingCurrentEvent: ReceivingCurrentEventUsecase;
 
   constructor(
     private readonly hormoniosRepo: IHormoniosRepo,
     private readonly transicionaisRepo: ITransicionaisRepo,
   ) {
-    this.refreshCurrentEvent = new RefreshCurrentEventUsecase(this.hormoniosRepo, this.transicionaisRepo);
+    this.receivingCurrentEvent = new ReceivingCurrentEventUsecase(this.hormoniosRepo, this.transicionaisRepo);
   }
 
-  async execute(): Promise<AdminSummary> {
+  async execute(): Promise<CurrentEventSummary> {
     try {
       return await this._execute(); // sem await o catch nao pega a rejeicao
     } catch (error) {
@@ -43,19 +45,37 @@ export class NewEventUsecase {
     }
   }
 
-  // ordem: cria o próximo, encerra o antigo e relê; a releitura acha o novo pela listagem (D2).
-  // as linhas antigas ficam com o dayKey anterior; o WhatsApp continua o mesmo
-  private async _execute(): Promise<AdminSummary> {
+  // ordem: cria o próximo e grava o retrato dele (D2). As linhas antigas ficam com o dayKey anterior; o
+  // WhatsApp continua o mesmo
+  private async _execute(): Promise<CurrentEventSummary> {
+    await this.validateNoOpenNextEvent();
+
     const event = await this.findSupabaseTransicionaisEvent();
-    const ref: IEventRef = { externalId: event.externalId ?? "", dayId: event.dayKey };
-    const current = await this.findTransicionaisManagedEvent(ref);
-    await this.createTransicionaisEvent(current, ref);
-    await this.closeTransicionaisEvent(current);
-    await this.refreshSupabaseEvent();
+    const date = addDays(event.date, NEXT_EVENT_DAYS);
+
+    try {
+      const ref: IEventRef = { externalId: event.externalId ?? "", dayId: event.dayKey };
+      const current = await this.findTransicionaisManagedEvent(ref, event.date);
+
+      await this.saveSupabaseSnapshot(await this.createTransicionaisEvent(current, ref, date));
+    } catch (error) {
+      if (!(error instanceof UpstreamUnavailableError)) {
+        throw error;
+      }
+
+      await this.closeSupabaseEventLocally(event, date); // D51
+    }
 
     const saved = await this.hormoniosRepo.findCurrentEventOrFail();
 
-    return AdminSummaryMapper.toView(saved, []); // ensaio novo: ainda sem presenças
+    return CurrentEventSummaryMapper.toView(saved, []); // ensaio novo: ainda sem presenças
+  }
+
+  // o encerramento anterior ainda só existe no local (D51)
+  private async validateNoOpenNextEvent() {
+    if (await this.hormoniosRepo.findOpenNextEvent()) {
+      throw new NextEventPendingError("Previous next event is still pending");
+    }
   }
 
   // retrato local da fase 1: lê o Transicionais antes (e migra as reservas)
@@ -77,8 +97,9 @@ export class NewEventUsecase {
     return refreshed;
   }
 
-  private async findTransicionaisManagedEvent(ref: IEventRef): Promise<ManagedEvent> {
-    const managed = await this.transicionaisRepo.findManagedEvent(ref, today()); // o encontro atual está de hoje em diante
+  // a data do retrato: o encontro atual termina nela ou depois
+  private async findTransicionaisManagedEvent(ref: IEventRef, fromDate: string): Promise<ManagedEvent> {
+    const managed = await this.transicionaisRepo.findManagedEvent(ref, fromDate);
 
     if (!managed) {
       throw new NotFoundError("Current event Not Found");
@@ -87,25 +108,24 @@ export class NewEventUsecase {
     return managed;
   }
 
-  // cria o encontro, o ciclo, os grupos, o dia e o público, copiando o atual (E2.5, D2). Falhou depois
-  // do POST: apaga o recém-criado e relança (dúvida D16)
-  private async createTransicionaisEvent(current: ManagedEvent, ref: IEventRef): Promise<IEventRef> {
+  // cria o encontro, o ciclo, os grupos, o dia e o público, copiando o atual, e devolve o retrato dele
+  // (E2.5, D2). Falhou depois do POST: apaga o recém-criado e relança (dúvida D16)
+  private async createTransicionaisEvent(current: ManagedEvent, ref: IEventRef, date: string): Promise<EventSnapshot> {
     this.validatePublic(current);
 
-    const day = current.days.find((item) => item.id === ref.dayId) ?? this.findCurrentDay(current);
+    const day = current.days.find((item) => item.id === ref.dayId) ?? this.findFirstDay(current);
 
     if (!day) {
       throw new InvalidResponseError(InfraSource.Transicionais, "findEventDetails", `event ${current.id} has no active day`);
     }
 
-    const date = addDays(day.date, NEXT_EVENT_DAYS);
     const eventId = (await this.transicionaisRepo.createEvent({ name: current.name, location: NEXT_EVENT_LOCATION, date }))
       ?? (await this.findCreatedEventId(current.name, date));
 
     try {
       await this.fillTransicionaisEvent(eventId, current, day, date);
 
-      return await this.findCreatedRef(eventId, date);
+      return await this.findTransicionaisPublicEvent(await this.findCreatedRef(eventId, date));
     } catch (error) {
       await this.deleteCreatedEvent(eventId);
       throw error;
@@ -118,11 +138,10 @@ export class NewEventUsecase {
     }
   }
 
-  // o primeiro dia ativo (e salvo) de hoje em diante
-  private findCurrentDay(event: ManagedEvent): EventDay | null {
-    const from = today();
+  // o dia do retrato saiu: o primeiro dia ativo (e salvo) do encontro
+  private findFirstDay(event: ManagedEvent): EventDay | null {
     const days = event.days
-      .filter((day) => day.active && day.id !== null && day.date >= from)
+      .filter((day) => day.active && day.id !== null)
       .sort((a, b) => a.date.localeCompare(b.date));
 
     return days[0] ?? null;
@@ -194,19 +213,40 @@ export class NewEventUsecase {
     }
   }
 
-  // o novo já é o atual: se o antigo não sair, só registra e segue (dúvida D13). Por enquanto, apaga o
-  // encontro (as presenças ficam guardadas no Transicionais); quando houver o "encerrar" no
-  // Transicionais, troca só aqui
-  private async closeTransicionaisEvent(current: ManagedEvent): Promise<void> {
-    try {
-      await this.transicionaisRepo.deleteEvent(current.id);
-    } catch (error) {
-      logger.error({ err: error }, "could not close the old Transicionais event (D13)");
+  // o retrato do novo: ele não é o primeiro da listagem enquanto o antigo estiver lá. Já foi criado: se a
+  // leitura pública não o achar, é falha da fonte
+  private async findTransicionaisPublicEvent(ref: IEventRef): Promise<EventSnapshot> {
+    const snapshot = await this.transicionaisRepo.findPublicEvent(ref);
+
+    if (!snapshot) {
+      throw new InvalidResponseError(InfraSource.Transicionais, "publicEvent", `created event ${ref.externalId} Not Found`);
     }
+
+    return snapshot;
+  }
+
+  // o estoque que ainda não foi ao Transicionais vai por cima (D53)
+  private async saveSupabaseSnapshot(snapshot: EventSnapshot): Promise<void> {
+    const pendings = await this.hormoniosRepo.listPendingCapacities();
+
+    await this.hormoniosRepo.saveSnapshot(snapshot.withPendingCapacities(pendings));
+  }
+
+  // o próximo só no local, num dia local, e o NEXT_EVENT na fila do cron (D51). Se o POST chegou a
+  // criar o encontro e o delete não passou, ele fica Interno lá (D16)
+  private async closeSupabaseEventLocally(event: CurrentEvent, date: string): Promise<void> {
+    logger.warn({ externalId: event.externalId, date }, "Transicionais is unavailable, next event created locally (D51)");
+
+    await this.hormoniosRepo.closeEventLocally({
+      event: event.next(globalThis.crypto.randomUUID(), date, NEXT_EVENT_LOCATION),
+      fromExternalId: event.externalId ?? "",
+      fromDayKey: event.dayKey,
+      fromDate: event.date,
+    });
   }
 
   private async refreshSupabaseEvent(): Promise<void> {
-    const result = await this.refreshCurrentEvent.execute();
+    const result = await this.receivingCurrentEvent.execute();
 
     if (!result.available) {
       throw new UpstreamUnavailableError("Transicionais is unavailable");

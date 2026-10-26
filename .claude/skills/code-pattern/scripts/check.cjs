@@ -189,8 +189,8 @@ function checkDuplicateHelpers(sources) {
     );
 }
 
-// mapper (*Mapper, to*View) só em usecases/mappers/, um por arquivo <nome>.mapper.ts (usecases.md U9)
-const MAPPERS_DIR = "src/serve-utils/usecases/mappers/";
+// mapper (*Mapper, to*View) só em usecases/<contexto>/mappers/, um por arquivo <nome>.mapper.ts (usecases.md U9)
+const MAPPERS_DIR = /^src\/serve-utils\/usecases\/[^/]+\/mappers\//;
 const MAPPER_DOC = "usecases.md U9";
 const MAPPER_DECLARATION =
   /^\s*(?:export\s+)?(?:(?:private|public|protected|static|async|abstract)\s+)*(?:class\s+\w*Mapper\b|(?:function\s+)?to[A-Z]\w*View\s*[(<])/;
@@ -207,16 +207,16 @@ function checkMappers(sources) {
       code: (lines[line - 1] ?? "").trim(),
     });
 
-    if (!file.startsWith(MAPPERS_DIR)) {
+    if (!MAPPERS_DIR.test(file)) {
       return lines.flatMap((line, index) =>
         !isComment(line) && MAPPER_DECLARATION.test(line) && !isIgnored(lines, index, "mapper-location")
-          ? [finding(index + 1, "mapper (*Mapper, to*View) fica em usecases/mappers/, um por arquivo")]
+          ? [finding(index + 1, "mapper (*Mapper, to*View) fica em usecases/<contexto>/mappers/, um por arquivo")]
           : [],
       );
     }
 
     if (!file.endsWith(".mapper.ts")) {
-      return [finding(1, "arquivo de usecases/mappers/ se chama <nome>.mapper.ts")];
+      return [finding(1, "arquivo de usecases/<contexto>/mappers/ se chama <nome>.mapper.ts")];
     }
 
     const exported = lines.flatMap((line, index) => (EXPORTED_MAPPER.test(line) ? [index] : []));
@@ -230,7 +230,7 @@ function checkMappers(sources) {
 // a rota não valida a entrada: todo usecase que recebe input a valida pelo schema (U10)
 function checkUsecaseInputs(sources) {
   return sources.flatMap(({ file, lines }) => {
-    if (!/^src\/serve-utils\/usecases\/[^/]+\.ts$/.test(file)) {
+    if (!/^src\/serve-utils\/usecases\/[^/]+\/[^/]+\.ts$/.test(file)) {
       return [];
     }
 

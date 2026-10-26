@@ -1,24 +1,24 @@
 import { z } from "zod";
-import { AppError } from "../errors/app-error";
-import { createLogger } from "../lib/logger";
-import { AttendanceAnswer } from "../models/attendance";
-import type { CurrentEvent } from "../models/current-event";
-import type { EventSnapshot } from "../models/event-snapshot";
-import { validateSchema } from "../models/model-schema";
-import { EventWebhookStatus, WebhookType } from "../models/transicionais-webhook";
-import type { IHormoniosRepo } from "../interfaces/hormonios";
+import { AppError } from "../../errors/app-error";
+import { createLogger } from "../../lib/logger";
+import { BookingAnswer } from "../../models/booking";
+import type { CurrentEvent } from "../../models/current-event";
+import type { EventSnapshot } from "../../models/event-snapshot";
+import { validateSchema } from "../../models/model-schema";
+import { EventWebhookStatus, WebhookType } from "../../models/transicionais-webhook";
+import type { IHormoniosRepo } from "../../interfaces/hormonios";
 import type {
   IEventRef,
   IEventWebhookResult,
   ITransicionaisRepo,
   ITransicionaisWebhook,
   IWebhookValidation,
-} from "../interfaces/transicionais";
-import { RefreshCurrentEventUsecase } from "./refresh-current-event";
+} from "../../interfaces/transicionais";
+import { ReceivingCurrentEventUsecase } from "./receiving-current-event";
 
-const logger = createLogger("ReceiveTransicionaisWebhookUsecase");
+const logger = createLogger("ReceivingTransicionaisWebhookUsecase");
 
-export interface IReceiveTransicionaisWebhookInput {
+export interface IReceivingTransicionaisWebhookInput {
   body: unknown; // corpo cru do webhook: só o repo do Transicionais o lê
 }
 
@@ -27,7 +27,7 @@ const ReceiveTransicionaisWebhookInputSchema = z.object({
   body: z.record(z.string(), z.unknown()),
 });
 
-export interface IReceiveTransicionaisWebhookResult {
+export interface IReceivingTransicionaisWebhookResult {
   processed: boolean; // false = entrega repetida (deduplicação)
 }
 
@@ -35,17 +35,17 @@ export interface IReceiveTransicionaisWebhookResult {
 // event.updated (trava do retrato) e validation.changed (travas de changedAt e da mudança local)
 // em rascunho: webhook do Transicionais, ainda não revisado pela Bea. Não usar até a revisão.
 /** @deprecated Em rascunho, aguardando revisão (webhook do Transicionais). */
-export class ReceiveTransicionaisWebhookUsecase {
-  private readonly refreshCurrentEvent: RefreshCurrentEventUsecase;
+export class ReceivingTransicionaisWebhookUsecase {
+  private readonly receivingCurrentEvent: ReceivingCurrentEventUsecase;
 
   constructor(
     private readonly hormoniosRepo: IHormoniosRepo,
     private readonly transicionaisRepo: ITransicionaisRepo,
   ) {
-    this.refreshCurrentEvent = new RefreshCurrentEventUsecase(this.hormoniosRepo, this.transicionaisRepo);
+    this.receivingCurrentEvent = new ReceivingCurrentEventUsecase(this.hormoniosRepo, this.transicionaisRepo);
   }
 
-  async execute(input: IReceiveTransicionaisWebhookInput): Promise<IReceiveTransicionaisWebhookResult> {
+  async execute(input: IReceivingTransicionaisWebhookInput): Promise<IReceivingTransicionaisWebhookResult> {
     try {
       return await this._execute(input); // sem await o catch nao pega a rejeicao
     } catch (error) {
@@ -58,7 +58,7 @@ export class ReceiveTransicionaisWebhookUsecase {
     }
   }
 
-  private async _execute(input: IReceiveTransicionaisWebhookInput): Promise<IReceiveTransicionaisWebhookResult> {
+  private async _execute(input: IReceivingTransicionaisWebhookInput): Promise<IReceivingTransicionaisWebhookResult> {
     this.validateInput(input);
 
     const current = await this.findSupabaseCurrentEvent();
@@ -80,7 +80,7 @@ export class ReceiveTransicionaisWebhookUsecase {
     return { processed: true };
   }
 
-  private validateInput(input: IReceiveTransicionaisWebhookInput) {
+  private validateInput(input: IReceivingTransicionaisWebhookInput) {
     validateSchema(ReceiveTransicionaisWebhookInputSchema, input);
   }
 
@@ -133,7 +133,7 @@ export class ReceiveTransicionaisWebhookUsecase {
       return;
     }
 
-    await this.refreshCurrentEvent.execute();
+    await this.receivingCurrentEvent.execute();
   }
 
   private async saveSupabaseSnapshot(snapshot: EventSnapshot): Promise<void> {
@@ -143,7 +143,7 @@ export class ReceiveTransicionaisWebhookUsecase {
   // regras 1 a 6 da seção Webhooks: a reserva (pelas travas da função aplicar_validacao) e as vagas.
   // Pessoa fora de hg_users (B6): só as vagas
   private async applyValidationChanged(validation: IWebhookValidation, current: CurrentEvent | null): Promise<void> {
-    const groupId = validation.answer === AttendanceAnswer.Going ? validation.groupId : null;
+    const groupId = validation.answer === BookingAnswer.Going ? validation.groupId : null;
 
     await this.hormoniosRepo.applyValidation({
       orderId: validation.orderId,

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { InfraSource } from "../../../errors/infra-error";
-import { ApplyValidationResult } from "../../../models/attendance";
+import { ApplyValidationResult } from "../../../models/booking";
 import { parseResponse } from "../../parse-response";
 
 // text da função aplicar_validacao

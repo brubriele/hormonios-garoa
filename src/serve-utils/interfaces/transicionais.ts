@@ -1,4 +1,4 @@
-import type { AttendanceAnswer } from "../models/attendance";
+import type { BookingAnswer } from "../models/booking";
 import type { EventDay } from "../models/event-day";
 import type { EventPublication } from "../models/event-publication";
 import type { EventSnapshot } from "../models/event-snapshot";
@@ -8,7 +8,7 @@ import type { EventWebhookStatus, WebhookType } from "../models/transicionais-we
 import type { UUID } from "./uuid";
 
 // a pessoa da reserva, cadastrada como convidado da organização (D41)
-export interface ISendAttendancePerson {
+export interface ISendBookingPerson {
   email: string;
   name: string;
   pronoun: string;
@@ -33,17 +33,17 @@ export interface ITransicionaisErrorCause {
 export interface ITransicionaisPresence {
   hash: string; // md5 da presença: muda quando algum campo muda
   orderId: string | null;
-  answer: AttendanceAnswer;
+  answer: BookingAnswer;
   groupId: string | null;
   supportTypeIds: string[]; // assistência do instrumento + acessórios
 }
 
 // envio da reserva (E2.8, revista na D41): o estado atual da linha, em nome da conta
-export interface ISendAttendanceData {
-  attendanceId: UUID;
+export interface ISendBookingData {
+  bookingId: UUID;
   account: ITransicionaisAccount;
   dayKey: string; // = configDayId
-  answer: AttendanceAnswer;
+  answer: BookingAnswer;
   groupId: string | null; // null = só presença
   supportTypeIds: string[]; // assistência do instrumento + acessórios (E2.9); vazio sem grupo ou "não vou"
   ip: string | null; // IP real (H11); no cron, null
@@ -62,7 +62,7 @@ export interface IWebhookValidation {
   dayKey: string;
   guestId: string | null;
   email: string | null;
-  answer: AttendanceAnswer;
+  answer: BookingAnswer;
   groupId: string | null;
   supportTypeIds: string[]; // instrumento + acessórios, como no Transicionais
   changedAt: string;
@@ -171,16 +171,16 @@ export interface ITransicionaisRepo {
   // grava o catálogo inteiro da assistência (D26). 404 -> NotFoundError
   saveSupportType(supportType: SupportType): Promise<void>;
   // cadastra a pessoa como convidado da organização, ou devolve a conta que já tem o e-mail (D41).
-  // Falhas como no sendAttendance
-  registerGuest(person: ISendAttendancePerson): Promise<ITransicionaisAccount>;
+  // Falhas como no sendBooking
+  registerGuest(person: ISendBookingPerson): Promise<ITransicionaisAccount>;
   // a presença da pessoa (pelo e-mail) no dia. null = ainda não respondeu. Falhas como no
-  // sendAttendance (D49)
+  // sendBooking (D49)
   findPresence(dayKey: string, email: string): Promise<ITransicionaisPresence | null>;
   // envia o estado atual da reserva (E2.8, D41). Recusa -> AppError da tabela "Tradução das keys"
   // (SoldOutError, BookingClosedError, ReservationRejectedError); fora do ar ->
   // UpstreamUnavailableError; VALIDATION_ANSWER_CHANGED -> AnswerChangedError; outro status ->
   // UpstreamResponseError. O que fazer com cada um (REJECTED, RETRY, BACKOFF) é do usecase
-  sendAttendance(data: ISendAttendanceData): Promise<void>;
+  sendBooking(data: ISendBookingData): Promise<void>;
   // traduz o corpo de um webhook; current = o encontro do retrato (null = retrato local da fase 1).
   // Corpo inválido -> InvalidParameterError
   // em rascunho: webhook do Transicionais, ainda não revisado pela Bea. Não usar até a revisão.

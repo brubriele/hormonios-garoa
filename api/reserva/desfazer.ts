@@ -7,16 +7,16 @@ import { HormoniosRepo } from "../../src/serve-utils/repos/supabase/repo";
 import { TransicionaisRepo } from "../../src/serve-utils/repos/transicionais/repo";
 import { TransicionaisSession } from "../../src/serve-utils/repos/transicionais/session";
 import {
-  CancelReservationUsecase,
-  type ICancelReservationBody,
-} from "../../src/serve-utils/usecases/cancel-reservation";
+  CancelingUserBookingUsecase,
+  type ICancelingUserBookingBody,
+} from "../../src/serve-utils/usecases/booking/canceling-user-booking";
 
 export const POST = handle(async (request) => {
   const { deviceId, cookie } = getOrCreateDevice(request);
-  const body = await readJson<ICancelReservationBody>(request);
+  const body = await readJson<ICancelingUserBookingBody>(request);
 
   const httpClient = new HttpClient();
-  const usecase = new CancelReservationUsecase(
+  const usecase = new CancelingUserBookingUsecase(
     new HormoniosRepo(new SupabaseClient()),
     new TransicionaisRepo(httpClient, new TransicionaisSession(httpClient)),
   );

@@ -5,27 +5,27 @@ import {
   NotFoundError,
   StockBelowReservationsError,
   UpstreamUnavailableError,
-} from "../errors/app-error";
-import { InfraSource, InvalidResponseError, VersionConflictError } from "../errors/infra-error";
-import { today } from "../lib/date";
-import { createLogger } from "../lib/logger";
-import type { AdminSummary } from "../models/admin-summary";
-import type { Attendance } from "../models/attendance";
-import { CurrentEvent } from "../models/current-event";
-import type { EventDay } from "../models/event-day";
-import { EventPublication } from "../models/event-publication";
-import { GroupVacancy } from "../models/group-vacancy";
-import { CountSchema, NonBlankSchema, validateSchema } from "../models/model-schema";
-import type { ManagedEvent } from "../models/managed-event";
-import type { IHormoniosRepo } from "../interfaces/hormonios";
-import type { IEventChanges, IEventRef, ITransicionaisRepo } from "../interfaces/transicionais";
-import { AdminSummaryMapper } from "./mappers/admin-summary.mapper";
-import { RefreshCurrentEventUsecase } from "./refresh-current-event";
+} from "../../errors/app-error";
+import { InfraSource, InvalidResponseError, VersionConflictError } from "../../errors/infra-error";
+import { today } from "../../lib/date";
+import { createLogger } from "../../lib/logger";
+import type { CurrentEventSummary } from "../../models/current-event-summary";
+import type { Booking } from "../../models/booking";
+import { CurrentEvent } from "../../models/current-event";
+import type { EventDay } from "../../models/event-day";
+import { EventPublication } from "../../models/event-publication";
+import { GroupVacancy } from "../../models/group-vacancy";
+import { CountSchema, NonBlankSchema, validateSchema } from "../../models/model-schema";
+import type { ManagedEvent } from "../../models/managed-event";
+import type { IHormoniosRepo } from "../../interfaces/hormonios";
+import type { IEventChanges, IEventRef, ITransicionaisRepo } from "../../interfaces/transicionais";
+import { CurrentEventSummaryMapper } from "./mappers/current-event-summary.mapper";
+import { ReceivingCurrentEventUsecase } from "../sync/receiving-current-event";
 
-const logger = createLogger("UpdateEventUsecase");
+const logger = createLogger("UpdatingCurrentEventUsecase");
 
 // estoque de uma assistência: o instrumentSupportId de um grupo ou o id de um acessório (E2.9)
-export interface IUpdateEventStockInput {
+export interface IUpdatingCurrentEventStockInput {
   id: string;
   stockTotal: number;
 }
@@ -35,14 +35,20 @@ interface ICapacityChange {
   capacity: number;
 }
 
+// quantas capacidades foram ao Transicionais na hora e quantas ficaram na fila (D53)
+interface ICapacitiesResult {
+  sent: number;
+  queued: number;
+}
+
 // parcial: só os campos enviados mudam
-export interface IUpdateEventInput {
+export interface IUpdatingCurrentEventInput {
   date?: string;
   time?: string;
   location?: string;
   whatsappUrl?: string;
   bookingOpen?: boolean;
-  stocks?: IUpdateEventStockInput[];
+  stocks?: IUpdatingCurrentEventStockInput[];
 }
 
 // parcial: só o que difere do retrato vai ao Transicionais
@@ -85,7 +91,7 @@ export function buildPublication(event: ManagedEvent, open: boolean): EventPubli
 }
 
 // o Transicionais grava YYYY-MM-DD e HH:mm (o front já manda assim); vazio = não muda
-const UpdateEventInputSchema = z.object({
+const UpdatingCurrentEventInputSchema = z.object({
   date: z.string().regex(/^(\d{4}-\d{2}-\d{2})?$/).optional(),
   time: z.string().regex(/^(\d{2}:\d{2})?$/).optional(),
   location: z.string().optional(),
@@ -105,18 +111,20 @@ const CapacityChangeSchema = z.object({
   capacity: CountSchema,
 });
 
-// "Salvar ensaio" (E2.5): o whatsappUrl grava local; o resto vai para o Transicionais
-export class UpdateEventUsecase {
-  private readonly refreshCurrentEvent: RefreshCurrentEventUsecase;
+// "Salvar ensaio" (E2.5): o whatsappUrl grava local; o resto vai para o Transicionais. Com ele fora, o
+// estoque fica na fila do cron (D53). Com o encerramento pendente (o ensaio só existe no local), só o
+// estoque e o whatsappUrl mudam (D51)
+export class UpdatingCurrentEventUsecase {
+  private readonly receivingCurrentEvent: ReceivingCurrentEventUsecase;
 
   constructor(
     private readonly hormoniosRepo: IHormoniosRepo,
     private readonly transicionaisRepo: ITransicionaisRepo,
   ) {
-    this.refreshCurrentEvent = new RefreshCurrentEventUsecase(this.hormoniosRepo, this.transicionaisRepo);
+    this.receivingCurrentEvent = new ReceivingCurrentEventUsecase(this.hormoniosRepo, this.transicionaisRepo);
   }
 
-  async execute(input: IUpdateEventInput): Promise<AdminSummary> {
+  async execute(input: IUpdatingCurrentEventInput): Promise<CurrentEventSummary> {
     try {
       return await this._execute(input); // sem await o catch nao pega a rejeicao
     } catch (error) {
@@ -129,18 +137,19 @@ export class UpdateEventUsecase {
     }
   }
 
-  private async _execute(input: IUpdateEventInput): Promise<AdminSummary> {
+  private async _execute(input: IUpdatingCurrentEventInput): Promise<CurrentEventSummary> {
     this.validateInput(input);
 
-    const event = await this.findSupabaseTransicionaisEvent(input);
-    const attendances = await this.findSupabaseAttendances(event.dayKey);
+    const local = (await this.hormoniosRepo.findOpenNextEvent()) !== null; // D51
+    const event = await this.findSupabaseTransicionaisEvent(input, local);
+    const bookings = await this.findSupabaseBookings(event.dayKey);
     const updated = this.buildUpdatedEvent(event, input);
-    const capacities = this.buildCapacityChanges(event, attendances, input.stocks ?? []);
+    const capacities = this.buildCapacityChanges(event, bookings, input.stocks ?? []);
     const changes = this.buildTransicionaisChanges(event, updated);
 
-    for (const capacity of capacities) {
-      await this.updateTransicionaisCapacity(capacity); // fora do ar: 503
-    }
+    this.validateLocalChanges(local, changes);
+
+    const result = await this.updateCapacities(event, capacities); // fora do ar: fila (D53)
 
     if (changes) {
       await this.updateTransicionaisEvent(event, changes); // fora do ar: 503 e nada é gravado
@@ -150,29 +159,34 @@ export class UpdateEventUsecase {
       await this.hormoniosRepo.saveWhatsappUrl(updated.whatsappUrl);
     }
 
-    if (changes || capacities.length > 0) {
+    // estoque na fila: o Transicionais está fora, e o retrato já foi gravado com ele
+    if (!local && (changes || (result.sent > 0 && result.queued === 0))) {
       await this.refreshSupabaseEvent();
     }
 
     const saved = await this.hormoniosRepo.findCurrentEventOrFail();
 
-    return AdminSummaryMapper.toView(saved, await this.findSupabaseAttendances(saved.dayKey));
+    return CurrentEventSummaryMapper.toView(saved, await this.findSupabaseBookings(saved.dayKey));
   }
 
-  private validateInput(input: IUpdateEventInput) {
-    validateSchema(UpdateEventInputSchema, input);
+  private validateInput(input: IUpdatingCurrentEventInput) {
+    validateSchema(UpdatingCurrentEventInputSchema, input);
   }
 
-  // retrato local da fase 1: lê o Transicionais antes (e migra as reservas)
-  private async findSupabaseTransicionaisEvent(input: IUpdateEventInput): Promise<CurrentEvent> {
+  // retrato local da fase 1: lê o Transicionais antes (e migra as reservas). O do encerramento pendente
+  // (local) é a verdade até o cron criá-lo lá (D51)
+  private async findSupabaseTransicionaisEvent(input: IUpdatingCurrentEventInput, local: boolean): Promise<CurrentEvent> {
     let event = await this.hormoniosRepo.findCurrentEventOrFail();
 
-    if (!event.isFromTransicionais) {
+    if (!event.isFromTransicionais && !local) {
       await this.refreshSupabaseEvent();
       event = await this.hormoniosRepo.findCurrentEventOrFail();
     }
 
-    this.validateFromTransicionais(event);
+    if (!local) {
+      this.validateFromTransicionais(event);
+    }
+
     this.validateStocksExist(event, input.stocks ?? []);
 
     return event;
@@ -185,7 +199,7 @@ export class UpdateEventUsecase {
   }
 
   // o id é o instrumentSupportId de um grupo ou o id de um acessório; sem limite não se ajusta (D20)
-  private validateStocksExist(event: CurrentEvent, stocks: IUpdateEventStockInput[]) {
+  private validateStocksExist(event: CurrentEvent, stocks: IUpdatingCurrentEventStockInput[]) {
     for (const stock of stocks) {
       const item = event.findStock(stock.id);
 
@@ -199,11 +213,18 @@ export class UpdateEventUsecase {
     }
   }
 
-  private async findSupabaseAttendances(dayKey: string): Promise<Attendance[]> {
+  // o ensaio só no local não tem encontro no Transicionais para receber data, hora, local ou abertura
+  private validateLocalChanges(local: boolean, changes: ITransicionaisChanges | null) {
+    if (local && changes) {
+      throw new UpstreamUnavailableError("Next event is not in Transicionais yet");
+    }
+  }
+
+  private async findSupabaseBookings(dayKey: string): Promise<Booking[]> {
     return this.hormoniosRepo.listByDay(dayKey);
   }
 
-  private buildUpdatedEvent(event: CurrentEvent, input: IUpdateEventInput): CurrentEvent {
+  private buildUpdatedEvent(event: CurrentEvent, input: IUpdatingCurrentEventInput): CurrentEvent {
     return new CurrentEvent(
       event.dayKey,
       input.date || event.date,
@@ -222,28 +243,74 @@ export class UpdateEventUsecase {
   // de um grupo ou o id de um acessório (validateStocksExist)
   private buildCapacityChanges(
     event: CurrentEvent,
-    attendances: Attendance[],
-    stocks: IUpdateEventStockInput[],
+    bookings: Booking[],
+    stocks: IUpdatingCurrentEventStockInput[],
   ): ICapacityChange[] {
     const changes = stocks
       .filter((stock) => stock.stockTotal !== event.findStock(stock.id)?.stockTotal)
       .map((stock) => ({ supportId: stock.id, capacity: stock.stockTotal }));
 
-    this.validateStockAboveReservations(event, attendances, changes);
+    this.validateStockAboveBookings(event, bookings, changes);
 
     return changes;
   }
 
   // ocupado = a conta das vagas mostradas (taken do Transicionais + "vou" locais PENDING); rotativo pode
   // passar da capacidade; o resto não fica abaixo do ocupado (D29)
-  private validateStockAboveReservations(event: CurrentEvent, attendances: Attendance[], changes: ICapacityChange[]) {
+  private validateStockAboveBookings(event: CurrentEvent, bookings: Booking[], changes: ICapacityChange[]) {
     const below = changes.find(
-      (change) => event.findStock(change.supportId)?.isBelowReservations(change.capacity, attendances) ?? false,
+      (change) => event.findStock(change.supportId)?.isBelowBookings(change.capacity, bookings) ?? false,
     );
 
     if (below) {
       throw new StockBelowReservationsError(`Stock of ${below.supportId} is below its reservations`);
     }
+  }
+
+  // cada capacidade vai ao Transicionais na hora; fora do ar, ou com uma pendente da mesma assistência
+  // (a ordem das mudanças vale), vai para a fila e o retrato já a mostra (D53)
+  private async updateCapacities(event: CurrentEvent, capacities: ICapacityChange[]): Promise<ICapacitiesResult> {
+    const pendingIds = new Set((await this.hormoniosRepo.listPendingCapacities()).map((pending) => pending.supportId));
+    let current = event;
+    const result: ICapacitiesResult = { sent: 0, queued: 0 };
+
+    for (const capacity of capacities) {
+      if (!pendingIds.has(capacity.supportId) && (await this.sendTransicionaisCapacity(capacity))) {
+        current = current.withStock(capacity.supportId, capacity.capacity);
+        result.sent += 1;
+        continue;
+      }
+
+      current = await this.savePendingCapacity(current, capacity);
+      result.queued += 1;
+    }
+
+    return result;
+  }
+
+  // true = foi; false = o Transicionais está fora
+  private async sendTransicionaisCapacity(capacity: ICapacityChange): Promise<boolean> {
+    try {
+      await this.updateTransicionaisCapacity(capacity);
+      return true;
+    } catch (error) {
+      if (error instanceof UpstreamUnavailableError) {
+        return false;
+      }
+
+      throw error;
+    }
+  }
+
+  private async savePendingCapacity(event: CurrentEvent, capacity: ICapacityChange): Promise<CurrentEvent> {
+    this.validateCapacityChange(capacity);
+
+    const updated = event.withStock(capacity.supportId, capacity.capacity);
+
+    logger.warn({ supportId: capacity.supportId }, "capacity queued for Transicionais (D53)");
+    await this.hormoniosRepo.savePendingCapacity({ supportId: capacity.supportId, capacity: capacity.capacity, event: updated });
+
+    return updated;
   }
 
   // estoque da Produção (E2.9, D26): lê o catálogo da assistência e o grava inteiro, só com o capacity
@@ -296,7 +363,7 @@ export class UpdateEventUsecase {
     }
 
     // a releitura logo depois acha o dia novo (primeiro dia ativo de hoje em diante)
-    await this.hormoniosRepo.moveAttendances({
+    await this.hormoniosRepo.moveBookings({
       oldDayKey: event.dayKey,
       newDayKey: dayId,
       groupMap: Object.fromEntries(event.groups.map((group) => [group.id, group.id])),
@@ -412,7 +479,7 @@ export class UpdateEventUsecase {
   }
 
   private async refreshSupabaseEvent(): Promise<void> {
-    const result = await this.refreshCurrentEvent.execute();
+    const result = await this.receivingCurrentEvent.execute();
 
     if (!result.available) {
       throw new UpstreamUnavailableError("Transicionais is unavailable");

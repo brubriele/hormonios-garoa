@@ -1,16 +1,16 @@
 import { z } from "zod";
-import { AppError, BookingClosedError, InvalidParameterError } from "../errors/app-error";
-import { createLogger } from "../lib/logger";
-import type { Attendance, AttendanceSync } from "../models/attendance";
-import type { CurrentEvent } from "../models/current-event";
-import { NonBlankSchema, UuidSchema, validateSchema } from "../models/model-schema";
-import type { User } from "../models/user";
-import type { IHormoniosRepo } from "../interfaces/hormonios";
-import type { ITransicionaisRepo } from "../interfaces/transicionais";
-import type { UUID } from "../interfaces/uuid";
-import { SendAttendanceUsecase } from "./send-attendance";
+import { AppError, BookingClosedError, InvalidParameterError } from "../../errors/app-error";
+import { createLogger } from "../../lib/logger";
+import type { Booking, BookingSync } from "../../models/booking";
+import type { CurrentEvent } from "../../models/current-event";
+import { NonBlankSchema, UuidSchema, validateSchema } from "../../models/model-schema";
+import type { User } from "../../models/user";
+import type { IHormoniosRepo } from "../../interfaces/hormonios";
+import type { ITransicionaisRepo } from "../../interfaces/transicionais";
+import type { UUID } from "../../interfaces/uuid";
+import { SyncingUserBookingUsecase } from "../sync/syncing-user-booking";
 
-const logger = createLogger("ReserveUsecase");
+const logger = createLogger("CreatingUserBookingUsecase");
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -19,7 +19,7 @@ function normalizeEmail(email: string): string {
   return email.replace(/\s+/g, "").toLowerCase();
 }
 
-const ReserveInputSchema = z
+const CreatingUserBookingInputSchema = z
   .object({
     email: z.string().refine((email) => EMAIL_PATTERN.test(normalizeEmail(email))),
     name: NonBlankSchema,
@@ -35,7 +35,7 @@ const ReserveInputSchema = z
   });
 
 // o corpo do POST /api/reserva
-export interface IReserveBody {
+export interface ICreatingUserBookingBody {
   email: string;
   name: string;
   pronoun: string;
@@ -43,31 +43,31 @@ export interface IReserveBody {
   supportIds: string[];
 }
 
-export interface IReserveInput extends IReserveBody {
+export interface ICreatingUserBookingInput extends ICreatingUserBookingBody {
   deviceId: UUID;
   ip: string | null; // IP real (H11), repassado ao Transicionais
 }
 
-export interface IReservationView {
+export interface ICreatingUserBookingView {
   id: UUID;
   groupId: string | null;
   supportIds: string[];
   name: string;
   pronoun: string;
-  sync: AttendanceSync; // PENDING: fora do ar, lento ou retrato local; SYNCED: o Transicionais aceitou
+  sync: BookingSync; // PENDING: fora do ar, lento ou retrato local; SYNCED: o Transicionais aceitou
 }
 
-export class ReserveUsecase {
-  private readonly sendAttendance: SendAttendanceUsecase;
+export class CreatingUserBookingUsecase {
+  private readonly syncingUserBooking: SyncingUserBookingUsecase;
 
   constructor(
     private readonly hormoniosRepo: IHormoniosRepo,
     private readonly transicionaisRepo: ITransicionaisRepo,
   ) {
-    this.sendAttendance = new SendAttendanceUsecase(this.hormoniosRepo, this.transicionaisRepo);
+    this.syncingUserBooking = new SyncingUserBookingUsecase(this.hormoniosRepo, this.transicionaisRepo);
   }
 
-  async execute(input: IReserveInput): Promise<IReservationView> {
+  async execute(input: ICreatingUserBookingInput): Promise<ICreatingUserBookingView> {
     try {
       return await this._execute(input); // sem await o catch nao pega a rejeicao
     } catch (error) {
@@ -80,29 +80,29 @@ export class ReserveUsecase {
     }
   }
 
-  private async _execute(input: IReserveInput): Promise<IReservationView> {
+  private async _execute(input: ICreatingUserBookingInput): Promise<ICreatingUserBookingView> {
     this.validateInput(input);
 
     const event = await this.findSupabaseCurrentEvent(input);
     const user = await this.upsertSupabaseUser(input);
-    const attendance = await this.reserveSupabaseAttendance(input, event, user);
-    const sync = await this.sendTransicionaisAttendance(attendance, event, input.ip);
+    const booking = await this.createSupabaseBooking(input, event, user);
+    const sync = await this.sendTransicionaisBooking(booking, event, input.ip);
 
     return {
-      id: attendance.id,
-      groupId: attendance.groupId,
-      supportIds: attendance.supportIds,
-      name: attendance.user.name,
-      pronoun: attendance.user.pronoun,
+      id: booking.id,
+      groupId: booking.groupId,
+      supportIds: booking.supportIds,
+      name: booking.user.name,
+      pronoun: booking.user.pronoun,
       sync,
     };
   }
 
-  private validateInput(input: IReserveInput) {
-    validateSchema(ReserveInputSchema, input);
+  private validateInput(input: ICreatingUserBookingInput) {
+    validateSchema(CreatingUserBookingInputSchema, input);
   }
 
-  private async findSupabaseCurrentEvent(input: IReserveInput): Promise<CurrentEvent> {
+  private async findSupabaseCurrentEvent(input: ICreatingUserBookingInput): Promise<CurrentEvent> {
     const event = await this.hormoniosRepo.findCurrentEventOrFail();
 
     this.validateBookingOpen(event);
@@ -132,7 +132,7 @@ export class ReserveUsecase {
   }
 
   // sobrescreve nome e pronome do e-mail
-  private async upsertSupabaseUser(input: IReserveInput): Promise<User> {
+  private async upsertSupabaseUser(input: ICreatingUserBookingInput): Promise<User> {
     return this.hormoniosRepo.upsertUserByEmail({
       email: normalizeEmail(input.email),
       name: input.name.trim(),
@@ -140,8 +140,8 @@ export class ReserveUsecase {
     });
   }
 
-  private async reserveSupabaseAttendance(input: IReserveInput, event: CurrentEvent, user: User): Promise<Attendance> {
-    return this.hormoniosRepo.reserve({
+  private async createSupabaseBooking(input: ICreatingUserBookingInput, event: CurrentEvent, user: User): Promise<Booking> {
+    return this.hormoniosRepo.createBooking({
       user,
       dayKey: event.dayKey,
       deviceId: input.deviceId,
@@ -152,12 +152,12 @@ export class ReserveUsecase {
 
   // grava local primeiro (PENDING) e envia na hora. Qualquer falha, inclusive a recusa do Transicionais,
   // deixa a linha PENDING, e o cron envia depois (D44)
-  private async sendTransicionaisAttendance(
-    attendance: Attendance,
+  private async sendTransicionaisBooking(
+    booking: Booking,
     event: CurrentEvent,
     ip: string | null,
-  ): Promise<AttendanceSync> {
-    const outcome = await this.sendAttendance.execute({ attendance, event, ip });
+  ): Promise<BookingSync> {
+    const outcome = await this.syncingUserBooking.execute({ booking, event, ip });
 
     return outcome.sync;
   }

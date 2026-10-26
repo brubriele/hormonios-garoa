@@ -11,7 +11,7 @@
 | I3 | **O formato cru não fica aqui.** Ele é o schema zod do response ou do request, na pasta da fonte ([`requests-responses.md`](requests-responses.md)). Os `IRaw*` que ainda existem em `interfaces/` são legado da fase 2 e saem a cada refatoração. |
 | I4 | Filtros de busca são `IFind<Nome>Filter`. Entradas de usecase são `I<Usecase>Input`. |
 | I5 | Um arquivo por fonte (`transicionais.ts`, `hormonios.ts`), com a interface do repo e os tipos de entrada e filtro. Tipos comuns, como `UUID`, ficam em arquivo próprio. |
-| I6 | **Tipos fechados são enum, não texto.** Um campo com conjunto fechado de valores usa o enum do model (`AttendanceSync`, `ErrorKey`), e nunca `string` ou união de strings (`"PENDING" \| "SYNCED"`). Objeto aninhado ganha um tipo com nome; nada de objeto anônimo dentro da interface. |
+| I6 | **Tipos fechados são enum, não texto.** Um campo com conjunto fechado de valores usa o enum do model (`BookingSync`, `ErrorKey`), e nunca `string` ou união de strings (`"PENDING" \| "SYNCED"`). Objeto aninhado ganha um tipo com nome; nada de objeto anônimo dentro da interface. |
 | I7 | Cada campo é `?:` **ou** `\| null`, nunca os dois. `?:` = pode não vir; `\| null` = vem, e sem valor. |
 
 ## Exemplo

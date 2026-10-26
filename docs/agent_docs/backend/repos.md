@@ -96,7 +96,7 @@ export class TransicionaisRepo implements ITransicionaisRepo {
 O usecase decide o resto (E2.7 e plano de falha):
 
 ```ts
-// src/serve-utils/usecases/refresh-current-event.ts (trecho)
+// src/serve-utils/usecases/sync/receiving-current-event.ts (trecho)
 private async findTransicionaisSnapshot(): Promise<EventSnapshot | null> {
   try {
     const ref = (await this.transicionaisRepo.listPublicEventsFrom(today()))[0] ?? null; // o primeiro (E2.7)
@@ -192,9 +192,9 @@ const SQL_ERRORS: Record<string, () => AppError> = {
   SOLD_OUT: () => new SoldOutError("Group is sold out"),
 };
 
-async reserve(data: IReserveData): Promise<Attendance> {
+async reserve(data: ICreateBookingData): Promise<Booking> {
   const response = await this.supabaseClient.query<unknown>((sdk) =>
-    sdk.rpc("reservar", ReserveRequest.fromDomain(data)).single(), // a trava da última vaga fica na função (R12)
+    sdk.rpc("reservar", CreateBookingRequest.fromDomain(data)).single(), // a trava da última vaga fica na função (R12)
   );
 
   const knownError = response.error && SQL_ERRORS[response.error.message];
@@ -207,6 +207,6 @@ async reserve(data: IReserveData): Promise<Attendance> {
     throw new DatabaseError("reservar", response.status, response.error?.message);
   }
 
-  return AttendanceResponse.toDomainForUser(response.data, data.user, "reservar");
+  return BookingResponse.toDomainForUser(response.data, data.user, "reservar");
 }
 ```

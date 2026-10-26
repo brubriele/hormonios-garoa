@@ -1,7 +1,10 @@
 import type { ErrorKey } from "../errors/app-error";
-import type { ApplyValidationResult, Attendance, AttendanceAnswer, SyncMode } from "../models/attendance";
+import type { ApplyValidationResult, Booking, BookingAnswer, SyncMode } from "../models/booking";
 import type { CurrentEvent } from "../models/current-event";
 import type { EventSnapshot } from "../models/event-snapshot";
+import type { PendingNextEvent } from "../models/pending-next-event";
+import type { PendingSupportCapacity } from "../models/pending-support-capacity";
+import type { PendingWriteMode } from "../models/pending-write";
 import type { User } from "../models/user";
 import type { ITransicionaisErrorCause } from "./transicionais";
 import type { UUID } from "./uuid";
@@ -14,7 +17,7 @@ export interface IUpsertUserData {
   pronoun: string;
 }
 
-export interface IReserveData {
+export interface ICreateBookingData {
   user: User;
   dayKey: string;
   deviceId: UUID;
@@ -25,7 +28,7 @@ export interface IReserveData {
 export interface ICancelByDeviceFilter {
   dayKey: string;
   deviceId: UUID;
-  attendanceId: UUID;
+  bookingId: UUID;
 }
 
 export interface IListByDeviceFilter {
@@ -34,7 +37,7 @@ export interface IListByDeviceFilter {
 }
 
 // de-para dos dias: as linhas do dia antigo passam para o novo, como PENDING (E2.2)
-export interface IMoveAttendancesData {
+export interface IMoveBookingsData {
   oldDayKey: string;
   newDayKey: string;
   groupMap: Record<string, string>; // groupId antigo -> novo; fora do mapa vira só presença
@@ -47,7 +50,7 @@ export interface IClaimPendingFilter {
 
 // a trava do envio: grava só se a linha ainda é a enviada (marcar_sync)
 export interface IMarkSyncLock {
-  attendanceId: UUID;
+  bookingId: UUID;
   updatedAt: string; // o lido antes do envio
 }
 
@@ -89,7 +92,7 @@ export interface IApplyValidationData {
   dayKey: string;
   guestId: string | null;
   email: string | null;
-  answer: AttendanceAnswer;
+  answer: BookingAnswer;
   groupId: string | null;
   supportIds: string[]; // só os acessórios
   changedAt: string;
@@ -101,6 +104,34 @@ export interface ISaveVacanciesData {
   vacanciesAt: string;
   groups: Record<string, number>;
   supports: Record<string, number>;
+}
+
+// estoque com o Transicionais fora (D53): enfileira e grava o retrato já com ele
+export interface ISavePendingCapacityData {
+  supportId: string;
+  capacity: number;
+  event: CurrentEvent; // o retrato com o estoque novo
+}
+
+// "Encerrar ensaio" com o Transicionais fora (D51): o próximo, só no local, e o encontro de origem
+export interface ICloseEventLocallyData {
+  event: CurrentEvent; // o próximo (dia local, sem externalId)
+  fromExternalId: string;
+  fromDayKey: string;
+  fromDate: string; // YYYY-MM-DD
+}
+
+export interface IClaimPendingWritesFilter {
+  limit: number;
+}
+
+// resultado de um envio da fila da Produção, gravado só se a linha ainda é a enviada (marcar_escrita)
+export interface IMarkWriteData {
+  id: UUID;
+  updatedAt: string; // o lido antes do envio
+  mode: PendingWriteMode;
+  error: ErrorKey | null; // key do Hormônios, só no REJECTED
+  errorCause: ITransicionaisErrorCause | null; // o erro do Transicionais como veio (D50); null = sem resposta
 }
 
 export interface IWebhookDeliveryData {
@@ -116,18 +147,30 @@ export interface IHormoniosRepo {
   // grava o erro da leitura do encontro na linha do retrato e, com manualRetry, o MANUAL_RETRY (D50)
   markEventError(data: IMarkEventErrorData): Promise<void>;
   saveWhatsappUrl(url: string): Promise<void>;
-  moveAttendances(data: IMoveAttendancesData): Promise<number>;
+  moveBookings(data: IMoveBookingsData): Promise<number>;
   upsertUserByEmail(data: IUpsertUserData): Promise<User>;
-  reserve(data: IReserveData): Promise<Attendance>;
+  createBooking(data: ICreateBookingData): Promise<Booking>;
   // devolve a linha cancelada (PENDING), para o envio
-  cancelByDevice(filter: ICancelByDeviceFilter): Promise<Attendance>;
-  listByDevice(filter: IListByDeviceFilter): Promise<Attendance[]>;
-  listByDay(dayKey: string): Promise<Attendance[]>;
+  cancelByDevice(filter: ICancelByDeviceFilter): Promise<Booking>;
+  listByDevice(filter: IListByDeviceFilter): Promise<Booking[]>;
+  listByDay(dayKey: string): Promise<Booking[]>;
   // cron de sincronização: as linhas PENDING vencidas de qualquer dia do Transicionais, com o
   // next_attempt_at adiado
-  claimPending(filter: IClaimPendingFilter): Promise<Attendance[]>;
+  claimPending(filter: IClaimPendingFilter): Promise<Booking[]>;
   // true quando gravou (a linha não mudou durante o envio)
   markSync(data: IMarkSyncData): Promise<boolean>;
+  // fila da Produção (D51–D53). A troca da pendente e a trava do retrato ficam na função SQL
+  savePendingCapacity(data: ISavePendingCapacityData): Promise<void>;
+  // já há um encerramento aberto: NextEventPendingError
+  closeEventLocally(data: ICloseEventLocallyData): Promise<void>;
+  // o encerramento ainda não criado no Transicionais (PENDING ou MANUAL_RETRY); null = nenhum
+  findOpenNextEvent(): Promise<PendingNextEvent | null>;
+  listPendingCapacities(): Promise<PendingSupportCapacity[]>;
+  // as pendentes vencidas de cada tipo, com o next_attempt_at adiado (claim_escritas)
+  claimPendingCapacities(filter: IClaimPendingWritesFilter): Promise<PendingSupportCapacity[]>;
+  claimPendingNextEvents(filter: IClaimPendingWritesFilter): Promise<PendingNextEvent[]>;
+  // true quando gravou (a linha não mudou durante o envio)
+  markWrite(data: IMarkWriteData): Promise<boolean>;
   // em rascunho: webhook do Transicionais, ainda não revisado pela Bea. Não usar até a revisão.
   /** @deprecated Em rascunho, aguardando revisão (webhook do Transicionais). */
   applyValidation(data: IApplyValidationData): Promise<ApplyValidationResult>;

@@ -15,8 +15,8 @@ import type {
   IEventRef,
   IManagedEventItem,
   INewEventData,
-  ISendAttendanceData,
-  ISendAttendancePerson,
+  ISendBookingData,
+  ISendBookingPerson,
   ITransicionaisAccount,
   ITransicionaisErrorCause,
   ITransicionaisPresence,
@@ -340,8 +340,8 @@ export class TransicionaisRepo implements ITransicionaisRepo {
   // ------------ envio da reserva (E2.8) ---------
 
   // POST v2/manager-organization/users com o token de membro (D41): idempotente pelo e-mail, devolve a
-  // conta que já existe (convidado ou membro). Falhas como no sendAttendance
-  async registerGuest(person: ISendAttendancePerson): Promise<ITransicionaisAccount> {
+  // conta que já existe (convidado ou membro). Falhas como no sendBooking
+  async registerGuest(person: ISendBookingPerson): Promise<ITransicionaisAccount> {
     const response = await this.session.request<unknown>(
       {
         method: HttpMethod.Post,
@@ -363,7 +363,7 @@ export class TransicionaisRepo implements ITransicionaisRepo {
   }
 
   // GET v2/manager-validations/guests?configDayIds=&search=<email> com o token de membro (D49): a
-  // presença da pessoa no dia, com o hash. null = ainda não respondeu. Falhas como no sendAttendance
+  // presença da pessoa no dia, com o hash. null = ainda não respondeu. Falhas como no sendBooking
   async findPresence(dayKey: string, email: string): Promise<ITransicionaisPresence | null> {
     const response = await this.session.request<unknown>(
       { method: HttpMethod.Get, url: TransicionaisUrlCollection.guestPresence(dayKey, email) },
@@ -384,7 +384,7 @@ export class TransicionaisRepo implements ITransicionaisRepo {
   // POST v2/manager-validations/change com o token de membro, em nome da conta da pessoa (D41).
   // 401/403: a sessão renova o token uma vez e reenvia (D40). Qualquer 2xx é aceito (APPROVED ou
   // ALREADY). O que fazer com cada falha é do usecase
-  async sendAttendance(data: ISendAttendanceData): Promise<void> {
+  async sendBooking(data: ISendBookingData): Promise<void> {
     const response = await this.session.request<unknown>(
       {
         method: HttpMethod.Post,
@@ -400,12 +400,12 @@ export class TransicionaisRepo implements ITransicionaisRepo {
     }
 
     if (response.error || response.status < 200 || response.status >= 300) {
-      throw this.sendError(response, SEND_OPERATION, data.attendanceId);
+      throw this.sendError(response, SEND_OPERATION, data.bookingId);
     }
   }
 
   // tabela "Tradução das keys do Transicionais" (envio da reserva, R11)
-  private sendError(response: IClientResponse<unknown>, operation: string, attendanceId?: string): Error {
+  private sendError(response: IClientResponse<unknown>, operation: string, bookingId?: string): Error {
     const key = errorKey(response);
 
     // continuou 401/403 depois de renovar, ou a rota escondida: é configuração, não culpa da pessoa
@@ -429,7 +429,7 @@ export class TransicionaisRepo implements ITransicionaisRepo {
     }
 
     if (SEND_REJECTED_STATUSES.includes(response.status)) {
-      logger.error({ operation, attendanceId, status: response.status, key }, "attendance rejected by an unknown rule");
+      logger.error({ operation, bookingId, status: response.status, key }, "booking rejected by an unknown rule");
       return new ReservationRejectedError("Reservation was rejected");
     }
 

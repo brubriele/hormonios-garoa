@@ -1,11 +1,11 @@
 import { z } from "zod";
-import type { Attendance } from "./attendance";
+import type { Booking } from "./booking";
 import { CountSchema, NonBlankSchema, validateSchema } from "./model-schema";
 
 // a reserva ocupa vaga a mais do que o taken do retrato? No retrato do Transicionais (taken não null),
 // só a "vou" local PENDING (a SYNCED já está no taken); no retrato local da fase 1, toda "vou"
-function countsOverTaken(taken: number | null, attendance: Attendance): boolean {
-  return attendance.isGoing && (taken === null || attendance.isLocalOnly);
+function countsOverTaken(taken: number | null, booking: Booking): boolean {
+  return booking.isGoing && (taken === null || booking.isLocalOnly);
 }
 
 // o que tem estoque no encontro (instrumento ou acessório): a conta das vagas é a mesma
@@ -15,21 +15,21 @@ abstract class Stock {
   abstract readonly rotativo: boolean; // pode passar da capacidade
 
   // vagas ocupadas pelas reservas do encontro
-  abstract countTaken(attendances: Attendance[]): number;
+  abstract countTaken(bookings: Booking[]): number;
 
   // estoque - ocupado, nunca abaixo de 0; null = sem limite
-  available(attendances: Attendance[]): number | null {
-    return this.stockTotal === null ? null : Math.max(0, this.stockTotal - this.countTaken(attendances));
+  available(bookings: Booking[]): number | null {
+    return this.stockTotal === null ? null : Math.max(0, this.stockTotal - this.countTaken(bookings));
   }
 
   // rotativo nunca esgota
-  soldOut(attendances: Attendance[]): boolean {
-    return !this.rotativo && this.available(attendances) === 0;
+  soldOut(bookings: Booking[]): boolean {
+    return !this.rotativo && this.available(bookings) === 0;
   }
 
   // o estoque novo fica abaixo do ocupado? Rotativo pode passar da capacidade (D29)
-  isBelowReservations(capacity: number, attendances: Attendance[]): boolean {
-    return !this.rotativo && capacity < this.countTaken(attendances);
+  isBelowBookings(capacity: number, bookings: Booking[]): boolean {
+    return !this.rotativo && capacity < this.countTaken(bookings);
   }
 }
 
@@ -64,11 +64,21 @@ export class Group extends Stock {
     validateSchema(GroupSchema, this, "group");
   }
 
+  // o estoque novo do instrumento (o model é imutável)
+  withStockTotal(stockTotal: number): Group {
+    return new Group(this.id, this.name, stockTotal, this.active, this.taken, this.instrumentSupportId, this.rotativo);
+  }
+
+  // num encontro que só existe no local, sem o ocupado do Transicionais (D51)
+  withoutTaken(): Group {
+    return new Group(this.id, this.name, this.stockTotal, this.active, null, this.instrumentSupportId, this.rotativo);
+  }
+
   // vagas ocupadas: o taken do Transicionais + as "vou" locais PENDING do grupo; no retrato local da
   // fase 1 (taken null), as "vou" do grupo (REJECTED não conta)
-  countTaken(attendances: Attendance[]): number {
-    const local = attendances.filter(
-      (attendance) => attendance.groupId === this.id && countsOverTaken(this.taken, attendance),
+  countTaken(bookings: Booking[]): number {
+    const local = bookings.filter(
+      (booking) => booking.groupId === this.id && countsOverTaken(this.taken, booking),
     );
 
     return (this.taken ?? 0) + local.length;
@@ -103,15 +113,23 @@ export class Support extends Stock {
     validateSchema(SupportSchema, this, "support");
   }
 
+  withStockTotal(stockTotal: number): Support {
+    return new Support(this.id, this.name, stockTotal, this.taken, this.rotativo, this.groupIds);
+  }
+
+  withoutTaken(): Support {
+    return new Support(this.id, this.name, this.stockTotal, null, this.rotativo, this.groupIds);
+  }
+
   appliesTo(groupId: string): boolean {
     return this.groupIds.length === 0 || this.groupIds.includes(groupId);
   }
 
   // acessórios ocupados, com a mesma regra do grupo: taken + as "vou" locais PENDING com o acessório;
   // no retrato local da fase 1 (taken null), as "vou" com o acessório
-  countTaken(attendances: Attendance[]): number {
-    const local = attendances.filter(
-      (attendance) => attendance.supportIds.includes(this.id) && countsOverTaken(this.taken, attendance),
+  countTaken(bookings: Booking[]): number {
+    const local = bookings.filter(
+      (booking) => booking.supportIds.includes(this.id) && countsOverTaken(this.taken, booking),
     );
 
     return (this.taken ?? 0) + local.length;
@@ -176,8 +194,42 @@ export class CurrentEvent {
       ?? null;
   }
 
+  // o estoque de uma assistência trocado: o acessório com o id ou o grupo cujo instrumentSupportId é o
+  // id (E2.9). Usado pelo estoque pendente (D53)
+  withStock(supportId: string, stockTotal: number): CurrentEvent {
+    return new CurrentEvent(
+      this.dayKey,
+      this.date,
+      this.time,
+      this.location,
+      this.bookingOpen,
+      this.whatsappUrl,
+      this.groups.map((group) => (group.instrumentSupportId === supportId ? group.withStockTotal(stockTotal) : group)),
+      this.supports.map((support) => (support.id === supportId ? support.withStockTotal(stockTotal) : support)),
+      this.externalId,
+      this.fetchedAt,
+    );
+  }
+
+  // o próximo ensaio só no local ("Encerrar ensaio" com o Transicionais fora, D51): o mesmo horário,
+  // grupos e assistências, fechado, sem o ocupado de lá e sem encontro no Transicionais
+  next(dayKey: string, date: string, location: string): CurrentEvent {
+    return new CurrentEvent(
+      dayKey,
+      date,
+      this.time,
+      location,
+      false,
+      this.whatsappUrl,
+      this.groups.map((group) => group.withoutTaken()),
+      this.supports.map((support) => support.withoutTaken()),
+      null,
+      this.fetchedAt,
+    );
+  }
+
   // as reservas que ocupam vaga no encontro (REJECTED fica de fora)
-  goingAttendances(attendances: Attendance[]): Attendance[] {
-    return attendances.filter((attendance) => attendance.isGoing);
+  goingBookings(bookings: Booking[]): Booking[] {
+    return bookings.filter((booking) => booking.isGoing);
   }
 }

@@ -5,7 +5,7 @@ import { verifyWebhookJwt } from "../../src/serve-utils/http/webhook-auth";
 import { HormoniosRepo } from "../../src/serve-utils/repos/supabase/repo";
 import { TransicionaisRepo } from "../../src/serve-utils/repos/transicionais/repo";
 import { TransicionaisSession } from "../../src/serve-utils/repos/transicionais/session";
-import { ReceiveTransicionaisWebhookUsecase } from "../../src/serve-utils/usecases/receive-transicionais-webhook";
+import { ReceivingTransicionaisWebhookUsecase } from "../../src/serve-utils/usecases/sync/receiving-transicionais-webhook";
 
 // em rascunho: webhook do Transicionais, ainda não revisado pela Bea. Não usar até a revisão.
 /** @deprecated Em rascunho, aguardando revisão (webhook do Transicionais). */
@@ -14,7 +14,7 @@ export const POST = handle(async (request) => {
 
   const body = await readJson<Record<string, unknown>>(request);
   const httpClient = new HttpClient();
-  const usecase = new ReceiveTransicionaisWebhookUsecase(
+  const usecase = new ReceivingTransicionaisWebhookUsecase(
     new HormoniosRepo(new SupabaseClient()),
     new TransicionaisRepo(httpClient, new TransicionaisSession(httpClient)),
   );

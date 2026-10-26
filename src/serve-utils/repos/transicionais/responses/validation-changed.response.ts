@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { IWebhookValidation } from "../../../interfaces/transicionais";
-import { AttendanceAnswer } from "../../../models/attendance";
+import { BookingAnswer } from "../../../models/booking";
 import { parseInput } from "../../parse-response";
 import { ValidationAnswer } from "../requests/validation-change.request";
 import { DateSchema } from "./date.schema";
@@ -63,7 +63,7 @@ export class ValidationChangedResponse {
       dayKey: data.configDayId,
       guestId: data.person.guestId,
       email: data.person.email,
-      answer: attending ? AttendanceAnswer.Going : AttendanceAnswer.NotGoing,
+      answer: attending ? BookingAnswer.Going : BookingAnswer.NotGoing,
       groupId: attending ? data.groupId : null,
       supportTypeIds: attending ? data.supportTypeIds.filter((id) => id !== null) : [],
       changedAt: data.changedAt,

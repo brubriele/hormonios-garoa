@@ -1,5 +1,5 @@
 import type { IApplyValidationData } from "../../../interfaces/hormonios";
-import type { IAttendanceDataParams } from "./reserve.request";
+import type { IBookingDataParams } from "./create-booking.request";
 
 // parâmetros do rpc aplicar_validacao (as travas de changedAt e da mudança local ficam na função)
 // em rascunho: webhook do Transicionais, ainda não revisado pela Bea. Não usar até a revisão.
@@ -8,7 +8,7 @@ export interface IApplyValidationParams {
   p_day_key: string;
   p_guest_id: string | null;
   p_email: string | null;
-  p_data: IAttendanceDataParams;
+  p_data: IBookingDataParams;
   p_changed_at: string;
 }
 

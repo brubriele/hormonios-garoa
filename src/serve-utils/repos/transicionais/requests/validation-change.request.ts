@@ -1,5 +1,5 @@
-import type { ISendAttendanceData } from "../../../interfaces/transicionais";
-import { AttendanceAnswer } from "../../../models/attendance";
+import type { ISendBookingData } from "../../../interfaces/transicionais";
+import { BookingAnswer } from "../../../models/booking";
 import { numericId } from "../transicionais-id";
 
 // tipo da validação: o Hormônios só envia presença
@@ -28,8 +28,8 @@ export interface IValidationChangeBody {
 
 export class ValidationChangeRequest {
   // só presença ou "não vou": sem groupId e com supportTypeIds vazio
-  static fromDomain(data: ISendAttendanceData): IValidationChangeBody {
-    const attending = data.answer === AttendanceAnswer.Going;
+  static fromDomain(data: ISendBookingData): IValidationChangeBody {
+    const attending = data.answer === BookingAnswer.Going;
     const groupId = attending && data.groupId !== null ? numericId(data.groupId, "groupId") : undefined;
     const { guestId, memberId } = data.account;
 

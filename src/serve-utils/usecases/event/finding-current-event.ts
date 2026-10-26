@@ -1,25 +1,25 @@
-import { AppError } from "../errors/app-error";
-import { createLogger } from "../lib/logger";
-import type { Attendance } from "../models/attendance";
-import type { CurrentEvent } from "../models/current-event";
-import type { EventView } from "../models/event-view";
-import type { IHormoniosRepo } from "../interfaces/hormonios";
-import type { ITransicionaisRepo } from "../interfaces/transicionais";
+import { AppError } from "../../errors/app-error";
+import { createLogger } from "../../lib/logger";
+import type { Booking } from "../../models/booking";
+import type { CurrentEvent } from "../../models/current-event";
+import type { EventView } from "../../models/event-view";
+import type { IHormoniosRepo } from "../../interfaces/hormonios";
+import type { ITransicionaisRepo } from "../../interfaces/transicionais";
 import { EventViewMapper } from "./mappers/event-view.mapper";
-import { RefreshCurrentEventUsecase } from "./refresh-current-event";
+import { ReceivingCurrentEventUsecase } from "../sync/receiving-current-event";
 
 const MAX_AGE_MS = 5 * 60 * 1000;
 
-const logger = createLogger("GetEventUsecase");
+const logger = createLogger("FindingCurrentEventUsecase");
 
-export class GetEventUsecase {
-  private readonly refreshCurrentEvent: RefreshCurrentEventUsecase;
+export class FindingCurrentEventUsecase {
+  private readonly receivingCurrentEvent: ReceivingCurrentEventUsecase;
 
   constructor(
     private readonly hormoniosRepo: IHormoniosRepo,
     private readonly transicionaisRepo: ITransicionaisRepo,
   ) {
-    this.refreshCurrentEvent = new RefreshCurrentEventUsecase(this.hormoniosRepo, this.transicionaisRepo);
+    this.receivingCurrentEvent = new ReceivingCurrentEventUsecase(this.hormoniosRepo, this.transicionaisRepo);
   }
 
   async execute(): Promise<EventView> {
@@ -49,9 +49,9 @@ export class GetEventUsecase {
   }
 
   private async buildView(event: CurrentEvent, stale: boolean): Promise<EventView> {
-    const attendances = await this.findSupabaseAttendances(event.dayKey);
+    const bookings = await this.findSupabaseBookings(event.dayKey);
 
-    return EventViewMapper.toView(event, attendances, stale);
+    return EventViewMapper.toView(event, bookings, stale);
   }
 
   // retrato vazio, local da fase 1 ou com mais de 5 min
@@ -66,9 +66,9 @@ export class GetEventUsecase {
   // true quando o Transicionais respondeu; qualquer falha deixa o último retrato
   private async refreshTransicionaisEvent(): Promise<boolean> {
     try {
-      return (await this.refreshCurrentEvent.execute()).available;
+      return (await this.receivingCurrentEvent.execute()).available;
     } catch {
-      return false; // o RefreshCurrentEventUsecase já registrou
+      return false; // o ReceivingCurrentEventUsecase já registrou
     }
   }
 
@@ -76,7 +76,7 @@ export class GetEventUsecase {
     return this.hormoniosRepo.findCurrentEventOrFail();
   }
 
-  private async findSupabaseAttendances(dayKey: string): Promise<Attendance[]> {
+  private async findSupabaseBookings(dayKey: string): Promise<Booking[]> {
     return this.hormoniosRepo.listByDay(dayKey);
   }
 }

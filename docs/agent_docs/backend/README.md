@@ -40,7 +40,7 @@ Tarefas que passam por mais de uma camada. Leia os docs e faça os arquivos **na
 | **Campo novo num model** | `models.md` → `requests-responses.md` (o schema e o `toDomain`/`fromDomain` que trazem o campo) |
 | **Refatoração** (sem mudar comportamento) | o doc de cada camada tocada; antes de mexer, guarde a resposta das rotas afetadas e compare com `diff` depois (seção **Ao terminar**) |
 | **Erro novo** | `errors.md` → `api.md` (conferir se a rota devolve o `status` certo) |
-| **Resposta nova de rota** (formato de saída) | `models.md` (a saída é model em `models/`; a regra de um domínio, como a conta das vagas, é método do model de origem) → `usecases.md` (U9: se a saída junta models de domínios distintos, um mapper em `usecases/mappers/` que devolve o model de saída) |
+| **Resposta nova de rota** (formato de saída) | `models.md` (a saída é model em `models/`; a regra de um domínio, como a conta das vagas, é método do model de origem) → `usecases.md` (U9: se a saída junta models de domínios distintos, um mapper em `usecases/<contexto>/mappers/` que devolve o model de saída) |
 | **Regra de negócio nova numa rota** | `usecases.md` (novo passo ou `validate*` no usecase da rota; formato da entrada é schema zod, U10) |
 | **Teste de usecase** | `usecases.md` (seção "Teste com fake") → `interfaces.md` |
 
@@ -87,8 +87,8 @@ src/serve-utils/
   repos/<fonte>/responses/             schema zod + toDomain(raw): model
   repos/<fonte>/requests/              fromDomain(model): corpo ou parâmetros da fonte
   repos/transicionais/session.ts       token de membro do Transicionais (login e refresh)
-  usecases/                            um arquivo por rota de /api
-  usecases/mappers/                    <nome>.mapper.ts: monta o model de saída que junta models de domínios distintos (U9)
+  usecases/<contexto>/                 um arquivo por rota de /api, na pasta do contexto (U1): booking/, event/, sync/
+  usecases/<contexto>/mappers/         <nome>.mapper.ts: monta o model de saída que junta models de domínios distintos (U9)
 ```
 
 ## Fluxo de uma chamada
@@ -109,7 +109,7 @@ api/<rota>.ts (handle) → Usecase.execute(input) → Repo (pela interface) → 
 | G5 | **Nomes:** classes em `PascalCase`, arquivos em `kebab-case`. Confira erros de digitação com `tsc --noEmit`. |
 | G6 | **Conjunto fechado é enum**, nunca texto solto ([`models.md`](models.md), M6). |
 | G7 | **Log só pelo logger** (`createLogger`), nunca `console.*` ([`lib.md`](lib.md)). |
-| G8 | **Sem helper repetido:** procure em `lib/`, em `repos/parse-response.ts` e em `models/model-schema.ts` antes de escrever um. |
+| G8 | **Sem helper repetido:** procure em `lib/`, em `repos/parse-response.ts` e em `models/model-schema.ts` antes de escrever um. Não vale para a regra de usecases de contextos diferentes, que pode se parecer de propósito ([`usecases.md`](usecases.md), U11). |
 
 ## Checklist ao terminar
 

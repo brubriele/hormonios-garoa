@@ -72,7 +72,7 @@ class ConsoleLogger extends Logger {
   }
 }
 
-// um logger por arquivo: createLogger("GetEventUsecase")
+// um logger por arquivo: createLogger("FindingCurrentEventUsecase")
 export function createLogger(scope: string): Logger {
   return new ConsoleLogger({ scope });
 }

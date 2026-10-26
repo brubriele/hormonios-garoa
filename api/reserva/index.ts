@@ -6,14 +6,14 @@ import { handle, readJson } from "../../src/serve-utils/http/handle";
 import { HormoniosRepo } from "../../src/serve-utils/repos/supabase/repo";
 import { TransicionaisRepo } from "../../src/serve-utils/repos/transicionais/repo";
 import { TransicionaisSession } from "../../src/serve-utils/repos/transicionais/session";
-import { ReserveUsecase, type IReserveBody } from "../../src/serve-utils/usecases/reserve";
+import { CreatingUserBookingUsecase, type ICreatingUserBookingBody } from "../../src/serve-utils/usecases/booking/creating-user-booking";
 
 export const POST = handle(async (request) => {
   const { deviceId, cookie } = getOrCreateDevice(request);
-  const body = await readJson<IReserveBody>(request);
+  const body = await readJson<ICreatingUserBookingBody>(request);
 
   const httpClient = new HttpClient();
-  const usecase = new ReserveUsecase(
+  const usecase = new CreatingUserBookingUsecase(
     new HormoniosRepo(new SupabaseClient()),
     new TransicionaisRepo(httpClient, new TransicionaisSession(httpClient)),
   );

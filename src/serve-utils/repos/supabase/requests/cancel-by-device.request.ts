@@ -1,10 +1,10 @@
-import { AttendanceAnswer, AttendanceSync } from "../../../models/attendance";
-import type { IAttendanceDataParams } from "./reserve.request";
+import { BookingAnswer, BookingSync } from "../../../models/booking";
+import type { IBookingDataParams } from "./create-booking.request";
 
 // update de hg_attendances do "Não vou": libera a vaga e volta a PENDING, para o envio
 export interface ICancelByDeviceBody {
-  data: IAttendanceDataParams;
-  transicionais_sync: AttendanceSync;
+  data: IBookingDataParams;
+  transicionais_sync: BookingSync;
   sync_error: null;
   attempts: number;
   next_attempt_at: string;
@@ -14,8 +14,8 @@ export interface ICancelByDeviceBody {
 export class CancelByDeviceRequest {
   static fromDomain(now: string): ICancelByDeviceBody {
     return {
-      data: { answer: AttendanceAnswer.NotGoing, groupId: null, supportIds: [] },
-      transicionais_sync: AttendanceSync.Pending,
+      data: { answer: BookingAnswer.NotGoing, groupId: null, supportIds: [] },
+      transicionais_sync: BookingSync.Pending,
       sync_error: null,
       attempts: 0,
       next_attempt_at: now,

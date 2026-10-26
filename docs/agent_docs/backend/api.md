@@ -21,13 +21,13 @@
 import { HttpClient } from "../../src/serve-utils/clients/http-client";
 import { handle } from "../../src/serve-utils/http/handle";
 import { TransicionaisRepo } from "../../src/serve-utils/repos/transicionais/repo";
-import { FindEventUsecase } from "../../src/serve-utils/usecases/find-event";
+import { FindingEventUsecase } from "../../src/serve-utils/usecases/event/finding-event";
 import type { UUID } from "../../src/serve-utils/interfaces/uuid";
 
 export const GET = handle(async (request) => {
   const id = new URL(request.url).pathname.split("/").pop() as UUID;
 
-  const usecase = new FindEventUsecase(new TransicionaisRepo(new HttpClient()));
+  const usecase = new FindingEventUsecase(new TransicionaisRepo(new HttpClient()));
 
   return { body: await usecase.execute({ id }) };
 });
@@ -56,7 +56,7 @@ export const POST = handle(async (request) => {
 // api/minhas-reservas.ts (trecho)
 export const GET = handle(async (request) => {
   const { deviceId, cookie } = getOrCreateDevice(request);
-  const body = await new ListMyReservationsUsecase(repo).execute({ deviceId });
+  const body = await new FindingUserBookingsUsecase(repo).execute({ deviceId });
 
   return { body, cookies: cookie ? [cookie] : [] };
 });

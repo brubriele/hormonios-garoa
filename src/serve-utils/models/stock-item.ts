@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { StockReservation } from "./stock-reservation";
+import { StockBooking } from "./stock-booking";
 import { SupportTypeKind } from "./support-type";
 import { CountSchema, NonBlankSchema, validateSchema } from "./model-schema";
 
@@ -10,7 +10,7 @@ const StockItemSchema = z.object({
   stockTotal: CountSchema.nullable(),
   available: CountSchema.nullable(),
   rotativo: z.boolean(),
-  reservations: z.array(z.instanceof(StockReservation)),
+  reservations: z.array(z.instanceof(StockBooking)),
 });
 
 // um item do estoque no resumo da Produção (E2.9): o instrumento ou o acessório, com as vagas
@@ -22,7 +22,7 @@ export class StockItem {
     readonly stockTotal: number | null, // null = sem limite
     readonly available: number | null, // null = sem limite
     readonly rotativo: boolean,
-    readonly reservations: StockReservation[],
+    readonly reservations: StockBooking[],
   ) {
     this.validate();
   }
