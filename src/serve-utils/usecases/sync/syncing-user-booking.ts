@@ -193,7 +193,7 @@ export class SyncingUserBookingUsecase {
       return [];
     }
 
-    const instrumentSupportId = event.findGroup(booking.groupId)?.instrumentSupportId ?? null;
+    const instrumentSupportId = event.findInstrument(booking.groupId)?.instrumentSupportId ?? null;
     const supportIds = this.filterOfferedSupportIds(booking, event, booking.groupId);
 
     return instrumentSupportId === null ? supportIds : [instrumentSupportId, ...supportIds];
@@ -202,7 +202,7 @@ export class SyncingUserBookingUsecase {
   // só os acessórios que o encontro oferece para o grupo: a linha migrada da fase 1 (migrar_fase1)
   // ainda tem os ids locais (talabarte, baqueta), que não existem no Transicionais (D42)
   private filterOfferedSupportIds(booking: Booking, event: CurrentEvent, groupId: string): string[] {
-    const offered = new Set(event.supportsForGroup(groupId).map((support) => support.id));
+    const offered = new Set(event.accessoriesForInstrument(groupId).map((accessory) => accessory.id));
     const ignored = booking.supportIds.filter((id) => !offered.has(id));
 
     if (ignored.length > 0) {

@@ -5,7 +5,7 @@ import {
   BookingClosedError,
   EventChangedError,
   InvalidParameterError,
-  NextEventPendingError,
+  EventCreationPendingError,
   NotFoundError,
   SoldOutError,
 } from "../../errors/app-error";
@@ -13,11 +13,11 @@ import { SupabaseClient } from "../../clients/supabase-client";
 import { ApplyValidationRequest } from "./requests/apply-validation.request";
 import { CancelByDeviceRequest } from "./requests/cancel-by-device.request";
 import { ClaimPendingRequest } from "./requests/claim-pending.request";
-import { ClaimPendingWritesRequest } from "./requests/claim-pending-writes.request";
+import { ClaimPendingSyncsRequest } from "./requests/claim-pending-syncs.request";
 import { CloseEventLocallyRequest } from "./requests/close-event-locally.request";
 import { MarkEventErrorRequest } from "./requests/mark-event-error.request";
 import { MarkSyncRequest } from "./requests/mark-sync.request";
-import { MarkWriteRequest } from "./requests/mark-write.request";
+import { MarkPendingSyncRequest } from "./requests/mark-pending-sync.request";
 import { MoveBookingsRequest } from "./requests/move-bookings.request";
 import { RegisterWebhookDeliveryRequest } from "./requests/register-webhook-delivery.request";
 import { CreateBookingRequest } from "./requests/create-booking.request";
@@ -30,29 +30,29 @@ import { ApplyValidationResponse } from "./responses/apply-validation.response";
 import { BookingResponse } from "./responses/booking.response";
 import { CurrentEventResponse } from "./responses/current-event.response";
 import { MovedCountResponse } from "./responses/moved-count.response";
-import { PendingWriteResponse } from "./responses/pending-write.response";
+import { PendingSyncResponse } from "./responses/pending-sync.response";
 import { SavedResponse } from "./responses/saved.response";
 import { UserResponse } from "./responses/user.response";
 import { WebhookDeliveryResponse } from "./responses/webhook-delivery.response";
 import type { ApplyValidationResult, Booking } from "../../models/booking";
 import { DatabaseError } from "../../errors/infra-error";
 import type { CurrentEvent } from "../../models/current-event";
-import type { EventSnapshot } from "../../models/event-snapshot";
-import type { PendingNextEvent } from "../../models/pending-next-event";
-import type { PendingSupportCapacity } from "../../models/pending-support-capacity";
-import { PendingWriteKind } from "../../models/pending-write";
+import type { CurrentEventSnapshot } from "../../models/current-event-snapshot";
+import type { PendingEventCreation } from "../../models/pending-event-creation";
+import type { PendingStockUpdate } from "../../models/pending-stock-update";
+import { PendingSyncKind } from "../../models/pending-sync";
 import type { User } from "../../models/user";
 import type {
   IApplyValidationData,
   ICancelByDeviceFilter,
   IClaimPendingFilter,
-  IClaimPendingWritesFilter,
+  IClaimPendingSyncsFilter,
   ICloseEventLocallyData,
   IHormoniosRepo,
   IListByDeviceFilter,
   IMarkEventErrorData,
   IMarkSyncData,
-  IMarkWriteData,
+  IMarkPendingSyncData,
   IMoveBookingsData,
   ICreateBookingData,
   ISavePendingCapacityData,
@@ -64,12 +64,12 @@ import type {
 const CURRENT_EVENT_ID = 1;
 const BOOKING_WITH_USER = "*, hg_users(*)";
 // fila da Produção: o encerramento aberto ainda não foi criado no Transicionais (D51)
-const OPEN_NEXT_EVENT_STATUSES = ["PENDING", "MANUAL_RETRY"];
+const OPEN_EVENT_CREATION_STATUSES = ["PENDING", "MANUAL_RETRY"];
 const PENDING_STATUS = "PENDING";
 
 // codigos de raise exception da funcao encerrar_local
 const CLOSE_EVENT_ERRORS: Record<string, () => AppError> = {
-  NEXT_EVENT_PENDING: () => new NextEventPendingError("Previous next event is still pending"),
+  EVENT_CREATION_PENDING: () => new EventCreationPendingError("Previous next event is still pending"),
 };
 
 // codigos de raise exception da funcao reservar
@@ -113,7 +113,7 @@ export class HormoniosRepo implements IHormoniosRepo {
   }
 
   // trava do retrato na função gravar_retrato; o whatsappUrl gravado fica
-  async saveSnapshot(snapshot: EventSnapshot): Promise<boolean> {
+  async saveSnapshot(snapshot: CurrentEventSnapshot): Promise<boolean> {
     const response = await this.supabaseClient.query<unknown>((sdk) =>
       sdk.rpc("gravar_retrato", SaveSnapshotRequest.fromDomain(snapshot)),
     );
@@ -292,7 +292,7 @@ export class HormoniosRepo implements IHormoniosRepo {
     }
   }
 
-  // o retrato e a fila na mesma transação (encerrar_local); encerramento aberto: NEXT_EVENT_PENDING
+  // o retrato e a fila na mesma transação (encerrar_local); encerramento aberto: EVENT_CREATION_PENDING
   async closeEventLocally(data: ICloseEventLocallyData): Promise<void> {
     const response = await this.supabaseClient.query<unknown>((sdk) =>
       sdk.rpc("encerrar_local", CloseEventLocallyRequest.fromDomain(data)),
@@ -309,13 +309,13 @@ export class HormoniosRepo implements IHormoniosRepo {
     }
   }
 
-  async findOpenNextEvent(): Promise<PendingNextEvent | null> {
+  async findOpenNextEvent(): Promise<PendingEventCreation | null> {
     const response = await this.supabaseClient.query<unknown>((sdk) =>
       sdk
-        .from("hg_pending_writes")
+        .from("hg_pending_syncs")
         .select("*")
-        .eq("kind", PendingWriteKind.NextEvent)
-        .in("status", OPEN_NEXT_EVENT_STATUSES)
+        .eq("kind", PendingSyncKind.EventCreation)
+        .in("status", OPEN_EVENT_CREATION_STATUSES)
         .limit(1),
     );
 
@@ -323,15 +323,15 @@ export class HormoniosRepo implements IHormoniosRepo {
       throw new DatabaseError("findOpenNextEvent", response.status, response.error.message);
     }
 
-    return PendingWriteResponse.toNextEvent(response.data, "findOpenNextEvent");
+    return PendingSyncResponse.toEventCreation(response.data, "findOpenNextEvent");
   }
 
-  async listPendingCapacities(): Promise<PendingSupportCapacity[]> {
+  async listPendingCapacities(): Promise<PendingStockUpdate[]> {
     const response = await this.supabaseClient.query<unknown>((sdk) =>
       sdk
-        .from("hg_pending_writes")
+        .from("hg_pending_syncs")
         .select("*")
-        .eq("kind", PendingWriteKind.SupportCapacity)
+        .eq("kind", PendingSyncKind.StockUpdate)
         .eq("status", PENDING_STATUS)
         .order("created_at", { ascending: true }),
     );
@@ -340,47 +340,47 @@ export class HormoniosRepo implements IHormoniosRepo {
       throw new DatabaseError("listPendingCapacities", response.status, response.error.message);
     }
 
-    return PendingWriteResponse.toSupportCapacities(response.data, "listPendingCapacities");
+    return PendingSyncResponse.toStockUpdates(response.data, "listPendingCapacities");
   }
 
-  // claim_escritas trava e adia as linhas do tipo
-  async claimPendingCapacities(filter: IClaimPendingWritesFilter): Promise<PendingSupportCapacity[]> {
-    return PendingWriteResponse.toSupportCapacities(
-      await this.claimPendingWrites(PendingWriteKind.SupportCapacity, filter),
-      "claim_escritas",
+  // claim_syncs trava e adia as linhas do tipo
+  async claimPendingCapacities(filter: IClaimPendingSyncsFilter): Promise<PendingStockUpdate[]> {
+    return PendingSyncResponse.toStockUpdates(
+      await this.claimPendingSyncs(PendingSyncKind.StockUpdate, filter),
+      "claim_syncs",
     );
   }
 
-  async claimPendingNextEvents(filter: IClaimPendingWritesFilter): Promise<PendingNextEvent[]> {
-    return PendingWriteResponse.toNextEvents(
-      await this.claimPendingWrites(PendingWriteKind.NextEvent, filter),
-      "claim_escritas",
+  async claimPendingNextEvents(filter: IClaimPendingSyncsFilter): Promise<PendingEventCreation[]> {
+    return PendingSyncResponse.toEventCreations(
+      await this.claimPendingSyncs(PendingSyncKind.EventCreation, filter),
+      "claim_syncs",
     );
   }
 
-  private async claimPendingWrites(kind: PendingWriteKind, filter: IClaimPendingWritesFilter): Promise<unknown> {
+  private async claimPendingSyncs(kind: PendingSyncKind, filter: IClaimPendingSyncsFilter): Promise<unknown> {
     const response = await this.supabaseClient.query<unknown>((sdk) =>
-      sdk.rpc("claim_escritas", ClaimPendingWritesRequest.fromDomain(kind, filter)),
+      sdk.rpc("claim_syncs", ClaimPendingSyncsRequest.fromDomain(kind, filter)),
     );
 
     if (response.error) {
-      throw new DatabaseError("claim_escritas", response.status, response.error.message);
+      throw new DatabaseError("claim_syncs", response.status, response.error.message);
     }
 
     return response.data;
   }
 
-  // trava do updated_at na função marcar_escrita
-  async markWrite(data: IMarkWriteData): Promise<boolean> {
+  // trava do updated_at na função marcar_sync_pendente
+  async markPendingSync(data: IMarkPendingSyncData): Promise<boolean> {
     const response = await this.supabaseClient.query<unknown>((sdk) =>
-      sdk.rpc("marcar_escrita", MarkWriteRequest.fromDomain(data)),
+      sdk.rpc("marcar_sync_pendente", MarkPendingSyncRequest.fromDomain(data)),
     );
 
     if (response.error) {
-      throw new DatabaseError("marcar_escrita", response.status, response.error.message);
+      throw new DatabaseError("marcar_sync_pendente", response.status, response.error.message);
     }
 
-    return SavedResponse.toDomain(response.data, "marcar_escrita");
+    return SavedResponse.toDomain(response.data, "marcar_sync_pendente");
   }
 
   // travas de changedAt e da mudança local mais nova na função aplicar_validacao

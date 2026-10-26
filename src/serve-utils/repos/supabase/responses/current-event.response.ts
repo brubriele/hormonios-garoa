@@ -1,13 +1,13 @@
 import { z } from "zod";
 import { InfraSource, InvalidResponseError } from "../../../errors/infra-error";
-import { CurrentEvent, Group, Support } from "../../../models/current-event";
+import { CurrentEvent, Instrument, Accessory } from "../../../models/current-event";
 import { parseResponse } from "../../parse-response";
 
 const OPERATION = "findCurrentEvent";
 
 // os campos opcionais com default são os que o retrato local da fase 1 não tem (sem limite, não
 // rotativo, vale para todos os grupos). taken só existe no retrato do Transicionais
-const GroupDataSchema = z.object({
+const InstrumentDataSchema = z.object({
   id: z.string(),
   name: z.string(),
   stockTotal: z.number().int().nullable(), // null = sem limite
@@ -17,7 +17,7 @@ const GroupDataSchema = z.object({
   rotativo: z.boolean().default(false),
 });
 
-const SupportDataSchema = z.object({
+const AccessoryDataSchema = z.object({
   id: z.string(),
   name: z.string(),
   stockTotal: z.number().int().nullable().default(null),
@@ -34,8 +34,8 @@ const CurrentEventDataSchema = z.object({
   location: z.string(),
   bookingOpen: z.boolean(),
   whatsappUrl: z.string(),
-  groups: z.array(GroupDataSchema),
-  supports: z.array(SupportDataSchema),
+  instruments: z.array(InstrumentDataSchema),
+  accessories: z.array(AccessoryDataSchema),
 });
 
 // linha de hg_current_event (id = 1)
@@ -64,27 +64,27 @@ export class CurrentEventResponse {
       data.location,
       data.bookingOpen,
       data.whatsappUrl,
-      data.groups.map(
-        (group) =>
-          new Group(
-            group.id,
-            group.name,
-            group.stockTotal,
-            group.active,
-            fromTransicionais ? group.taken : null,
-            group.instrumentSupportId,
-            group.rotativo,
+      data.instruments.map(
+        (instrument) =>
+          new Instrument(
+            instrument.id,
+            instrument.name,
+            instrument.stockTotal,
+            instrument.active,
+            fromTransicionais ? instrument.taken : null,
+            instrument.instrumentSupportId,
+            instrument.rotativo,
           ),
       ),
-      data.supports.map(
-        (support) =>
-          new Support(
-            support.id,
-            support.name,
-            support.stockTotal,
-            fromTransicionais ? support.taken : null,
-            support.rotativo,
-            support.groupIds,
+      data.accessories.map(
+        (accessory) =>
+          new Accessory(
+            accessory.id,
+            accessory.name,
+            accessory.stockTotal,
+            fromTransicionais ? accessory.taken : null,
+            accessory.rotativo,
+            accessory.groupIds,
           ),
       ),
       externalId,

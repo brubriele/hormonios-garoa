@@ -11,7 +11,7 @@ export enum ErrorKey {
   StockBelowReservations = "STOCK_BELOW_RESERVATIONS_ERROR",
   UpstreamUnavailable = "UPSTREAM_UNAVAILABLE_ERROR",
   ReservationRejected = "RESERVATION_REJECTED_ERROR",
-  NextEventPending = "NEXT_EVENT_PENDING_ERROR",
+  EventCreationPending = "EVENT_CREATION_PENDING_ERROR",
 }
 
 export abstract class AppError extends Error {
@@ -83,7 +83,7 @@ export class ReservationRejectedError extends AppError {
 }
 
 // "Encerrar ensaio" com o anterior ainda só no local, esperando o Transicionais (D51)
-export class NextEventPendingError extends AppError {
-  readonly key = ErrorKey.NextEventPending;
+export class EventCreationPendingError extends AppError {
+  readonly key = ErrorKey.EventCreationPending;
   readonly status = 409;
 }

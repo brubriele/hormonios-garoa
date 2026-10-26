@@ -19,7 +19,7 @@ const ERROR_MESSAGES = {
   BOOKING_CLOSED_ERROR: "As reservas estão fechadas no momento.",
   EVENT_CHANGED_ERROR: "O ensaio mudou. Atualizamos a página.",
   STOCK_BELOW_RESERVATIONS_ERROR: "O estoque total não pode ficar abaixo das reservas atuais.",
-  NEXT_EVENT_PENDING_ERROR: "O encerramento anterior ainda está sincronizando. Tente de novo em alguns minutos.",
+  EVENT_CREATION_PENDING_ERROR: "O encerramento anterior ainda está sincronizando. Tente de novo em alguns minutos.",
   INVALID_PARAMETER_ERROR: "Confira os campos."
 };
 const GENERIC_ERROR = "Não foi possível concluir. Tente de novo.";

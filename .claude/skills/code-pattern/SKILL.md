@@ -24,9 +24,9 @@ O detalhe está nos docs; isto é o que mais aparece na revisão da Bea:
   (`requests-responses.md`).
 - **Regra de um domínio é método do model** (a conta das vagas: `group.available(attendances)`). A
   saída que junta models de domínios distintos é um **mapper** em `usecases/<contexto>/mappers/`, um por arquivo,
-  que só formata e devolve um **model de saída** de `models/` (`EventView`, `CurrentEventSummary`), nunca
+  que só formata e devolve um **model de saída** de `models/` (`PublicEvent`, `CurrentEventSummary`), nunca
   interface solta (`usecases.md` U9).
-- **Um enum por conceito:** o response usa o enum do model (`z.enum(SupportTypeKind)`), sem duplicar.
+- **Um enum por conceito:** o response usa o enum do model (`z.enum(LoanCatalogKind)`), sem duplicar.
 - **Enum, não texto** para conjunto fechado; **`InfraError` com key**, não `throw new Error`, para falha
   de fonte; **logger**, não `console.*`; **helper comum em `lib/`**, nunca repetido.
 - se a saida de um mapper foi a mesma saida do usecase, então isso é uma model, um objeto de dominio

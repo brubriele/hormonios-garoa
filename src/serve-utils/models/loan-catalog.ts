@@ -2,12 +2,12 @@ import { z } from "zod";
 import { CountSchema, NonBlankSchema, validateSchema } from "./model-schema";
 
 // tipo da assistência: o instrumento emprestado ou um acessório dele (E2.9)
-export enum SupportTypeKind {
+export enum LoanCatalogKind {
   Instrument = "instrumento",
   Accessory = "acessorio",
 }
 
-const SupportTypeSchema = z.object({
+const LoanCatalogSchema = z.object({
   id: NonBlankSchema,
   title: NonBlankSchema,
   description: z.string().nullable(),
@@ -16,12 +16,12 @@ const SupportTypeSchema = z.object({
   groupIds: z.array(NonBlankSchema),
   rotativo: z.boolean(),
   requiredForActivity: z.boolean(),
-  kind: z.enum(SupportTypeKind).nullable(),
+  kind: z.enum(LoanCatalogKind).nullable(),
 });
 
 // o catálogo de uma assistência no Transicionais (D26): salvo sempre inteiro, porque sem groupIds ela
 // passaria a valer para a organização inteira
-export class SupportType {
+export class LoanCatalog {
   constructor(
     readonly id: string,
     readonly title: string,
@@ -31,14 +31,14 @@ export class SupportType {
     readonly groupIds: string[], // vazio = vale para todos os grupos
     readonly rotativo: boolean, // a capacidade conta, mas não bloqueia
     readonly requiredForActivity: boolean,
-    readonly kind: SupportTypeKind | null, // null = não veio (D23)
+    readonly kind: LoanCatalogKind | null, // null = não veio (D23)
   ) {
     this.validate();
   }
 
   // a mesma assistência com outro estoque (o model é imutável)
-  withCapacity(capacity: number): SupportType {
-    return new SupportType(
+  withCapacity(capacity: number): LoanCatalog {
+    return new LoanCatalog(
       this.id,
       this.title,
       this.description,
@@ -52,6 +52,6 @@ export class SupportType {
   }
 
   private validate() {
-    validateSchema(SupportTypeSchema, this, "supportType");
+    validateSchema(LoanCatalogSchema, this, "loanCatalog");
   }
 }

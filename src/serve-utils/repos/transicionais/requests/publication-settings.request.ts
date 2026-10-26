@@ -1,14 +1,14 @@
-import type { EventPublication, EventVisibility } from "../../../models/event-publication";
+import type { PublicationSettings, EventVisibility } from "../../../models/publication-settings";
 import { numericId } from "../transicionais-id";
 
-export interface IGroupVacancyBody {
+export interface IGroupCapacityBody {
   groupId: number;
   total: number | null; // null = sem limite
 }
 
 export interface IPublicationVacanciesBody {
   total: number | null;
-  groups: IGroupVacancyBody[];
+  groups: IGroupCapacityBody[];
 }
 
 // `public` no PUT v2/manager-events/details/{id}: inteiro (dúvida D4)
@@ -22,8 +22,8 @@ export interface IEventPublicationBody {
   vacancies: IPublicationVacanciesBody;
 }
 
-export class EventPublicationRequest {
-  static fromDomain(publication: EventPublication): IEventPublicationBody {
+export class PublicationSettingsRequest {
+  static fromDomain(publication: PublicationSettings): IEventPublicationBody {
     return {
       visibility: publication.visibility,
       publicDescription: publication.description,

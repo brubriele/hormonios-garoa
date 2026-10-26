@@ -1,5 +1,5 @@
 import type { IEventChanges } from "../../../interfaces/transicionais";
-import { EventPublicationRequest, type IEventPublicationBody } from "./event-publication.request";
+import { PublicationSettingsRequest, type IEventPublicationBody } from "./publication-settings.request";
 
 // corpo do PUT v2/manager-events/details/{id}: a version e só o que muda (campo ausente = não mexe)
 export interface IEventUpdateBody {
@@ -27,7 +27,7 @@ export class EventUpdateRequest {
     }
 
     if (changes.publication !== undefined) {
-      body.public = EventPublicationRequest.fromDomain(changes.publication);
+      body.public = PublicationSettingsRequest.fromDomain(changes.publication);
     }
 
     return body;

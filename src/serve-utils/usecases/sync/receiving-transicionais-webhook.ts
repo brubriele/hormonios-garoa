@@ -3,7 +3,7 @@ import { AppError } from "../../errors/app-error";
 import { createLogger } from "../../lib/logger";
 import { BookingAnswer } from "../../models/booking";
 import type { CurrentEvent } from "../../models/current-event";
-import type { EventSnapshot } from "../../models/event-snapshot";
+import type { CurrentEventSnapshot } from "../../models/current-event-snapshot";
 import { validateSchema } from "../../models/model-schema";
 import { EventWebhookStatus, WebhookType } from "../../models/transicionais-webhook";
 import type { IHormoniosRepo } from "../../interfaces/hormonios";
@@ -136,7 +136,7 @@ export class ReceivingTransicionaisWebhookUsecase {
     await this.receivingCurrentEvent.execute();
   }
 
-  private async saveSupabaseSnapshot(snapshot: EventSnapshot): Promise<void> {
+  private async saveSupabaseSnapshot(snapshot: CurrentEventSnapshot): Promise<void> {
     await this.hormoniosRepo.saveSnapshot(snapshot);
   }
 
@@ -162,7 +162,7 @@ export class ReceivingTransicionaisWebhookUsecase {
   // o Transicionais manda o instrumento junto dos acessórios; no Hormônios, supportIds são só os acessórios
   private buildAccessoryIds(supportTypeIds: string[], current: CurrentEvent | null): string[] {
     const instrumentIds = new Set(
-      (current?.groups ?? []).map((group) => group.instrumentSupportId).filter((id) => id !== null),
+      (current?.instruments ?? []).map((instrument) => instrument.instrumentSupportId).filter((id) => id !== null),
     );
 
     return [...new Set(supportTypeIds.filter((id) => !instrumentIds.has(id)))];
@@ -177,30 +177,30 @@ export class ReceivingTransicionaisWebhookUsecase {
       return;
     }
 
-    const groups: Record<string, number> = {};
-    const supports: Record<string, number> = {};
+    const instruments: Record<string, number> = {};
+    const accessories: Record<string, number> = {};
 
-    for (const group of current.groups) {
-      if (group.instrumentSupportId !== null && occupied[group.instrumentSupportId] !== undefined) {
-        groups[group.id] = occupied[group.instrumentSupportId];
+    for (const instrument of current.instruments) {
+      if (instrument.instrumentSupportId !== null && occupied[instrument.instrumentSupportId] !== undefined) {
+        instruments[instrument.id] = occupied[instrument.instrumentSupportId];
       }
     }
 
-    for (const support of current.supports) {
-      if (occupied[support.id] !== undefined) {
-        supports[support.id] = occupied[support.id];
+    for (const accessory of current.accessories) {
+      if (occupied[accessory.id] !== undefined) {
+        accessories[accessory.id] = occupied[accessory.id];
       }
     }
 
-    if (Object.keys(groups).length === 0 && Object.keys(supports).length === 0) {
+    if (Object.keys(instruments).length === 0 && Object.keys(accessories).length === 0) {
       return;
     }
 
     await this.hormoniosRepo.saveVacancies({
       dayKey: validation.dayKey,
       vacanciesAt: validation.changedAt,
-      groups,
-      supports,
+      instruments,
+      accessories,
     });
   }
 }

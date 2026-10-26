@@ -25,10 +25,10 @@ depois, sem duplicar: o próximo ensaio e o estoque da Produção (D51–D53) e 
 
 > [`usecases/sync/syncing-next-event-pending.ts`](../../../../src/serve-utils/usecases/sync/syncing-next-event-pending.ts)
 
-**Contexto.** O "Encerrar" feito com o Transicionais fora fica na fila (`NEXT_EVENT`, D51).
+**Contexto.** O "Encerrar" feito com o Transicionais fora fica na fila (`EVENT_CREATION`, D51).
 
 **Decisão.**
-- `claim_escritas('NEXT_EVENT', 1)` (há um aberto por vez). Tenta criar o próximo no Transicionais:
+- `claim_syncs('EVENT_CREATION', 1)` (há um aberto por vez). Tenta criar o próximo no Transicionais:
   acha o encerrado com `findManagedEvent(ref, fromDate)` (vale mesmo depois do dia passar) e cria o
   encontro, o ciclo, os grupos, o dia (horário do encerrado) e o público, fechado (D2). Falhou depois
   do POST: apaga o recém-criado (D16). O encerrado sumiu da listagem: `MANUAL_RETRY`.
@@ -37,7 +37,7 @@ depois, sem duplicar: o próximo ensaio e o estoque da Produção (D51–D53) e 
   mapa identidade), e o `type=booking` as envia. O estoque é da assistência (`supportId`), não do
   encontro: já está na fila de stock com o id certo.
 - Fora do ar ou outra falha: `BACKOFF`. 400, 409 ou 422: `MANUAL_RETRY` com o erro como veio (D50).
-  Grava com `marcar_escrita`. Responde a contagem. `type=nextEvent`.
+  Grava com `marcar_sync_pendente`. Responde a contagem. `type=nextEvent`.
 
 **Consequências.**
 - Se o encontro for criado e a gravação local falhar, o próximo ciclo cria outro (fica registrado no log).
@@ -46,15 +46,15 @@ depois, sem duplicar: o próximo ensaio e o estoque da Produção (D51–D53) e 
 
 > [`usecases/sync/syncing-stock-pending.ts`](../../../../src/serve-utils/usecases/sync/syncing-stock-pending.ts)
 
-**Contexto.** O estoque alterado com o Transicionais fora fica na fila (`SUPPORT_CAPACITY`, D53).
+**Contexto.** O estoque alterado com o Transicionais fora fica na fila (`STOCK_UPDATE`, D53).
 
 **Decisão.**
-- `claim_escritas('SUPPORT_CAPACITY', 5)`, uma por vez, como o online (`findSupportType` +
-  `saveSupportType(withCapacity)`).
-- `STOCK_BELOW_RESERVATIONS_ERROR` ou assistência que sumiu: `REJECTED` com a key; o `marcar_escrita`
+- `claim_syncs('STOCK_UPDATE', 5)`, uma por vez, como o online (`findLoanCatalog` +
+  `saveLoanCatalog(withCapacity)`).
+- `STOCK_BELOW_RESERVATIONS_ERROR` ou assistência que sumiu: `REJECTED` com a key; o `marcar_sync_pendente`
   zera o `hash` do retrato e o próximo refresh mostra o valor de lá (D52). Fora do ar ou outra falha:
   `BACKOFF`. 400, 409 ou 422: `MANUAL_RETRY` (D50).
-- Grava com `marcar_escrita` (trava do `updated_at`: mudou durante o envio, vai o valor novo). Responde
+- Grava com `marcar_sync_pendente` (trava do `updated_at`: mudou durante o envio, vai o valor novo). Responde
   a contagem.
 
 ## SyncingBookingPending — sem rota

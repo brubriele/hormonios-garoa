@@ -34,7 +34,7 @@ ao Transicionais (E2.5).
 - `stocks`: cada id é achado por `CurrentEvent.findStock` (desconhecido ou sem limite: 400). Só os
   que mudaram vão adiante, conferidos por `isBelowBookings(capacity, attendances)` do model
   (rotativo pula; abaixo do ocupado: 409, D29) e gravados com `PUT manager-support-types/{id}`
-  (objeto inteiro, `SupportType.withCapacity`, E2.9, D26).
+  (objeto inteiro, `LoanCatalog.withCapacity`, E2.9, D26).
 - Local, data, hora e abertura: só a diferença vai ao Transicionais (D1, D7). O encontro de manager
   sai de `findManagedEvent(ref, today())`: a data de busca é do usecase (R12). Data nova move as
   linhas para o dia novo como `PENDING`.
@@ -59,7 +59,7 @@ ao Transicionais (E2.5).
 **Contexto.** "Encerrar ensaio" cria o próximo encontro no Transicionais (E2.5, E2.7).
 
 **Decisão.**
-- Encerramento anterior ainda aberto (`findOpenNextEvent`): `NEXT_EVENT_PENDING_ERROR` (409, D51).
+- Encerramento anterior ainda aberto (`findOpenNextEvent`): `EVENT_CREATION_PENDING_ERROR` (409, D51).
 - A data do próximo é a do retrato + 7 dias. Acha o encontro com `findManagedEvent(ref, <data do
   retrato>)`, cria (mesmo horário, grupos, assistências e limites, fechado; falhou depois do POST,
   apaga o recém-criado, D16) e lê o retrato do novo. A criação também existe no
@@ -69,7 +69,7 @@ ao Transicionais (E2.5).
   estiver na listagem.
 - Transicionais fora (`UpstreamUnavailableError`, mesmo no meio da criação): `closeEventLocally`
   (`encerrar_local`) troca o retrato pelo próximo só no local (`CurrentEvent.next`: dia local UUID,
-  sem `externalId`, fechado) e enfileira o `NEXT_EVENT`. O cron o cria lá (D51).
+  sem `externalId`, fechado) e enfileira o `EVENT_CREATION`. O cron o cria lá (D51).
 - Responde o resumo pelo `CurrentEventSummaryMapper`, sem presenças.
 
 **Consequências.**

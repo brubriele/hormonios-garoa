@@ -1,14 +1,14 @@
 import { z } from "zod";
 import { validateSchema } from "./model-schema";
 
-const StockBookingSchema = z.object({
+const SummaryStockBookingSchema = z.object({
   name: z.string(),
   pronoun: z.string(),
   detail: z.string(),
 });
 
 // quem reservou um item do estoque, no resumo da Produção (D30, D31)
-export class StockBooking {
+export class SummaryStockBooking {
   constructor(
     readonly name: string,
     readonly pronoun: string,
@@ -18,6 +18,6 @@ export class StockBooking {
   }
 
   private validate() {
-    validateSchema(StockBookingSchema, this, "stockBooking");
+    validateSchema(SummaryStockBookingSchema, this, "summaryStockBooking");
   }
 }

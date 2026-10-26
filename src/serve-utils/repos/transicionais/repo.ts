@@ -24,9 +24,9 @@ import type {
   ITransicionaisWebhook,
 } from "../../interfaces/transicionais";
 import type { EventDay } from "../../models/event-day";
-import type { EventSnapshot } from "../../models/event-snapshot";
+import type { CurrentEventSnapshot } from "../../models/current-event-snapshot";
 import type { ManagedEvent } from "../../models/managed-event";
-import type { SupportType } from "../../models/support-type";
+import type { LoanCatalog } from "../../models/loan-catalog";
 import { WebhookType } from "../../models/transicionais-webhook";
 import {
   AnswerChangedError,
@@ -43,7 +43,7 @@ import { EventDaysRequest } from "./requests/event-days.request";
 import { EventGroupsRequest } from "./requests/event-groups.request";
 import { EventUpdateRequest } from "./requests/event-update.request";
 import { GuestAccountRequest } from "./requests/guest-account.request";
-import { SupportTypeUpdateRequest } from "./requests/support-type-update.request";
+import { LoanCatalogUpdateRequest } from "./requests/loan-catalog-update.request";
 import { ValidationChangeRequest } from "./requests/validation-change.request";
 import { CreatedEventResponse } from "./responses/created-event.response";
 import { ErrorBodyResponse } from "./responses/error-body.response";
@@ -55,7 +55,7 @@ import { GuestAccountResponse } from "./responses/guest-account.response";
 import { GuestPresenceResponse } from "./responses/guest-presence.response";
 import { ManagedEventResponse } from "./responses/managed-event.response";
 import { PublicEventResponse } from "./responses/public-event.response";
-import { SupportTypeResponse } from "./responses/support-type.response";
+import { LoanCatalogResponse } from "./responses/loan-catalog.response";
 import { ValidationChangedResponse } from "./responses/validation-changed.response";
 import { VersionResponse } from "./responses/version.response";
 import { WebhookEnvelopeResponse } from "./responses/webhook-envelope.response";
@@ -126,7 +126,7 @@ export class TransicionaisRepo implements ITransicionaisRepo {
 
   // GET público do encontro: grupos, local, horário, janela, assistências com o estoque do dia e
   // version (E2.9). 404 -> null; fora do ar -> UpstreamUnavailableError
-  async findPublicEvent(ref: IEventRef): Promise<EventSnapshot | null> {
+  async findPublicEvent(ref: IEventRef): Promise<CurrentEventSnapshot | null> {
     const vacanciesAt = new Date().toISOString(); // a hora da leitura (D5)
     const response = await this.httpClient.get<unknown>(TransicionaisUrlCollection.publicEvent(ref.externalId, ref.dayId));
 
@@ -269,22 +269,22 @@ export class TransicionaisRepo implements ITransicionaisRepo {
   }
 
   // GET v2/manager-support-types/{id}: 404 -> null
-  async findSupportType(supportId: string): Promise<SupportType | null> {
-    const response = await this.session.request<unknown>({ url: TransicionaisUrlCollection.supportType(supportId) });
+  async findLoanCatalog(supportId: string): Promise<LoanCatalog | null> {
+    const response = await this.session.request<unknown>({ url: TransicionaisUrlCollection.loanCatalog(supportId) });
 
     if (response.status === 404) {
       return null;
     }
 
-    return SupportTypeResponse.toDomain(this.assertWrite(response, "findSupportType"));
+    return LoanCatalogResponse.toDomain(this.assertWrite(response, "findLoanCatalog"));
   }
 
   // PUT inteiro (D26). O corpo da resposta não importa (pode vir vazio): qualquer 2xx vale
-  async saveSupportType(supportType: SupportType): Promise<void> {
+  async saveLoanCatalog(loanCatalog: LoanCatalog): Promise<void> {
     const response = await this.session.request<unknown>({
       method: HttpMethod.Put,
-      url: TransicionaisUrlCollection.supportType(supportType.id),
-      body: SupportTypeUpdateRequest.fromDomain(supportType),
+      url: TransicionaisUrlCollection.loanCatalog(loanCatalog.id),
+      body: LoanCatalogUpdateRequest.fromDomain(loanCatalog),
     });
 
     if (response.status === 404) {
@@ -295,7 +295,7 @@ export class TransicionaisRepo implements ITransicionaisRepo {
       return;
     }
 
-    this.assertWrite(response, "updateSupportType");
+    this.assertWrite(response, "saveLoanCatalog");
   }
 
   // ações da Produção: fora do ar -> 503; key conhecida -> AppError; conflito de versão ->

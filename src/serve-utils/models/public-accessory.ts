@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { CountSchema, NonBlankSchema, validateSchema } from "./model-schema";
 
-const EventAccessorySchema = z.object({
+const PublicAccessorySchema = z.object({
   id: NonBlankSchema,
   name: z.string(),
   available: CountSchema.nullable(),
@@ -9,7 +9,7 @@ const EventAccessorySchema = z.object({
 });
 
 // acessório de um instrumento no ensaio público (GET /api/ensaio), com as vagas
-export class EventAccessory {
+export class PublicAccessory {
   constructor(
     readonly id: string, // assistência type='acessorio'
     readonly name: string,
@@ -20,6 +20,6 @@ export class EventAccessory {
   }
 
   private validate() {
-    validateSchema(EventAccessorySchema, this, "eventAccessory");
+    validateSchema(PublicAccessorySchema, this, "publicAccessory");
   }
 }

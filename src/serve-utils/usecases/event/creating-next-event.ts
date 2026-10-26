@@ -1,11 +1,11 @@
-import { AppError, NextEventPendingError, NotFoundError, UpstreamUnavailableError } from "../../errors/app-error";
+import { AppError, EventCreationPendingError, NotFoundError, UpstreamUnavailableError } from "../../errors/app-error";
 import { InfraSource, InvalidResponseError } from "../../errors/infra-error";
 import { addDays } from "../../lib/date";
 import { createLogger } from "../../lib/logger";
 import type { CurrentEventSummary } from "../../models/current-event-summary";
 import type { CurrentEvent } from "../../models/current-event";
 import type { EventDay } from "../../models/event-day";
-import type { EventSnapshot } from "../../models/event-snapshot";
+import type { CurrentEventSnapshot } from "../../models/current-event-snapshot";
 import type { ManagedEvent } from "../../models/managed-event";
 import type { IHormoniosRepo } from "../../interfaces/hormonios";
 import type { IEventRef, ITransicionaisRepo } from "../../interfaces/transicionais";
@@ -74,7 +74,7 @@ export class CreatingNextEventUsecase {
   // o encerramento anterior ainda só existe no local (D51)
   private async validateNoOpenNextEvent() {
     if (await this.hormoniosRepo.findOpenNextEvent()) {
-      throw new NextEventPendingError("Previous next event is still pending");
+      throw new EventCreationPendingError("Previous next event is still pending");
     }
   }
 
@@ -110,7 +110,7 @@ export class CreatingNextEventUsecase {
 
   // cria o encontro, o ciclo, os grupos, o dia e o público, copiando o atual, e devolve o retrato dele
   // (E2.5, D2). Falhou depois do POST: apaga o recém-criado e relança (dúvida D16)
-  private async createTransicionaisEvent(current: ManagedEvent, ref: IEventRef, date: string): Promise<EventSnapshot> {
+  private async createTransicionaisEvent(current: ManagedEvent, ref: IEventRef, date: string): Promise<CurrentEventSnapshot> {
     this.validatePublic(current);
 
     const day = current.days.find((item) => item.id === ref.dayId) ?? this.findFirstDay(current);
@@ -215,7 +215,7 @@ export class CreatingNextEventUsecase {
 
   // o retrato do novo: ele não é o primeiro da listagem enquanto o antigo estiver lá. Já foi criado: se a
   // leitura pública não o achar, é falha da fonte
-  private async findTransicionaisPublicEvent(ref: IEventRef): Promise<EventSnapshot> {
+  private async findTransicionaisPublicEvent(ref: IEventRef): Promise<CurrentEventSnapshot> {
     const snapshot = await this.transicionaisRepo.findPublicEvent(ref);
 
     if (!snapshot) {
@@ -226,13 +226,13 @@ export class CreatingNextEventUsecase {
   }
 
   // o estoque que ainda não foi ao Transicionais vai por cima (D53)
-  private async saveSupabaseSnapshot(snapshot: EventSnapshot): Promise<void> {
+  private async saveSupabaseSnapshot(snapshot: CurrentEventSnapshot): Promise<void> {
     const pendings = await this.hormoniosRepo.listPendingCapacities();
 
     await this.hormoniosRepo.saveSnapshot(snapshot.withPendingCapacities(pendings));
   }
 
-  // o próximo só no local, num dia local, e o NEXT_EVENT na fila do cron (D51). Se o POST chegou a
+  // o próximo só no local, num dia local, e o EVENT_CREATION na fila do cron (D51). Se o POST chegou a
   // criar o encontro e o delete não passou, ele fica Interno lá (D16)
   private async closeSupabaseEventLocally(event: CurrentEvent, date: string): Promise<void> {
     logger.warn({ externalId: event.externalId, date }, "Transicionais is unavailable, next event created locally (D51)");

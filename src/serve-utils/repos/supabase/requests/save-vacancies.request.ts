@@ -2,8 +2,8 @@ import type { ISaveVacanciesData } from "../../../interfaces/hormonios";
 
 // jsonb do ocupado: groupId -> taken do instrumento, supportId -> taken do acessório
 export interface ITakenParams {
-  groups: Record<string, number>;
-  supports: Record<string, number>;
+  instruments: Record<string, number>;
+  accessories: Record<string, number>;
 }
 
 // parâmetros do rpc gravar_vagas (a trava do vacanciesAt fica na função)
@@ -20,7 +20,7 @@ export class SaveVacanciesRequest {
     return {
       p_day_key: data.dayKey,
       p_vacancies_at: data.vacanciesAt,
-      p_taken: { groups: data.groups, supports: data.supports },
+      p_taken: { instruments: data.instruments, accessories: data.accessories },
     };
   }
 }

@@ -1,33 +1,33 @@
 import { z } from "zod";
-import { StockBooking } from "./stock-booking";
-import { SupportTypeKind } from "./support-type";
+import { SummaryStockBooking } from "./summary-stock-booking";
+import { LoanCatalogKind } from "./loan-catalog";
 import { CountSchema, NonBlankSchema, validateSchema } from "./model-schema";
 
-const StockItemSchema = z.object({
+const SummaryStockItemSchema = z.object({
   id: NonBlankSchema,
   name: z.string(),
-  type: z.enum(SupportTypeKind),
+  type: z.enum(LoanCatalogKind),
   stockTotal: CountSchema.nullable(),
   available: CountSchema.nullable(),
   rotativo: z.boolean(),
-  reservations: z.array(z.instanceof(StockBooking)),
+  reservations: z.array(z.instanceof(SummaryStockBooking)),
 });
 
 // um item do estoque no resumo da Produção (E2.9): o instrumento ou o acessório, com as vagas
-export class StockItem {
+export class SummaryStockItem {
   constructor(
     readonly id: string, // assistência (supportId); o do instrumento é o instrumentSupportId do grupo
     readonly name: string,
-    readonly type: SupportTypeKind,
+    readonly type: LoanCatalogKind,
     readonly stockTotal: number | null, // null = sem limite
     readonly available: number | null, // null = sem limite
     readonly rotativo: boolean,
-    readonly reservations: StockBooking[],
+    readonly reservations: SummaryStockBooking[],
   ) {
     this.validate();
   }
 
   private validate() {
-    validateSchema(StockItemSchema, this, "stockItem");
+    validateSchema(SummaryStockItemSchema, this, "summaryStockItem");
   }
 }

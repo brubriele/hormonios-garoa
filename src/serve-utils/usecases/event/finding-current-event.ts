@@ -2,10 +2,10 @@ import { AppError } from "../../errors/app-error";
 import { createLogger } from "../../lib/logger";
 import type { Booking } from "../../models/booking";
 import type { CurrentEvent } from "../../models/current-event";
-import type { EventView } from "../../models/event-view";
+import type { PublicEvent } from "../../models/public-event";
 import type { IHormoniosRepo } from "../../interfaces/hormonios";
 import type { ITransicionaisRepo } from "../../interfaces/transicionais";
-import { EventViewMapper } from "./mappers/event-view.mapper";
+import { PublicEventMapper } from "./mappers/public-event.mapper";
 import { ReceivingCurrentEventUsecase } from "../sync/receiving-current-event";
 
 const MAX_AGE_MS = 5 * 60 * 1000;
@@ -22,7 +22,7 @@ export class FindingCurrentEventUsecase {
     this.receivingCurrentEvent = new ReceivingCurrentEventUsecase(this.hormoniosRepo, this.transicionaisRepo);
   }
 
-  async execute(): Promise<EventView> {
+  async execute(): Promise<PublicEvent> {
     try {
       return await this._execute(); // sem await o catch nao pega a rejeicao
     } catch (error) {
@@ -35,7 +35,7 @@ export class FindingCurrentEventUsecase {
     }
   }
 
-  private async _execute(): Promise<EventView> {
+  private async _execute(): Promise<PublicEvent> {
     const cached = await this.hormoniosRepo.findCurrentEvent();
 
     if (cached && !this.needsRefresh(cached)) {
@@ -48,10 +48,10 @@ export class FindingCurrentEventUsecase {
     return this.buildView(event, !available);
   }
 
-  private async buildView(event: CurrentEvent, stale: boolean): Promise<EventView> {
+  private async buildView(event: CurrentEvent, stale: boolean): Promise<PublicEvent> {
     const bookings = await this.findSupabaseBookings(event.dayKey);
 
-    return EventViewMapper.toView(event, bookings, stale);
+    return PublicEventMapper.toView(event, bookings, stale);
   }
 
   // retrato vazio, local da fase 1 ou com mais de 5 min

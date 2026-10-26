@@ -62,7 +62,7 @@ import { UpstreamResponseError } from "../../errors/infra-error";
 import { HttpClient } from "../../clients/http-client";
 import type { IEventRef, ITransicionaisRepo } from "../../interfaces/transicionais";
 import { isUnavailable } from "../../lib/upstream";
-import type { EventSnapshot } from "../../models/event-snapshot";
+import type { CurrentEventSnapshot } from "../../models/event-snapshot";
 import { PublicEventResponse } from "./responses/public-event.response";
 import { TransicionaisUrlCollection } from "./url-collection";
 
@@ -70,7 +70,7 @@ export class TransicionaisRepo implements ITransicionaisRepo {
   constructor(private readonly httpClient: HttpClient) {}
 
   // 404 -> null; fora do ar -> UpstreamUnavailableError; qual encontro buscar é regra do usecase
-  async findPublicEvent(ref: IEventRef): Promise<EventSnapshot | null> {
+  async findPublicEvent(ref: IEventRef): Promise<CurrentEventSnapshot | null> {
     const vacanciesAt = new Date().toISOString();
     const response = await this.httpClient.get<unknown>(
       TransicionaisUrlCollection.publicEvent(ref.externalId, ref.dayId),
@@ -97,7 +97,7 @@ O usecase decide o resto (E2.7 e plano de falha):
 
 ```ts
 // src/serve-utils/usecases/sync/receiving-current-event.ts (trecho)
-private async findTransicionaisSnapshot(): Promise<EventSnapshot | null> {
+private async findTransicionaisSnapshot(): Promise<CurrentEventSnapshot | null> {
   try {
     const ref = (await this.transicionaisRepo.listPublicEventsFrom(today()))[0] ?? null; // o primeiro (E2.7)
 

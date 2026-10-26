@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { InfraSource, InvalidResponseError } from "../../../errors/infra-error";
-import { EventPublication, EventVisibility } from "../../../models/event-publication";
-import { GroupVacancy } from "../../../models/group-vacancy";
+import { PublicationSettings, EventVisibility } from "../../../models/publication-settings";
+import { GroupCapacity } from "../../../models/group-capacity";
 import { ManagedEvent } from "../../../models/managed-event";
 import { parseResponse } from "../../parse-response";
 import { EventDayResponse, EventDaySchema } from "./event-day.response";
@@ -17,14 +17,14 @@ const TotalVacancySchema = z.object({
   total: z.number().int().nullable(), // null = sem limite
 });
 
-const GroupVacancySchema = z.object({
+const GroupCapacitySchema = z.object({
   groupId: TransicionaisIdSchema,
   total: z.number().int().nullable(),
 });
 
 const PublicationVacanciesSchema = z.object({
   total: TotalVacancySchema.nullable().transform((vacancy) => (vacancy ? vacancy.total : null)),
-  groups: z.array(GroupVacancySchema),
+  groups: z.array(GroupCapacitySchema),
 });
 
 const PublicationSchema = z.object({
@@ -77,8 +77,8 @@ export class ManagedEventResponse {
     );
   }
 
-  private static toPublication(publication: IPublication): EventPublication {
-    return new EventPublication(
+  private static toPublication(publication: IPublication): PublicationSettings {
+    return new PublicationSettings(
       publication.id,
       publication.visibility,
       publication.publicDescription,
@@ -87,7 +87,7 @@ export class ManagedEventResponse {
       publication.guestDeadlineMinutes,
       publication.supports.map((support) => support.id),
       publication.vacancies.total,
-      publication.vacancies.groups.map((group) => new GroupVacancy(group.groupId, group.total)),
+      publication.vacancies.groups.map((group) => new GroupCapacity(group.groupId, group.total)),
     );
   }
 }

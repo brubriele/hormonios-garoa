@@ -2,9 +2,9 @@ import { z } from "zod";
 import { InfraSource, InvalidResponseError } from "../../../errors/infra-error";
 import { createLogger } from "../../../lib/logger";
 import type { IEventRef } from "../../../interfaces/transicionais";
-import { CurrentEvent, Group, Support } from "../../../models/current-event";
-import { EventSnapshot } from "../../../models/event-snapshot";
-import { SupportTypeKind } from "../../../models/support-type";
+import { CurrentEvent, Instrument, Accessory } from "../../../models/current-event";
+import { CurrentEventSnapshot } from "../../../models/current-event-snapshot";
+import { LoanCatalogKind } from "../../../models/loan-catalog";
 import { parseResponse } from "../../parse-response";
 import { TransicionaisIdSchema } from "../transicionais-id";
 
@@ -14,7 +14,7 @@ const logger = createLogger("PublicEventResponse");
 const DaySupportSchema = z.object({
   id: TransicionaisIdSchema,
   title: z.string(),
-  type: z.enum(SupportTypeKind).optional().catch(undefined), // desconhecido ou ausente: fica de fora (D24)
+  type: z.enum(LoanCatalogKind).optional().catch(undefined), // desconhecido ou ausente: fica de fora (D24)
   isActive: z.boolean(),
   capacity: z.number().int().nullable(), // null = sem limite
   rotativo: z.boolean(), // a capacidade conta, mas não bloqueia
@@ -58,7 +58,7 @@ type IDaySupport = z.infer<typeof DaySupportSchema>;
 
 export class PublicEventResponse {
   // vacanciesAt: quando as vagas foram lidas (D5: a hora da leitura)
-  static toDomain(raw: unknown, ref: IEventRef, vacanciesAt: string, operation = "publicEvent"): EventSnapshot {
+  static toDomain(raw: unknown, ref: IEventRef, vacanciesAt: string, operation = "publicEvent"): CurrentEventSnapshot {
     const event = parseResponse(PublicEventSchema, raw, InfraSource.Transicionais, operation);
 
     return InvalidResponseError.guard(InfraSource.Transicionais, operation, () =>
@@ -66,7 +66,7 @@ export class PublicEventResponse {
     );
   }
 
-  private static toSnapshot(event: IPublicEvent, ref: IEventRef, vacanciesAt: string): EventSnapshot {
+  private static toSnapshot(event: IPublicEvent, ref: IEventRef, vacanciesAt: string): CurrentEventSnapshot {
     // o dia do retrato; sem ele, o primeiro do encontro
     const day = event.configDays.find((item) => item.id === ref.dayId) ?? event.configDays[0];
     // inativa saiu das novas associações (D24)
@@ -80,22 +80,22 @@ export class PublicEventResponse {
       event.location,
       Boolean(answerWindow?.open) && !answerWindow?.closed,
       "", // whatsappUrl é só do Hormônios: fica o gravado
-      PublicEventResponse.toGroups(event, daySupports),
-      PublicEventResponse.toSupports(daySupports),
+      PublicEventResponse.toInstruments(event, daySupports),
+      PublicEventResponse.toAccessories(daySupports),
       ref.externalId,
       vacanciesAt,
     );
 
-    return new EventSnapshot(ref.externalId, event.version, event.hash, vacanciesAt, current);
+    return new CurrentEventSnapshot(ref.externalId, event.version, event.hash, vacanciesAt, current);
   }
 
   // um grupo por assistência type='instrumento', na ordem do Transicionais. O grupo é o primeiro de
   // groupIds que é grupo do encontro; sem nenhum, o instrumento fica de fora (D21). Todos ativos
-  private static toGroups(event: IPublicEvent, daySupports: IDaySupport[]): Group[] {
+  private static toInstruments(event: IPublicEvent, daySupports: IDaySupport[]): Instrument[] {
     const eventGroupIds = new Set(event.groups.map((group) => group.id));
-    const groups: Group[] = [];
+    const instruments: Instrument[] = [];
 
-    for (const support of daySupports.filter((item) => item.type === SupportTypeKind.Instrument)) {
+    for (const support of daySupports.filter((item) => item.type === LoanCatalogKind.Instrument)) {
       const groupId = support.groupIds.find((id) => eventGroupIds.has(id));
 
       if (groupId === undefined) {
@@ -104,13 +104,13 @@ export class PublicEventResponse {
       }
 
       // dois instrumentos no mesmo grupo: vale o primeiro (D25)
-      if (groups.some((group) => group.id === groupId)) {
+      if (instruments.some((instrument) => instrument.id === groupId)) {
         logger.warn({ supportId: support.id, groupId }, "instrument support repeats a group (D25)");
         continue;
       }
 
-      groups.push(
-        new Group(
+      instruments.push(
+        new Instrument(
           groupId,
           support.title,
           support.capacity,
@@ -122,16 +122,16 @@ export class PublicEventResponse {
       );
     }
 
-    return groups;
+    return instruments;
   }
 
   // os acessórios: assistências type='acessorio', com o grupo a que valem (groupIds vazio = todos)
-  private static toSupports(daySupports: IDaySupport[]): Support[] {
+  private static toAccessories(daySupports: IDaySupport[]): Accessory[] {
     return daySupports
-      .filter((support) => support.type === SupportTypeKind.Accessory)
+      .filter((support) => support.type === LoanCatalogKind.Accessory)
       .map(
         (support) =>
-          new Support(
+          new Accessory(
             support.id,
             support.title,
             support.capacity,

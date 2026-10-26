@@ -7,9 +7,9 @@ import {
 } from "../../errors/app-error";
 import { UpstreamBadContractError, UpstreamResponseError } from "../../errors/infra-error";
 import { createLogger } from "../../lib/logger";
-import type { PendingSupportCapacity } from "../../models/pending-support-capacity";
-import { PendingWriteMode } from "../../models/pending-write";
-import type { IHormoniosRepo, IMarkWriteData } from "../../interfaces/hormonios";
+import type { PendingStockUpdate } from "../../models/pending-stock-update";
+import { PendingSyncMode } from "../../models/pending-sync";
+import type { IHormoniosRepo, IMarkPendingSyncData } from "../../interfaces/hormonios";
 import type { ITransicionaisRepo } from "../../interfaces/transicionais";
 
 const logger = createLogger("SyncingStockPendingUsecase");
@@ -49,72 +49,72 @@ export class SyncingStockPendingUsecase {
 
   private async _execute(): Promise<ISyncingStockPendingResult> {
     const pendings = await this.claimSupabasePendingCapacities();
-    const modes: PendingWriteMode[] = [];
+    const modes: PendingSyncMode[] = [];
 
     for (const pending of pendings) {
       const mark = await this.sendTransicionaisCapacity(pending);
 
-      await this.hormoniosRepo.markWrite(mark); // false = mudou durante o envio: vai o valor novo
+      await this.hormoniosRepo.markPendingSync(mark); // false = mudou durante o envio: vai o valor novo
       modes.push(mark.mode);
     }
 
     return this.countModes(modes);
   }
 
-  private async claimSupabasePendingCapacities(): Promise<PendingSupportCapacity[]> {
+  private async claimSupabasePendingCapacities(): Promise<PendingStockUpdate[]> {
     return this.hormoniosRepo.claimPendingCapacities({ limit: CLAIM_LIMIT });
   }
 
-  private async sendTransicionaisCapacity(pending: PendingSupportCapacity): Promise<IMarkWriteData> {
+  private async sendTransicionaisCapacity(pending: PendingStockUpdate): Promise<IMarkPendingSyncData> {
     try {
-      const supportType = await this.transicionaisRepo.findSupportType(pending.supportId);
+      const loanCatalog = await this.transicionaisRepo.findLoanCatalog(pending.supportId);
 
-      if (!supportType) {
+      if (!loanCatalog) {
         throw new NotFoundError("Support Not Found");
       }
 
-      await this.transicionaisRepo.saveSupportType(supportType.withCapacity(pending.capacity));
+      await this.transicionaisRepo.saveLoanCatalog(loanCatalog.withCapacity(pending.capacity));
 
-      return this.buildMark(pending, PendingWriteMode.Synced);
+      return this.buildMark(pending, PendingSyncMode.Synced);
     } catch (error) {
       if (error instanceof StockBelowReservationsError || error instanceof NotFoundError) {
         logger.warn({ supportId: pending.supportId, key: error.key }, "pending capacity refused by Transicionais (D52)");
-        return this.buildMark(pending, PendingWriteMode.Rejected, error.key);
+        return this.buildMark(pending, PendingSyncMode.Rejected, error.key);
       }
 
       return this.buildFailedMark(error, pending);
     }
   }
 
-  private buildMark(pending: PendingSupportCapacity, mode: PendingWriteMode, error: ErrorKey | null = null): IMarkWriteData {
+  private buildMark(pending: PendingStockUpdate, mode: PendingSyncMode, error: ErrorKey | null = null): IMarkPendingSyncData {
     return { id: pending.id, updatedAt: pending.updatedAt, mode, error, errorCause: null };
   }
 
   // fora do ar ou outra falha: PENDING com espera. 400, 409 ou 422: MANUAL_RETRY. O erro do Transicionais
   // é gravado como veio (D50)
-  private buildFailedMark(error: unknown, pending: PendingSupportCapacity): IMarkWriteData {
+  private buildFailedMark(error: unknown, pending: PendingStockUpdate): IMarkPendingSyncData {
     if (error instanceof UpstreamBadContractError) {
       logger.error({ writeId: pending.id, errorCause: error.errorCause }, "pending capacity needs a manual retry (D50)");
-      return { ...this.buildMark(pending, PendingWriteMode.ManualRetry), errorCause: error.errorCause };
+      return { ...this.buildMark(pending, PendingSyncMode.ManualRetry), errorCause: error.errorCause };
     }
 
     if (error instanceof UpstreamUnavailableError) {
-      return this.buildMark(pending, PendingWriteMode.Backoff);
+      return this.buildMark(pending, PendingSyncMode.Backoff);
     }
 
     logger.error({ err: error, writeId: pending.id }, "pending capacity not sent");
     const errorCause = error instanceof UpstreamResponseError ? error.errorCause : null;
 
-    return { ...this.buildMark(pending, PendingWriteMode.Backoff), errorCause };
+    return { ...this.buildMark(pending, PendingSyncMode.Backoff), errorCause };
   }
 
-  private countModes(modes: PendingWriteMode[]): ISyncingStockPendingResult {
+  private countModes(modes: PendingSyncMode[]): ISyncingStockPendingResult {
     return {
       claimed: modes.length,
-      synced: modes.filter((mode) => mode === PendingWriteMode.Synced).length,
-      rejected: modes.filter((mode) => mode === PendingWriteMode.Rejected).length,
-      pending: modes.filter((mode) => mode === PendingWriteMode.Backoff).length,
-      manualRetry: modes.filter((mode) => mode === PendingWriteMode.ManualRetry).length,
+      synced: modes.filter((mode) => mode === PendingSyncMode.Synced).length,
+      rejected: modes.filter((mode) => mode === PendingSyncMode.Rejected).length,
+      pending: modes.filter((mode) => mode === PendingSyncMode.Backoff).length,
+      manualRetry: modes.filter((mode) => mode === PendingSyncMode.ManualRetry).length,
     };
   }
 }

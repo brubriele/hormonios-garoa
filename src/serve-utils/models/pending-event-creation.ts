@@ -1,9 +1,9 @@
 import { z } from "zod";
 import type { UUID } from "../interfaces/uuid";
 import { DateOnlySchema, NonBlankSchema, UuidSchema, validateSchema } from "./model-schema";
-import { PendingWrite, PendingWriteKind } from "./pending-write";
+import { PendingSync, PendingSyncKind } from "./pending-sync";
 
-const PendingNextEventSchema = z.object({
+const PendingEventCreationSchema = z.object({
   id: UuidSchema,
   fromExternalId: NonBlankSchema,
   fromDayKey: NonBlankSchema,
@@ -15,8 +15,8 @@ const PendingNextEventSchema = z.object({
 
 // "Encerrar ensaio" com o Transicionais fora (D51): o próximo existe só no local, no dia dayKey. O
 // cron o cria no Transicionais copiando o encontro de origem
-export class PendingNextEvent extends PendingWrite {
-  readonly kind = PendingWriteKind.NextEvent;
+export class PendingEventCreation extends PendingSync {
+  readonly kind = PendingSyncKind.EventCreation;
 
   constructor(
     readonly id: UUID,
@@ -32,6 +32,6 @@ export class PendingNextEvent extends PendingWrite {
   }
 
   private validate() {
-    validateSchema(PendingNextEventSchema, this, "pendingNextEvent");
+    validateSchema(PendingEventCreationSchema, this, "pendingEventCreation");
   }
 }

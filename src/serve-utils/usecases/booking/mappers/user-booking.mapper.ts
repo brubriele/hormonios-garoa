@@ -10,11 +10,11 @@ export class UserBookingMapper {
     return new UserBooking(
       booking.id,
       booking.groupId,
-      booking.groupId === null ? null : event.findGroup(booking.groupId)?.name ?? null,
+      booking.groupId === null ? null : event.findInstrument(booking.groupId)?.name ?? null,
       booking.supportIds,
-      event.supports
-        .filter((support) => booking.supportIds.includes(support.id))
-        .map((support) => new UserBookingAccessory(support.id, support.name)),
+      event.accessories
+        .filter((accessory) => booking.supportIds.includes(accessory.id))
+        .map((accessory) => new UserBookingAccessory(accessory.id, accessory.name)),
       booking.user.email,
       booking.user.name,
       booking.user.pronoun,

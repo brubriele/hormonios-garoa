@@ -1,5 +1,5 @@
 import type { CurrentEvent } from "../../../models/current-event";
-import type { EventSnapshot } from "../../../models/event-snapshot";
+import type { CurrentEventSnapshot } from "../../../models/current-event-snapshot";
 
 // jsonb do retrato sem o whatsappUrl, que é só do Hormônios: a função gravar_retrato mantém o gravado
 export interface ISnapshotData {
@@ -8,7 +8,7 @@ export interface ISnapshotData {
   time: string;
   location: string;
   bookingOpen: boolean;
-  groups: {
+  instruments: {
     id: string;
     name: string;
     stockTotal: number | null;
@@ -17,7 +17,7 @@ export interface ISnapshotData {
     instrumentSupportId?: string;
     rotativo: boolean;
   }[];
-  supports: {
+  accessories: {
     id: string;
     name: string;
     stockTotal: number | null;
@@ -37,7 +37,7 @@ export interface ISaveSnapshotParams {
 }
 
 export class SaveSnapshotRequest {
-  static fromDomain(snapshot: EventSnapshot): ISaveSnapshotParams {
+  static fromDomain(snapshot: CurrentEventSnapshot): ISaveSnapshotParams {
     return {
       p_external_id: snapshot.externalId,
       p_version: snapshot.version,
@@ -56,22 +56,22 @@ export class SaveSnapshotRequest {
       location: event.location,
       bookingOpen: event.bookingOpen,
       // taken e instrumentSupportId ausentes no jsonb quando null (o retrato da fase 1 não tem)
-      groups: event.groups.map((group) => ({
-        id: group.id,
-        name: group.name,
-        stockTotal: group.stockTotal,
-        active: group.active,
-        ...(group.taken === null ? {} : { taken: group.taken }),
-        ...(group.instrumentSupportId === null ? {} : { instrumentSupportId: group.instrumentSupportId }),
-        rotativo: group.rotativo,
+      instruments: event.instruments.map((instrument) => ({
+        id: instrument.id,
+        name: instrument.name,
+        stockTotal: instrument.stockTotal,
+        active: instrument.active,
+        ...(instrument.taken === null ? {} : { taken: instrument.taken }),
+        ...(instrument.instrumentSupportId === null ? {} : { instrumentSupportId: instrument.instrumentSupportId }),
+        rotativo: instrument.rotativo,
       })),
-      supports: event.supports.map((support) => ({
-        id: support.id,
-        name: support.name,
-        stockTotal: support.stockTotal,
-        ...(support.taken === null ? {} : { taken: support.taken }),
-        rotativo: support.rotativo,
-        groupIds: support.groupIds,
+      accessories: event.accessories.map((accessory) => ({
+        id: accessory.id,
+        name: accessory.name,
+        stockTotal: accessory.stockTotal,
+        ...(accessory.taken === null ? {} : { taken: accessory.taken }),
+        rotativo: accessory.rotativo,
+        groupIds: accessory.groupIds,
       })),
     };
   }

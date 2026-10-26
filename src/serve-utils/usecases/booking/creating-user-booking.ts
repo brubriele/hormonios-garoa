@@ -124,7 +124,7 @@ export class CreatingUserBookingUsecase {
       return;
     }
 
-    const known = new Set(event.supportsForGroup(groupId).map((support) => support.id));
+    const known = new Set(event.accessoriesForInstrument(groupId).map((accessory) => accessory.id));
 
     if (supportIds.some((id) => !known.has(id))) {
       throw new InvalidParameterError("Field supportIds is invalid");

@@ -84,7 +84,7 @@ export class TransicionaisUrlCollection {
   }
 
   // catálogo da assistência: capacity, groupIds e rotativo (E2.9)
-  static supportType(id: string): string {
+  static loanCatalog(id: string): string {
     return `${this.apiUrl}/${this.SUPPORT_TYPE_PATH}/${encodeURIComponent(id)}`;
   }
 

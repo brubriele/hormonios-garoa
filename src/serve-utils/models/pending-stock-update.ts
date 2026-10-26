@@ -1,9 +1,9 @@
 import { z } from "zod";
 import type { UUID } from "../interfaces/uuid";
 import { CountSchema, NonBlankSchema, UuidSchema, validateSchema } from "./model-schema";
-import { PendingWrite, PendingWriteKind } from "./pending-write";
+import { PendingSync, PendingSyncKind } from "./pending-sync";
 
-const PendingSupportCapacitySchema = z.object({
+const PendingStockUpdateSchema = z.object({
   id: UuidSchema,
   supportId: NonBlankSchema,
   capacity: CountSchema,
@@ -11,8 +11,8 @@ const PendingSupportCapacitySchema = z.object({
 });
 
 // estoque de uma assistência que ainda não foi ao Transicionais (D53): o retrato já mostra o valor
-export class PendingSupportCapacity extends PendingWrite {
-  readonly kind = PendingWriteKind.SupportCapacity;
+export class PendingStockUpdate extends PendingSync {
+  readonly kind = PendingSyncKind.StockUpdate;
 
   constructor(
     readonly id: UUID,
@@ -25,6 +25,6 @@ export class PendingSupportCapacity extends PendingWrite {
   }
 
   private validate() {
-    validateSchema(PendingSupportCapacitySchema, this, "pendingSupportCapacity");
+    validateSchema(PendingStockUpdateSchema, this, "pendingStockUpdate");
   }
 }

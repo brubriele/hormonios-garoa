@@ -25,7 +25,7 @@ O domínio é o que está em `models/`. As duas fontes mapeiam para os mesmos mo
 | RR8 | Monte o model dentro de `InvalidResponseError.guard(source, operation, () => …)`. Um model que recusa o dado da fonte vira `InvalidResponseError` (500), e não `InvalidParameterError` (400 para a pessoa). |
 | RR9 | Um schema usado por mais de um response é exportado de onde nasceu (`UserRowSchema`, `TransicionaisIdSchema`). Não existe pasta de validações: o zod já evita a repetição. |
 | RR10 | Id do Transicionais: `repos/transicionais/transicionais-id.ts`, com as duas direções. Na volta, `TransicionaisIdSchema` (número ou texto → `string`); na ida, `numericId(value, field)` (`string` → número positivo; fora disso é bug do Hormônios, `Error`, E7). O domínio só vê `string`. Id interno que só o repo usa (ex.: `id` de manager para as escritas) pode ficar `number`, mas não sai do repo. |
-| RR11 | **Tradução de conceitos** (ex.: assistência `type='instrumento'` → `Group`, E2.9) fica no response. **Regra de negócio** (qual encontro é o atual, o que fazer se a fonte cair) fica no usecase. Dado ignorado na tradução vai para o log com `warn` ([`lib.md`](lib.md)). |
+| RR11 | **Tradução de conceitos** (ex.: assistência `type='instrumento'` → `Instrument`, E2.9) fica no response. **Regra de negócio** (qual encontro é o atual, o que fazer se a fonte cair) fica no usecase. Dado ignorado na tradução vai para o log com `warn` ([`lib.md`](lib.md)). |
 | RR12 | O request devolve um tipo com nome (`ISaveSnapshotParams`), exportado do arquivo dele. Campo que pode faltar é `?:`, sem `| null`, a não ser que a fonte aceite `null`. |
 
 ## Exemplo: response
@@ -89,7 +89,7 @@ export interface ISaveSnapshotParams {
 }
 
 export class SaveSnapshotRequest {
-  static fromDomain(snapshot: EventSnapshot): ISaveSnapshotParams {
+  static fromDomain(snapshot: CurrentEventSnapshot): ISaveSnapshotParams {
     return {
       p_external_id: snapshot.externalId,
       p_version: snapshot.version,

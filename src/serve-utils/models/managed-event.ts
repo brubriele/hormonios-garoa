@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { EventDay } from "./event-day";
-import { EventPublication } from "./event-publication";
+import { PublicationSettings } from "./publication-settings";
 import { DateOnlySchema, DateTimeSchema, NonBlankSchema, validateSchema } from "./model-schema";
 
 const ManagedEventSchema = z.object({
@@ -13,7 +13,7 @@ const ManagedEventSchema = z.object({
   version: z.number().int(),
   groupIds: z.array(NonBlankSchema),
   days: z.array(z.instanceof(EventDay)),
-  publication: z.instanceof(EventPublication).nullable(),
+  publication: z.instanceof(PublicationSettings).nullable(),
 });
 
 // o encontro como a Produção o edita no Transicionais (a visão de manager): o id interno, a version das
@@ -29,7 +29,7 @@ export class ManagedEvent {
     readonly version: number,
     readonly groupIds: string[],
     readonly days: EventDay[],
-    readonly publication: EventPublication | null, // null = Interno
+    readonly publication: PublicationSettings | null, // null = Interno
   ) {
     this.validate();
   }

@@ -1,13 +1,13 @@
 // Resumo da Produção: o ensaio (CurrentEvent) com o estoque e as reservas (Booking) -> CurrentEventSummary.
-// Só formata: a conta das vagas é dos models (Group e Support)
-import { AdminBooking } from "../../../models/admin-booking";
-import { AdminEvent } from "../../../models/admin-event";
+// Só formata: a conta das vagas é dos models (Instrument e Accessory)
+import { SummaryAttendance } from "../../../models/summary-attendance";
+import { SummaryEvent } from "../../../models/summary-event";
 import { CurrentEventSummary } from "../../../models/current-event-summary";
 import type { Booking } from "../../../models/booking";
-import type { CurrentEvent, Group, Support } from "../../../models/current-event";
-import { StockItem } from "../../../models/stock-item";
-import { StockBooking } from "../../../models/stock-booking";
-import { SupportTypeKind } from "../../../models/support-type";
+import type { CurrentEvent, Instrument, Accessory } from "../../../models/current-event";
+import { SummaryStockItem } from "../../../models/summary-stock-item";
+import { SummaryStockBooking } from "../../../models/summary-stock-booking";
+import { LoanCatalogKind } from "../../../models/loan-catalog";
 
 const NO_ACCESSORIES = "Sem acessórios";
 
@@ -16,12 +16,12 @@ export class CurrentEventSummaryMapper {
   static toView(event: CurrentEvent, bookings: Booking[]): CurrentEventSummary {
     const going = event.goingBookings(bookings);
     const stock = [
-      ...event.groups.flatMap((group) => CurrentEventSummaryMapper.toInstrumentStock(event, group, bookings, going)),
-      ...event.supports.map((support) => CurrentEventSummaryMapper.toAccessoryStock(event, support, bookings, going)),
+      ...event.instruments.flatMap((instrument) => CurrentEventSummaryMapper.toInstrumentStock(event, instrument, bookings, going)),
+      ...event.accessories.map((accessory) => CurrentEventSummaryMapper.toAccessoryStock(event, accessory, bookings, going)),
     ];
 
     return new CurrentEventSummary(
-      new AdminEvent(
+      new SummaryEvent(
         event.dayKey,
         event.date,
         event.time,
@@ -31,33 +31,33 @@ export class CurrentEventSummaryMapper {
         going.length,
         stock,
       ),
-      going.map((booking) => CurrentEventSummaryMapper.toBooking(booking)),
+      going.map((booking) => CurrentEventSummaryMapper.toAttendance(booking)),
     );
   }
 
   // instrumento: a assistência do grupo; grupo sem instrumentSupportId fica de fora
   private static toInstrumentStock(
     event: CurrentEvent,
-    group: Group,
+    instrument: Instrument,
     bookings: Booking[],
     going: Booking[],
-  ): StockItem[] {
-    if (group.instrumentSupportId === null) {
+  ): SummaryStockItem[] {
+    if (instrument.instrumentSupportId === null) {
       return [];
     }
 
     return [
-      new StockItem(
-        group.instrumentSupportId,
-        group.name,
-        SupportTypeKind.Instrument,
-        group.stockTotal,
-        group.available(bookings),
-        group.rotativo,
+      new SummaryStockItem(
+        instrument.instrumentSupportId,
+        instrument.name,
+        LoanCatalogKind.Instrument,
+        instrument.stockTotal,
+        instrument.available(bookings),
+        instrument.rotativo,
         going
-          .filter((booking) => booking.groupId === group.id)
+          .filter((booking) => booking.groupId === instrument.id)
           .map((booking) =>
-            CurrentEventSummaryMapper.toStockBooking(booking, CurrentEventSummaryMapper.toAccessoryNames(event, booking)),
+            CurrentEventSummaryMapper.toSummaryStockBooking(booking, CurrentEventSummaryMapper.toAccessoryNames(event, booking)),
           ),
       ),
     ];
@@ -65,43 +65,43 @@ export class CurrentEventSummaryMapper {
 
   private static toAccessoryStock(
     event: CurrentEvent,
-    support: Support,
+    accessory: Accessory,
     bookings: Booking[],
     going: Booking[],
-  ): StockItem {
-    return new StockItem(
-      support.id,
-      support.name,
-      SupportTypeKind.Accessory,
-      support.stockTotal,
-      support.available(bookings),
-      support.rotativo,
+  ): SummaryStockItem {
+    return new SummaryStockItem(
+      accessory.id,
+      accessory.name,
+      LoanCatalogKind.Accessory,
+      accessory.stockTotal,
+      accessory.available(bookings),
+      accessory.rotativo,
       going
-        .filter((booking) => booking.supportIds.includes(support.id))
+        .filter((booking) => booking.supportIds.includes(accessory.id))
         .map((booking) =>
-          CurrentEventSummaryMapper.toStockBooking(booking, CurrentEventSummaryMapper.toGroupName(event, booking)),
+          CurrentEventSummaryMapper.toSummaryStockBooking(booking, CurrentEventSummaryMapper.toInstrumentName(event, booking)),
         ),
     );
   }
 
   private static toAccessoryNames(event: CurrentEvent, booking: Booking): string {
     const names = [...new Set(booking.supportIds)]
-      .map((supportId) => event.findSupport(supportId)?.name)
+      .map((supportId) => event.findAccessory(supportId)?.name)
       .filter((name): name is string => name !== undefined);
 
     return names.length > 0 ? names.join(" · ") : NO_ACCESSORIES;
   }
 
-  private static toGroupName(event: CurrentEvent, booking: Booking): string {
-    return booking.groupId === null ? "" : event.findGroup(booking.groupId)?.name ?? "";
+  private static toInstrumentName(event: CurrentEvent, booking: Booking): string {
+    return booking.groupId === null ? "" : event.findInstrument(booking.groupId)?.name ?? "";
   }
 
-  private static toStockBooking(booking: Booking, detail: string): StockBooking {
-    return new StockBooking(booking.user.name, booking.user.pronoun, detail);
+  private static toSummaryStockBooking(booking: Booking, detail: string): SummaryStockBooking {
+    return new SummaryStockBooking(booking.user.name, booking.user.pronoun, detail);
   }
 
-  private static toBooking(booking: Booking): AdminBooking {
-    return new AdminBooking(
+  private static toAttendance(booking: Booking): SummaryAttendance {
+    return new SummaryAttendance(
       booking.id,
       booking.user.name,
       booking.user.pronoun,

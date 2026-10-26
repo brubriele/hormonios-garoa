@@ -2,11 +2,11 @@ import { AppError, NotFoundError, UpstreamUnavailableError } from "../../errors/
 import { InfraSource, InvalidResponseError, UpstreamBadContractError, UpstreamResponseError } from "../../errors/infra-error";
 import { createLogger } from "../../lib/logger";
 import type { EventDay } from "../../models/event-day";
-import type { EventSnapshot } from "../../models/event-snapshot";
+import type { CurrentEventSnapshot } from "../../models/current-event-snapshot";
 import type { ManagedEvent } from "../../models/managed-event";
-import type { PendingNextEvent } from "../../models/pending-next-event";
-import { PendingWriteMode } from "../../models/pending-write";
-import type { IHormoniosRepo, IMarkWriteData } from "../../interfaces/hormonios";
+import type { PendingEventCreation } from "../../models/pending-event-creation";
+import { PendingSyncMode } from "../../models/pending-sync";
+import type { IHormoniosRepo, IMarkPendingSyncData } from "../../interfaces/hormonios";
 import type { IEventRef, ITransicionaisRepo } from "../../interfaces/transicionais";
 import { buildPublication } from "../event/updating-current-event";
 
@@ -52,24 +52,24 @@ export class SyncingNextEventPendingUsecase {
   // claimed 0 = nenhum na fila (ou ainda esperando a próxima tentativa)
   private async _execute(): Promise<ISyncingNextEventPendingResult> {
     const pendings = await this.claimSupabasePendingNextEvents();
-    const modes: PendingWriteMode[] = [];
+    const modes: PendingSyncMode[] = [];
 
     for (const pending of pendings) {
       const mark = await this.syncTransicionaisNextEvent(pending);
 
-      await this.hormoniosRepo.markWrite(mark);
+      await this.hormoniosRepo.markPendingSync(mark);
       modes.push(mark.mode);
     }
 
     return this.countModes(modes);
   }
 
-  private async claimSupabasePendingNextEvents(): Promise<PendingNextEvent[]> {
+  private async claimSupabasePendingNextEvents(): Promise<PendingEventCreation[]> {
     return this.hormoniosRepo.claimPendingNextEvents({ limit: CLAIM_LIMIT });
   }
 
   // o encerrado sumiu da listagem: MANUAL_RETRY
-  private async syncTransicionaisNextEvent(pending: PendingNextEvent): Promise<IMarkWriteData> {
+  private async syncTransicionaisNextEvent(pending: PendingEventCreation): Promise<IMarkPendingSyncData> {
     try {
       const from: IEventRef = { externalId: pending.fromExternalId, dayId: pending.fromDayKey };
       const current = await this.findTransicionaisManagedEvent(from, pending.fromDate);
@@ -78,11 +78,11 @@ export class SyncingNextEventPendingUsecase {
       await this.saveSupabaseSnapshot(snapshot);
       await this.queueSupabaseBookings(pending, snapshot);
 
-      return this.buildMark(pending, PendingWriteMode.Synced);
+      return this.buildMark(pending, PendingSyncMode.Synced);
     } catch (error) {
       if (error instanceof NotFoundError) {
         logger.error({ fromExternalId: pending.fromExternalId }, "closed event not found, next event needs a manual retry (D51)");
-        return this.buildMark(pending, PendingWriteMode.ManualRetry);
+        return this.buildMark(pending, PendingSyncMode.ManualRetry);
       }
 
       return this.buildFailedMark(error, pending);
@@ -102,7 +102,7 @@ export class SyncingNextEventPendingUsecase {
 
   // cria o encontro, o ciclo, os grupos, o dia e o público, copiando o encerrado, e devolve o retrato dele
   // (E2.5, D2). Falhou depois do POST: apaga o recém-criado e relança (dúvida D16)
-  private async createTransicionaisEvent(current: ManagedEvent, ref: IEventRef, date: string): Promise<EventSnapshot> {
+  private async createTransicionaisEvent(current: ManagedEvent, ref: IEventRef, date: string): Promise<CurrentEventSnapshot> {
     this.validatePublic(current);
 
     const day = current.days.find((item) => item.id === ref.dayId) ?? this.findFirstDay(current);
@@ -206,7 +206,7 @@ export class SyncingNextEventPendingUsecase {
   }
 
   // já foi criado: se a leitura pública não o achar, é falha da fonte
-  private async findTransicionaisPublicEvent(ref: IEventRef): Promise<EventSnapshot> {
+  private async findTransicionaisPublicEvent(ref: IEventRef): Promise<CurrentEventSnapshot> {
     const snapshot = await this.transicionaisRepo.findPublicEvent(ref);
 
     if (!snapshot) {
@@ -217,50 +217,50 @@ export class SyncingNextEventPendingUsecase {
   }
 
   // o retrato do novo, com o estoque que ainda está na fila de stock por cima (D53)
-  private async saveSupabaseSnapshot(snapshot: EventSnapshot): Promise<void> {
+  private async saveSupabaseSnapshot(snapshot: CurrentEventSnapshot): Promise<void> {
     const capacities = await this.hormoniosRepo.listPendingCapacities();
 
     await this.hormoniosRepo.saveSnapshot(snapshot.withPendingCapacities(capacities));
   }
 
   // as reservas do dia local vão para o dia de lá como PENDING: a fila de booking as envia
-  private async queueSupabaseBookings(pending: PendingNextEvent, snapshot: EventSnapshot): Promise<void> {
+  private async queueSupabaseBookings(pending: PendingEventCreation, snapshot: CurrentEventSnapshot): Promise<void> {
     await this.hormoniosRepo.moveBookings({
       oldDayKey: pending.dayKey,
       newDayKey: snapshot.event.dayKey,
-      groupMap: Object.fromEntries(snapshot.event.groups.map((group) => [group.id, group.id])),
+      groupMap: Object.fromEntries(snapshot.event.instruments.map((instrument) => [instrument.id, instrument.id])),
     });
   }
 
-  private buildMark(pending: PendingNextEvent, mode: PendingWriteMode): IMarkWriteData {
+  private buildMark(pending: PendingEventCreation, mode: PendingSyncMode): IMarkPendingSyncData {
     return { id: pending.id, updatedAt: pending.updatedAt, mode, error: null, errorCause: null };
   }
 
   // fora do ar ou outra falha: PENDING com espera. 400, 409 ou 422: MANUAL_RETRY. O erro do Transicionais
   // é gravado como veio (D50)
-  private buildFailedMark(error: unknown, pending: PendingNextEvent): IMarkWriteData {
+  private buildFailedMark(error: unknown, pending: PendingEventCreation): IMarkPendingSyncData {
     if (error instanceof UpstreamBadContractError) {
       logger.error({ writeId: pending.id, errorCause: error.errorCause }, "next event needs a manual retry (D50)");
-      return { ...this.buildMark(pending, PendingWriteMode.ManualRetry), errorCause: error.errorCause };
+      return { ...this.buildMark(pending, PendingSyncMode.ManualRetry), errorCause: error.errorCause };
     }
 
     if (error instanceof UpstreamUnavailableError) {
-      return this.buildMark(pending, PendingWriteMode.Backoff);
+      return this.buildMark(pending, PendingSyncMode.Backoff);
     }
 
     logger.error({ err: error, writeId: pending.id }, "next event not sent");
     const errorCause = error instanceof UpstreamResponseError ? error.errorCause : null;
 
-    return { ...this.buildMark(pending, PendingWriteMode.Backoff), errorCause };
+    return { ...this.buildMark(pending, PendingSyncMode.Backoff), errorCause };
   }
 
-  private countModes(modes: PendingWriteMode[]): ISyncingNextEventPendingResult {
+  private countModes(modes: PendingSyncMode[]): ISyncingNextEventPendingResult {
     return {
       claimed: modes.length,
-      synced: modes.filter((mode) => mode === PendingWriteMode.Synced).length,
-      rejected: modes.filter((mode) => mode === PendingWriteMode.Rejected).length,
-      pending: modes.filter((mode) => mode === PendingWriteMode.Backoff).length,
-      manualRetry: modes.filter((mode) => mode === PendingWriteMode.ManualRetry).length,
+      synced: modes.filter((mode) => mode === PendingSyncMode.Synced).length,
+      rejected: modes.filter((mode) => mode === PendingSyncMode.Rejected).length,
+      pending: modes.filter((mode) => mode === PendingSyncMode.Backoff).length,
+      manualRetry: modes.filter((mode) => mode === PendingSyncMode.ManualRetry).length,
     };
   }
 }

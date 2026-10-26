@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { EventInstrument } from "./event-instrument";
+import { SummaryStockItem } from "./summary-stock-item";
 import { CountSchema, NonBlankSchema, validateSchema } from "./model-schema";
 
-const EventViewSchema = z.object({
+const SummaryEventSchema = z.object({
   dayKey: NonBlankSchema,
   date: z.string(),
   time: z.string(),
@@ -10,13 +10,11 @@ const EventViewSchema = z.object({
   bookingOpen: z.boolean(),
   whatsappUrl: z.string(),
   goingCount: CountSchema,
-  instruments: z.array(z.instanceof(EventInstrument)),
-  stale: z.boolean(),
-  fetchedAt: z.string().nullable(),
+  stock: z.array(z.instanceof(SummaryStockItem)),
 });
 
-// o ensaio público (GET /api/ensaio): o retrato com as vagas pelas reservas (D22)
-export class EventView {
+// o ensaio no resumo da Produção: o retrato com o estoque (instrumentos e depois acessórios)
+export class SummaryEvent {
   constructor(
     readonly dayKey: string,
     readonly date: string, // vazia = a definir
@@ -25,14 +23,12 @@ export class EventView {
     readonly bookingOpen: boolean,
     readonly whatsappUrl: string,
     readonly goingCount: number, // linhas "vou" que não estão REJECTED (D8)
-    readonly instruments: EventInstrument[], // só os grupos ativos
-    readonly stale: boolean, // true = o Transicionais não respondeu e é o último retrato
-    readonly fetchedAt: string | null, // ISO da última leitura do Transicionais
+    readonly stock: SummaryStockItem[],
   ) {
     this.validate();
   }
 
   private validate() {
-    validateSchema(EventViewSchema, this, "eventView");
+    validateSchema(SummaryEventSchema, this, "summaryEvent");
   }
 }

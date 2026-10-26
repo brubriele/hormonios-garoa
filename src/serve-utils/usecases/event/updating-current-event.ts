@@ -13,8 +13,8 @@ import type { CurrentEventSummary } from "../../models/current-event-summary";
 import type { Booking } from "../../models/booking";
 import { CurrentEvent } from "../../models/current-event";
 import type { EventDay } from "../../models/event-day";
-import { EventPublication } from "../../models/event-publication";
-import { GroupVacancy } from "../../models/group-vacancy";
+import { PublicationSettings } from "../../models/publication-settings";
+import { GroupCapacity } from "../../models/group-capacity";
 import { CountSchema, NonBlankSchema, validateSchema } from "../../models/model-schema";
 import type { ManagedEvent } from "../../models/managed-event";
 import type { IHormoniosRepo } from "../../interfaces/hormonios";
@@ -67,14 +67,14 @@ const BOOKING_CLOSED_DEADLINE_MINUTES = 43200;
 // a publicação inteira, copiada da atual, aberta ou fechada (D1). As vagas dos grupos (pessoas por
 // grupo) vão como estão, uma por grupo do encontro: o estoque é o capacity das assistências (E2.9).
 // Usada também pelo "Encerrar ensaio", que cria o próximo fechado (D2)
-export function buildPublication(event: ManagedEvent, open: boolean): EventPublication {
+export function buildPublication(event: ManagedEvent, open: boolean): PublicationSettings {
   const publication = event.publication;
 
   if (!publication) {
     throw new InvalidResponseError(InfraSource.Transicionais, "findEventDetails", `event ${event.id} is not public`);
   }
 
-  return new EventPublication(
+  return new PublicationSettings(
     publication.id,
     publication.visibility,
     publication.description,
@@ -85,7 +85,7 @@ export function buildPublication(event: ManagedEvent, open: boolean): EventPubli
     publication.totalVacancies,
     event.groupIds.map(
       (groupId) =>
-        new GroupVacancy(groupId, publication.groupVacancies.find((item) => item.groupId === groupId)?.total ?? null),
+        new GroupCapacity(groupId, publication.groupVacancies.find((item) => item.groupId === groupId)?.total ?? null),
     ),
   );
 }
@@ -232,8 +232,8 @@ export class UpdatingCurrentEventUsecase {
       input.location?.trim() ?? event.location,
       input.bookingOpen ?? event.bookingOpen,
       input.whatsappUrl?.trim() ?? event.whatsappUrl,
-      event.groups, // o estoque vai por buildCapacityChanges
-      event.supports,
+      event.instruments, // o estoque vai por buildCapacityChanges
+      event.accessories,
       event.externalId,
       event.fetchedAt,
     );
@@ -318,13 +318,13 @@ export class UpdatingCurrentEventUsecase {
   private async updateTransicionaisCapacity(change: ICapacityChange): Promise<void> {
     this.validateCapacityChange(change);
 
-    const supportType = await this.transicionaisRepo.findSupportType(change.supportId);
+    const loanCatalog = await this.transicionaisRepo.findLoanCatalog(change.supportId);
 
-    if (!supportType) {
+    if (!loanCatalog) {
       throw new NotFoundError("Support Not Found");
     }
 
-    await this.transicionaisRepo.saveSupportType(supportType.withCapacity(change.capacity));
+    await this.transicionaisRepo.saveLoanCatalog(loanCatalog.withCapacity(change.capacity));
   }
 
   private validateCapacityChange(change: ICapacityChange) {
@@ -366,7 +366,7 @@ export class UpdatingCurrentEventUsecase {
     await this.hormoniosRepo.moveBookings({
       oldDayKey: event.dayKey,
       newDayKey: dayId,
-      groupMap: Object.fromEntries(event.groups.map((group) => [group.id, group.id])),
+      groupMap: Object.fromEntries(event.instruments.map((instrument) => [instrument.id, instrument.id])),
     });
   }
 

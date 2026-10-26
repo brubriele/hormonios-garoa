@@ -3,7 +3,7 @@ import { UpstreamBadContractError, UpstreamResponseError } from "../../errors/in
 import { today } from "../../lib/date";
 import { createLogger } from "../../lib/logger";
 import type { CurrentEvent } from "../../models/current-event";
-import type { EventSnapshot } from "../../models/event-snapshot";
+import type { CurrentEventSnapshot } from "../../models/current-event-snapshot";
 import type { IHormoniosRepo } from "../../interfaces/hormonios";
 import type { IEventRef, ITransicionaisRepo } from "../../interfaces/transicionais";
 
@@ -63,12 +63,12 @@ export class ReceivingCurrentEventUsecase {
   }
 
   // o estoque que ainda não foi ao Transicionais fica por cima do lido (D53)
-  private async applySupabasePendingCapacities(snapshot: EventSnapshot): Promise<EventSnapshot> {
+  private async applySupabasePendingCapacities(snapshot: CurrentEventSnapshot): Promise<CurrentEventSnapshot> {
     return snapshot.withPendingCapacities(await this.hormoniosRepo.listPendingCapacities());
   }
 
   // null = o encontro não existe ou o Transicionais está fora do ar (plano de falha: fica o retrato)
-  private async findTransicionaisSnapshot(current: CurrentEvent | null): Promise<EventSnapshot | null> {
+  private async findTransicionaisSnapshot(current: CurrentEvent | null): Promise<CurrentEventSnapshot | null> {
     try {
       const ref = await this.findTransicionaisCurrentRef(current);
 
@@ -114,7 +114,7 @@ export class ReceivingCurrentEventUsecase {
     return ref;
   }
 
-  private async findTransicionaisPublicEvent(ref: IEventRef): Promise<EventSnapshot | null> {
+  private async findTransicionaisPublicEvent(ref: IEventRef): Promise<CurrentEventSnapshot | null> {
     const snapshot = await this.transicionaisRepo.findPublicEvent(ref);
 
     if (!snapshot) {
@@ -126,7 +126,7 @@ export class ReceivingCurrentEventUsecase {
 
   // primeira leitura sobre o retrato local da fase 1: as reservas passam ao dia do Transicionais,
   // os ids da fase 1 não existem no Transicionais: a reserva com instrumento vira só presença (E2.2)
-  private async migrateSupabaseBookings(current: CurrentEvent, snapshot: EventSnapshot): Promise<void> {
+  private async migrateSupabaseBookings(current: CurrentEvent, snapshot: CurrentEventSnapshot): Promise<void> {
     await this.hormoniosRepo.moveBookings({
       oldDayKey: current.dayKey,
       newDayKey: snapshot.event.dayKey,

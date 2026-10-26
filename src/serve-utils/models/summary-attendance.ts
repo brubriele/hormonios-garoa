@@ -3,7 +3,7 @@ import type { UUID } from "../interfaces/uuid";
 import { BookingSync } from "./booking";
 import { NonBlankSchema, validateSchema } from "./model-schema";
 
-const AdminBookingSchema = z.object({
+const SummaryAttendanceSchema = z.object({
   id: NonBlankSchema,
   name: z.string(),
   pronoun: z.string(),
@@ -14,7 +14,7 @@ const AdminBookingSchema = z.object({
 });
 
 // uma presença que conta (vou e não REJECTED), no resumo da Produção (D30)
-export class AdminBooking {
+export class SummaryAttendance {
   constructor(
     readonly id: UUID,
     readonly name: string,
@@ -28,6 +28,6 @@ export class AdminBooking {
   }
 
   private validate() {
-    validateSchema(AdminBookingSchema, this, "adminBooking");
+    validateSchema(SummaryAttendanceSchema, this, "summaryAttendance");
   }
 }

@@ -1,9 +1,9 @@
 import type { BookingAnswer } from "../models/booking";
 import type { EventDay } from "../models/event-day";
-import type { EventPublication } from "../models/event-publication";
-import type { EventSnapshot } from "../models/event-snapshot";
+import type { PublicationSettings } from "../models/publication-settings";
+import type { CurrentEventSnapshot } from "../models/current-event-snapshot";
 import type { ManagedEvent } from "../models/managed-event";
-import type { SupportType } from "../models/support-type";
+import type { LoanCatalog } from "../models/loan-catalog";
 import type { EventWebhookStatus, WebhookType } from "../models/transicionais-webhook";
 import type { UUID } from "./uuid";
 
@@ -71,7 +71,7 @@ export interface IWebhookValidation {
 
 export interface IEventWebhookSnapshot {
   status: EventWebhookStatus.Snapshot;
-  snapshot: EventSnapshot;
+  snapshot: CurrentEventSnapshot;
 }
 
 export interface IEventWebhookSkipped {
@@ -132,7 +132,7 @@ export interface IEventChanges {
   location?: string;
   startDate?: string; // YYYY-MM-DD
   endDate?: string; // YYYY-MM-DD
-  publication?: EventPublication; // inteira (D4)
+  publication?: PublicationSettings; // inteira (D4)
 }
 
 // as escritas da Produção são operações simples; trocar o dia, abrir/fechar, criar e desfazer e o
@@ -144,7 +144,7 @@ export interface ITransicionaisRepo {
   // UpstreamUnavailableError
   listPublicEventsFrom(date: string): Promise<IEventRef[]>;
   // o retrato do encontro (GET público). null = não existe; fora do ar -> UpstreamUnavailableError
-  findPublicEvent(ref: IEventRef): Promise<EventSnapshot | null>;
+  findPublicEvent(ref: IEventRef): Promise<CurrentEventSnapshot | null>;
   // o encontro de ref na visão de manager (achado pelo externalId nos Públicos de from, YYYY-MM-DD, em
   // diante). null = não está na listagem
   findManagedEvent(ref: IEventRef, from: string): Promise<ManagedEvent | null>;
@@ -167,9 +167,9 @@ export interface ITransicionaisRepo {
   // apaga o encontro (as presenças ficam guardadas no Transicionais)
   deleteEvent(eventId: string): Promise<void>;
   // o catálogo da assistência. null = não existe
-  findSupportType(supportId: string): Promise<SupportType | null>;
+  findLoanCatalog(supportId: string): Promise<LoanCatalog | null>;
   // grava o catálogo inteiro da assistência (D26). 404 -> NotFoundError
-  saveSupportType(supportType: SupportType): Promise<void>;
+  saveLoanCatalog(loanCatalog: LoanCatalog): Promise<void>;
   // cadastra a pessoa como convidado da organização, ou devolve a conta que já tem o e-mail (D41).
   // Falhas como no sendBooking
   registerGuest(person: ISendBookingPerson): Promise<ITransicionaisAccount>;

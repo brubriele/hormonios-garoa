@@ -33,7 +33,7 @@ abstract class Stock {
   }
 }
 
-const GroupSchema = z.object({
+const InstrumentSchema = z.object({
   id: NonBlankSchema,
   name: NonBlankSchema,
   stockTotal: CountSchema.nullable(),
@@ -44,7 +44,7 @@ const GroupSchema = z.object({
 });
 
 // o instrumento do encontro: o grupo do Transicionais com a assistência type='instrumento' dele (E2.9)
-export class Group extends Stock {
+export class Instrument extends Stock {
   constructor(
     readonly id: string, // grupo do Transicionais (o id da reserva)
     readonly name: string, // título da assistência do instrumento
@@ -61,17 +61,17 @@ export class Group extends Stock {
   }
 
   private validate() {
-    validateSchema(GroupSchema, this, "group");
+    validateSchema(InstrumentSchema, this, "instrument");
   }
 
   // o estoque novo do instrumento (o model é imutável)
-  withStockTotal(stockTotal: number): Group {
-    return new Group(this.id, this.name, stockTotal, this.active, this.taken, this.instrumentSupportId, this.rotativo);
+  withStockTotal(stockTotal: number): Instrument {
+    return new Instrument(this.id, this.name, stockTotal, this.active, this.taken, this.instrumentSupportId, this.rotativo);
   }
 
   // num encontro que só existe no local, sem o ocupado do Transicionais (D51)
-  withoutTaken(): Group {
-    return new Group(this.id, this.name, this.stockTotal, this.active, null, this.instrumentSupportId, this.rotativo);
+  withoutTaken(): Instrument {
+    return new Instrument(this.id, this.name, this.stockTotal, this.active, null, this.instrumentSupportId, this.rotativo);
   }
 
   // vagas ocupadas: o taken do Transicionais + as "vou" locais PENDING do grupo; no retrato local da
@@ -85,7 +85,7 @@ export class Group extends Stock {
   }
 }
 
-const SupportSchema = z.object({
+const AccessorySchema = z.object({
   id: NonBlankSchema,
   name: NonBlankSchema,
   stockTotal: CountSchema.nullable(),
@@ -96,7 +96,7 @@ const SupportSchema = z.object({
 
 // acessório: assistência type='acessorio'. Os defaults são os do retrato local da fase 1
 // (sem limite, não rotativo, vale para todos os grupos)
-export class Support extends Stock {
+export class Accessory extends Stock {
   constructor(
     readonly id: string,
     readonly name: string,
@@ -110,15 +110,15 @@ export class Support extends Stock {
   }
 
   private validate() {
-    validateSchema(SupportSchema, this, "support");
+    validateSchema(AccessorySchema, this, "accessory");
   }
 
-  withStockTotal(stockTotal: number): Support {
-    return new Support(this.id, this.name, stockTotal, this.taken, this.rotativo, this.groupIds);
+  withStockTotal(stockTotal: number): Accessory {
+    return new Accessory(this.id, this.name, stockTotal, this.taken, this.rotativo, this.groupIds);
   }
 
-  withoutTaken(): Support {
-    return new Support(this.id, this.name, this.stockTotal, null, this.rotativo, this.groupIds);
+  withoutTaken(): Accessory {
+    return new Accessory(this.id, this.name, this.stockTotal, null, this.rotativo, this.groupIds);
   }
 
   appliesTo(groupId: string): boolean {
@@ -143,8 +143,8 @@ const CurrentEventSchema = z.object({
   location: z.string(),
   bookingOpen: z.boolean(),
   whatsappUrl: z.string(),
-  groups: z.array(z.instanceof(Group)),
-  supports: z.array(z.instanceof(Support)),
+  instruments: z.array(z.instanceof(Instrument)),
+  accessories: z.array(z.instanceof(Accessory)),
   externalId: NonBlankSchema.nullable(),
   fetchedAt: z.string().nullable(),
 });
@@ -157,8 +157,8 @@ export class CurrentEvent {
     readonly location: string,
     readonly bookingOpen: boolean,
     readonly whatsappUrl: string,
-    readonly groups: Group[],
-    readonly supports: Support[],
+    readonly instruments: Instrument[],
+    readonly accessories: Accessory[],
     readonly externalId: string | null = null, // encontro no Transicionais; null = retrato local da fase 1
     readonly fetchedAt: string | null = null, // ISO da última leitura do Transicionais
   ) {
@@ -173,24 +173,24 @@ export class CurrentEvent {
     return this.externalId !== null;
   }
 
-  findGroup(id: string): Group | null {
-    return this.groups.find((group) => group.id === id) ?? null;
+  findInstrument(id: string): Instrument | null {
+    return this.instruments.find((instrument) => instrument.id === id) ?? null;
   }
 
   // acessórios que valem para o instrumento do grupo (groupIds vazio ou com o grupo)
-  supportsForGroup(groupId: string): Support[] {
-    return this.supports.filter((support) => support.appliesTo(groupId));
+  accessoriesForInstrument(groupId: string): Accessory[] {
+    return this.accessories.filter((accessory) => accessory.appliesTo(groupId));
   }
 
-  findSupport(id: string): Support | null {
-    return this.supports.find((support) => support.id === id) ?? null;
+  findAccessory(id: string): Accessory | null {
+    return this.accessories.find((accessory) => accessory.id === id) ?? null;
   }
 
   // o estoque ajustável pela Produção (E2.9): o acessório com o id ou o grupo cujo instrumentSupportId
   // é o id
-  findStock(supportId: string): Group | Support | null {
-    return this.findSupport(supportId)
-      ?? this.groups.find((group) => group.instrumentSupportId === supportId)
+  findStock(supportId: string): Instrument | Accessory | null {
+    return this.findAccessory(supportId)
+      ?? this.instruments.find((instrument) => instrument.instrumentSupportId === supportId)
       ?? null;
   }
 
@@ -204,8 +204,8 @@ export class CurrentEvent {
       this.location,
       this.bookingOpen,
       this.whatsappUrl,
-      this.groups.map((group) => (group.instrumentSupportId === supportId ? group.withStockTotal(stockTotal) : group)),
-      this.supports.map((support) => (support.id === supportId ? support.withStockTotal(stockTotal) : support)),
+      this.instruments.map((instrument) => (instrument.instrumentSupportId === supportId ? instrument.withStockTotal(stockTotal) : instrument)),
+      this.accessories.map((accessory) => (accessory.id === supportId ? accessory.withStockTotal(stockTotal) : accessory)),
       this.externalId,
       this.fetchedAt,
     );
@@ -221,8 +221,8 @@ export class CurrentEvent {
       location,
       false,
       this.whatsappUrl,
-      this.groups.map((group) => group.withoutTaken()),
-      this.supports.map((support) => support.withoutTaken()),
+      this.instruments.map((instrument) => instrument.withoutTaken()),
+      this.accessories.map((accessory) => accessory.withoutTaken()),
       null,
       this.fetchedAt,
     );

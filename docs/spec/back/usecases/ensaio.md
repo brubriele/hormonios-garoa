@@ -12,7 +12,7 @@
 - Lê o retrato do Supabase. Se ele é recente (≤ 5 min) e do Transicionais, responde sem chamar a API.
 - Senão, chama o `ReceivingCurrentEventUsecase` (criado no construtor, D10). Respondeu: relê e
   responde `stale: false`. Falhou: o último retrato com `stale: true` (R2).
-- Responde o model `EventView` montado pelo `EventViewMapper` (`usecases/event/mappers/event-view.mapper.ts`:
+- Responde o model `PublicEvent` montado pelo `PublicEventMapper` (`usecases/event/mappers/public-event.mapper.ts`:
   só grupos ativos, com as vagas dos models, o `stale` e o `fetchedAt` do retrato).
 
 **Consequências.**
@@ -51,7 +51,7 @@ dele não dá para mapear, D35).
 ## Conta das vagas e formatos de resposta — sem rota
 
 > Models: [`models/current-event.ts`](../../../../src/serve-utils/models/current-event.ts). Mappers:
-> [`event-view.mapper.ts`](../../../../src/serve-utils/usecases/event/mappers/event-view.mapper.ts),
+> [`public-event.mapper.ts`](../../../../src/serve-utils/usecases/event/mappers/public-event.mapper.ts),
 > [`current-event-summary.mapper.ts`](../../../../src/serve-utils/usecases/event/mappers/current-event-summary.mapper.ts) e
 > [`my-reservation.mapper.ts`](../../../../src/serve-utils/usecases/booking/mappers/user-booking.mapper.ts).
 
@@ -61,17 +61,17 @@ Até a refatoração de 2026-10-25, as duas coisas ficavam em `usecases/event-su
 existir.
 
 **Decisão.**
-- A conta é dos models (`Group` e `Support`, com a base comum `Stock`), que recebem as reservas:
+- A conta é dos models (`Instrument` e `Accessory`, com a base comum `Stock`), que recebem as reservas:
   `countTaken(attendances)` = `taken` do retrato + linhas `vou` locais `PENDING`; no retrato local, as
   linhas `vou` que não estão `REJECTED`. É a mesma conta da função `reservar`. `available` =
   `stockTotal` − ocupado, nunca < 0, `null` = sem limite; `soldOut` = não rotativo e `available === 0`;
   `isBelowBookings(capacity, attendances)` = não rotativo e abaixo do ocupado (D29).
-- `CurrentEvent.goingBookings` (as que contam), `findSupport` e `findStock` (o estoque pelo id da
+- `CurrentEvent.goingBookings` (as que contam), `findAccessory` e `findStock` (o estoque pelo id da
   assistência: acessório ou o `instrumentSupportId` do grupo).
-- A resposta é model (`models/`), montado por um mapper que só formata (U9): `EventViewMapper` →
-  `EventView` (`<ensaio>`: `instruments[]` com os `accessories` que valem para cada um, E2.9, D22),
-  `CurrentEventSummaryMapper` → `CurrentEventSummary` (`<resumo>`: `stock[]` de `StockItem`, instrumentos e depois
-  acessórios, com `reservations`, e as presenças que contam, D30, D31; o `type` é o `SupportTypeKind`)
+- A resposta é model (`models/`), montado por um mapper que só formata (U9): `PublicEventMapper` →
+  `PublicEvent` (`<ensaio>`: `instruments[]` com os `accessories` que valem para cada um, E2.9, D22),
+  `CurrentEventSummaryMapper` → `CurrentEventSummary` (`<resumo>`: `stock[]` de `SummaryStockItem`, instrumentos e depois
+  acessórios, com `reservations`, e as presenças que contam, D30, D31; o `type` é o `LoanCatalogKind`)
   e `UserBookingMapper` → `UserBooking` (`minhas-reservas`).
 
 **Consequências.**

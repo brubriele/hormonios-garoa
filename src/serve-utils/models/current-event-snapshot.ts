@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { CurrentEvent } from "./current-event";
 import { DateTimeSchema, NonBlankSchema, validateSchema } from "./model-schema";
-import type { PendingSupportCapacity } from "./pending-support-capacity";
+import type { PendingStockUpdate } from "./pending-stock-update";
 
-const EventSnapshotSchema = z.object({
+const CurrentEventSnapshotSchema = z.object({
   externalId: NonBlankSchema,
   version: z.number().int(),
   hash: NonBlankSchema.nullable(),
@@ -12,7 +12,7 @@ const EventSnapshotSchema = z.object({
 });
 
 // retrato do encontro lido do Transicionais, com o que a trava precisa (R13)
-export class EventSnapshot {
+export class CurrentEventSnapshot {
   constructor(
     readonly externalId: string,
     readonly version: number,
@@ -24,14 +24,14 @@ export class EventSnapshot {
   }
 
   private validate() {
-    validateSchema(EventSnapshotSchema, this);
+    validateSchema(CurrentEventSnapshotSchema, this);
   }
 
   // o estoque pendente por cima do lido (D53): o refresh não volta o valor que ainda não foi ao
   // Transicionais. O hash fica o de lá
-  withPendingCapacities(pendings: PendingSupportCapacity[]): EventSnapshot {
+  withPendingCapacities(pendings: PendingStockUpdate[]): CurrentEventSnapshot {
     const event = pendings.reduce((item, pending) => item.withStock(pending.supportId, pending.capacity), this.event);
 
-    return new EventSnapshot(this.externalId, this.version, this.hash, this.vacanciesAt, event);
+    return new CurrentEventSnapshot(this.externalId, this.version, this.hash, this.vacanciesAt, event);
   }
 }

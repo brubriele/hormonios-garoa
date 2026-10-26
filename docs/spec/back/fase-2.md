@@ -1,7 +1,7 @@
 # Back — Fase 2: integração com o Transicionais e plano de falha
 
 > O que está implementado em `api/`, `src/serve-utils/` e nas migrations `0002_fase2.sql`,
-> `0003_estoque_supports.sql`, `0004_sync.sql` até `0010_claim_por_tipo.sql`. Só o que mudou desde a [fase 1](fase-1.md).
+> `0003_estoque_supports.sql`, `0004_sync.sql` até `0011_renomeacao.sql`. Só o que mudou desde a [fase 1](fase-1.md).
 > Plano: [`bff-fase-2.md`](../../plans/bff-fase-2.md) e
 > [`bff-fase-2-implementacao.md`](../../plans/bff-fase-2-implementacao.md). Front: [`../front/fase-2.md`](../front/fase-2.md).
 > Dúvidas em aberto: [`bff-fase-2-duvidas.md`](../../plans/bff-fase-2-duvidas.md) (citadas como D#).
@@ -44,32 +44,32 @@ Como na fase 1, a env é lida na chamada. Ausente: 500 `INTERNAL_ERROR`. As envs
 | `hg_users` | `transicionais_guest_id` text **unique** | devolvido pelo envio da reserva |
 | `hg_attendances` | `transicionais_sync` (`PENDING` \| `SYNCED` \| `REJECTED`, padrão `PENDING`), `transicionais_order_id` text **unique**, `transicionais_changed_at`, `sync_error`, `attempts` (0), `next_attempt_at` (now) | índice em `(transicionais_sync, next_attempt_at)` |
 | `hg_webhook_deliveries` (nova) | `delivery_id` text **pk**, `type`, `received_at` | deduplicação dos webhooks. RLS ligada, sem política. |
-| `hg_pending_writes` (nova, `0009`) | `id` uuid **pk**, `kind` (`SUPPORT_CAPACITY` \| `NEXT_EVENT`), `target` (supportId ou `'event'`), `data` jsonb, `status` (`PENDING` \| `SYNCED` \| `REJECTED` \| `MANUAL_RETRY`), `sync_error`, `error_cause`, `attempts`, `next_attempt_at`, `updated_at` | a fila da Produção com o Transicionais fora (D51–D53). Uma `PENDING` por `(kind, target)`. RLS ligada, sem política. |
+| `hg_pending_syncs` (nova, `0009`; era `hg_pending_writes` até a `0011`) | `id` uuid **pk**, `kind` (`STOCK_UPDATE` \| `EVENT_CREATION`), `target` (supportId ou `'event'`), `data` jsonb, `status` (`PENDING` \| `SYNCED` \| `REJECTED` \| `MANUAL_RETRY`), `sync_error`, `error_cause`, `attempts`, `next_attempt_at`, `updated_at` | a fila da Produção com o Transicionais fora (D51–D53). Uma `PENDING` por `(kind, target)`. RLS ligada, sem política. |
 
 `hg_attendances.updated_at` marca a **última mudança local**. Só `reservar`, o "Não vou" e
 `migrar_fase1` mexem nele. Ele é a trava do envio e entra na chave de idempotência.
 
-### jsonb de `hg_current_event.data` (E2.9, `0003`)
+### jsonb de `hg_current_event.data` (E2.9, `0003`; chaves renomeadas na `0011`)
 
 ```
 { dayKey, date, time, location, bookingOpen, whatsappUrl,
-  groups:   [{ id, name, stockTotal, active, taken, rotativo, instrumentSupportId }],
-  supports: [{ id, name, stockTotal, taken, rotativo, groupIds }] }
+  instruments: [{ id, name, stockTotal, active, taken, rotativo, instrumentSupportId }],
+  accessories: [{ id, name, stockTotal, taken, rotativo, groupIds }] }
 ```
 
 | Campo | Do Transicionais |
 |---|---|
-| `groups[]` | um por assistência `type='instrumento'`. `id` = o primeiro grupo do encontro em `groupIds` dela (D21, D25). `name` = título da assistência. |
-| `groups[].instrumentSupportId` | id da assistência do instrumento. Interno ao BFF: não sai nas respostas de `/api`. |
-| `supports[]` | assistências `type='acessorio'`. `groupIds` vazio = vale para todos os grupos. |
+| `instruments[]` | um por assistência `type='instrumento'`. `id` = o primeiro grupo do encontro em `groupIds` dela (D21, D25). `name` = título da assistência. |
+| `instruments[].instrumentSupportId` | id da assistência do instrumento. Interno ao BFF: não sai nas respostas de `/api`. |
+| `accessories[]` | assistências `type='acessorio'`. `groupIds` vazio = vale para todos os grupos. |
 | `stockTotal` | `capacity` da assistência. `null` = sem limite (D20). |
 | `taken` | `confirmed` de `configDays[].summary.supports` do dia: quem disse "vou" pedindo a assistência (D47; antes `occupied`, D19). Só no retrato do Transicionais. |
 | `rotativo` | `rotativo` da assistência: pode passar da capacidade. |
 
 - Assistência inativa ou com `type` desconhecido fica fora (D24).
-- Todo grupo do retrato é `active: true` (D8).
+- Todo instrumento do retrato é `active: true` (D8).
 - O retrato local da fase 1 não tem os campos novos. Lido assim: sem `taken`, sem limite nos
-  supports, não rotativo e `groupIds` vazio.
+  acessórios, não rotativo e `groupIds` vazio.
 - `dayKey` = `String(configDayId)` do dia atual.
 
 ## Funções SQL
@@ -81,15 +81,15 @@ Todas `security definer`, com `execute` só para `service_role`.
 | `gravar_retrato(p_external_id, p_version, p_hash, p_vacancies_at, p_data)` → boolean | 0002, revista na 0007 (D48) | Grava o retrato com trava. Troca a linha se o `external_id` é outro, ou se o `hash` do Transicionais mudou e a leitura é mais nova (`p_vacancies_at`). Sem `hash` (retrato do webhook): a regra antiga, pela version. Sem mudança, só marca `fetched_at`. O `whatsappUrl` gravado fica. |
 | `gravar_whatsapp(p_url)` | 0002 | Grava só o `whatsappUrl` no `data`, sem disputar com o retrato. |
 | `migrar_fase1(p_old_day_key, p_new_day_key, p_group_map)` → int | 0002 | Leva as linhas de um dia para outro, marca `PENDING`, zera `attempts` e muda o `updated_at`. Grupo fora do mapa vira só presença. Quem já tem linha no dia novo fica com ela. Usada na primeira leitura do Transicionais (mapa vazio, E2.2 e D15) e na troca de data (mapa identidade, D7). |
-| `reservar(...)` | 0003 | A da fase 1 com estoque por assistência. Ver abaixo. |
+| `reservar(...)` | 0003, revista na 0008 e na 0011 | A da fase 1 com estoque por assistência. Ver abaixo. |
 | `claim_pending(p_limit)` → linhas | 0005 (antes 0004) | Pega até N linhas `PENDING` com `next_attempt_at` vencido (`for update skip locked`) e adia o `next_attempt_at` em 2 min. Todos os dias do Transicionais (`day_key` numérico); os de ensaio antigo da fase 1 (UUID) ficam de fora (D45, revê a D11). |
 | `marcar_sync(p_id, p_updated_at, p_mode, …)` → boolean | 0004, revista na 0006 (D46) | Grava o resultado do envio só se a linha ainda tem o `updated_at` lido **e** está `PENDING`. Modos na tabela do envio. `false` = a linha mudou (continua `PENDING`). |
 | `aplicar_validacao(p_order_id, p_day_key, p_guest_id, p_email, p_data, p_changed_at)` → text | 0004 | Webhook `validation.changed`. Devolve `APPLIED`, `STALE`, `LOCAL_NEWER`, `UNKNOWN_PERSON` ou `NO_ROW`. |
-| `gravar_vagas(p_day_key, p_vacancies_at, p_taken)` → boolean | 0004 | Troca o `taken` de grupos e supports pelo ocupado do webhook. Só no retrato do Transicionais, no mesmo dia e com `p_vacancies_at` mais novo que `vacancies_at`. |
-| `estoque_pendente(p_support_id, p_capacity, p_data)` | 0009 | Enfileira o `SUPPORT_CAPACITY` (troca a `PENDING` da mesma assistência) e grava o retrato com o estoque novo (`p_data`, montado pelo usecase), com a trava da linha do retrato (D53). |
-| `encerrar_local(p_data, p_write)` | 0009 | "Encerrar" com o Transicionais fora: troca o retrato pelo próximo local (`external_id`, `version` e `hash` null) e enfileira o `NEXT_EVENT`. Já há um aberto (`PENDING` ou `MANUAL_RETRY`): `NEXT_EVENT_PENDING` → `NEXT_EVENT_PENDING_ERROR` (D51). |
-| `claim_escritas(p_kind, p_limit)` → linhas | 0009, revista na 0010 | Como o `claim_pending`, na fila da Produção, só do tipo pedido (cada contexto do cron pega o seu). |
-| `marcar_escrita(p_id, p_updated_at, p_mode, p_error, p_error_cause)` → boolean | 0009 | Como o `marcar_sync`: `SYNCED`, `REJECTED` (no estoque, zera o `hash` do retrato para o refresh regravar o valor de lá, D52), `MANUAL_RETRY` ou `BACKOFF` (1, 2, 4… até 30 min). |
+| `gravar_vagas(p_day_key, p_vacancies_at, p_taken)` → boolean | 0004, revista na 0011 | Troca o `taken` de `instruments` e `accessories` (`p_taken: { instruments, accessories }`) pelo ocupado do webhook. Só no retrato do Transicionais, no mesmo dia e com `p_vacancies_at` mais novo que `vacancies_at`. |
+| `estoque_pendente(p_support_id, p_capacity, p_data)` | 0009, revista na 0011 | Enfileira o `STOCK_UPDATE` (troca a `PENDING` da mesma assistência) e grava o retrato com o estoque novo (`p_data`, montado pelo usecase), com a trava da linha do retrato (D53). |
+| `encerrar_local(p_data, p_sync)` | 0009, revista na 0011 | "Encerrar" com o Transicionais fora: troca o retrato pelo próximo local (`external_id`, `version` e `hash` null) e enfileira o `EVENT_CREATION`. Já há um aberto (`PENDING` ou `MANUAL_RETRY`): `EVENT_CREATION_PENDING` → `EVENT_CREATION_PENDING_ERROR` (D51). |
+| `claim_syncs(p_kind, p_limit)` → linhas | 0009, revista na 0010; era `claim_escritas` até a 0011 | Como o `claim_pending`, na fila da Produção, só do tipo pedido (cada contexto do cron pega o seu). |
+| `marcar_sync_pendente(p_id, p_updated_at, p_mode, p_error, p_error_cause)` → boolean | 0009; era `marcar_escrita` até a 0011 | Como o `marcar_sync`: `SYNCED`, `REJECTED` (no estoque, zera o `hash` do retrato para o refresh regravar o valor de lá, D52), `MANUAL_RETRY` ou `BACKOFF` (1, 2, 4… até 30 min). |
 
 Nenhuma função da 0004 mexe em `updated_at` (D39). A `trocar_encontro`, citada na D10, não existe
 nas migrations: o encontro novo entra pelo `gravar_retrato` (outro `external_id`).
@@ -116,7 +116,7 @@ retrato local da fase 1: linhas `vou` que não estão `REJECTED`.
 | `ACCESSORY_SOLD_OUT_ERROR` | 409 | o acessório pedido esgotou (função `reservar`) |
 | `RESERVATION_REJECTED_ERROR` | 409 | o Transicionais recusou a reserva por outra regra (não é vaga nem prazo) |
 | `UPSTREAM_UNAVAILABLE_ERROR` | 503 | o Transicionais não respondeu numa ação da Produção que não tem fila (data, hora, local, abertura) |
-| `NEXT_EVENT_PENDING_ERROR` | 409 | "Encerrar" com o encerramento anterior ainda só no local (D51) |
+| `EVENT_CREATION_PENDING_ERROR` | 409 | "Encerrar" com o encerramento anterior ainda só no local (D51) |
 
 `UNAUTHORIZED_ERROR` (401) vale também para cron e webhook. `SOLD_OUT_ERROR` e
 `BOOKING_CLOSED_ERROR` também vêm da recusa do Transicionais.
@@ -144,7 +144,7 @@ Um `Error` sem `key` no log é bug ou env ausente.
 | `GET /api/minhas-reservas` | — | 200 `[{ id, groupId, groupName, supportIds, accessories: [{ id, name }], email, name, pronoun, sync, syncError }]` | `NOT_FOUND`, `INTERNAL` |
 | `GET /api/admin/resumo` | — | 200 `<resumo>` | igual |
 | `PUT /api/admin/ensaio` | parcial de `{ date, time, location, whatsappUrl, bookingOpen, stocks: [{ id, stockTotal }] }` | 200 `<resumo>` | `UNAUTHORIZED`, `INVALID_PARAMETER`, `NOT_FOUND`, `STOCK_BELOW_RESERVATIONS`, `UPSTREAM_UNAVAILABLE`, `INTERNAL` |
-| `POST /api/admin/novo-ensaio` | — | 200 `<resumo>` | `UNAUTHORIZED`, `NOT_FOUND`, `UPSTREAM_UNAVAILABLE` (só no retrato local da fase 1), `NEXT_EVENT_PENDING`, `INTERNAL` |
+| `POST /api/admin/novo-ensaio` | — | 200 `<resumo>` | `UNAUTHORIZED`, `NOT_FOUND`, `UPSTREAM_UNAVAILABLE` (só no retrato local da fase 1), `EVENT_CREATION_PENDING`, `INTERNAL` |
 | `GET /api/cron/event` | `Authorization: Bearer <CRON_SECRET>` | 200 `{ changed }` | `UNAUTHORIZED`, `INTERNAL` |
 | `GET /api/cron/sync?type=nextEvent\|stock\|booking` | `Authorization: Bearer <CRON_SECRET>` | 200 `{ claimed, synced, rejected, pending, manualRetry }` do contexto | `UNAUTHORIZED`, `INVALID_PARAMETER` (`type`), `NOT_FOUND`, `INTERNAL` |
 | `POST /api/webhooks/transicionais` | `Authorization: Bearer <JWT>` + envelope | 204 | `UNAUTHORIZED`, `INVALID_PARAMETER`, `INTERNAL` |
@@ -197,13 +197,13 @@ Sem mudança de comportamento nas rotas (as respostas foram comparadas com `diff
 | Peça | Onde | O que mudou |
 |---|---|---|
 | Formato cru das fontes | `repos/<fonte>/responses/*.response.ts` e `requests/*.request.ts` | schema zod + `toDomain`/`fromDomain`. Saíram os `IRaw*` de `interfaces/` e os `mapper*` dos repos. A resposta é validada por `parseResponse` (fora do formato: `INVALID_RESPONSE_ERROR`); o corpo do webhook, por `parseInput` (400). |
-| Models novos | `models/` | `EventDay`, `EventPublication`, `GroupVacancy`, `ManagedEvent`, `SupportType` (com `SupportTypeKind`) e os do webhook. |
-| Conta das vagas | `models/current-event.ts` | métodos de `Group` e `Support` que recebem as reservas: `countTaken`, `available`, `soldOut`, `isBelowBookings` (D29). `CurrentEvent` ganhou `findSupport`, `findStock` (o estoque ajustável pelo id da assistência) e `goingBookings`. |
-| Respostas das rotas | `models/` + `usecases/<contexto>/mappers/` | a resposta é model: `EventView` (`<ensaio>`, com `EventInstrument` e `EventAccessory`), `CurrentEventSummary` (`<resumo>`, com `AdminEvent`, `StockItem`, `StockBooking` e `AdminBooking`) e `UserBooking` (`minhas-reservas`, com `UserBookingAccessory`). Montados por `event-view.mapper.ts`, `current-event-summary.mapper.ts` e `my-reservation.mapper.ts`, que só formatam. O JSON é o mesmo de antes. O `usecases/event-summary.ts` deixou de existir. |
+| Models novos | `models/` | `EventDay`, `PublicationSettings`, `GroupCapacity`, `ManagedEvent`, `LoanCatalog` (com `LoanCatalogKind`) e os do webhook. |
+| Conta das vagas | `models/current-event.ts` | métodos de `Instrument` e `Accessory` que recebem as reservas: `countTaken`, `available`, `soldOut`, `isBelowBookings` (D29). `CurrentEvent` ganhou `findAccessory`, `findStock` (o estoque ajustável pelo id da assistência) e `goingBookings`. |
+| Respostas das rotas | `models/` + `usecases/<contexto>/mappers/` | a resposta é model: `PublicEvent` (`<ensaio>`, com `PublicInstrument` e `PublicAccessory`), `CurrentEventSummary` (`<resumo>`, com `SummaryEvent`, `SummaryStockItem`, `SummaryStockBooking` e `SummaryAttendance`) e `UserBooking` (`minhas-reservas`, com `UserBookingAccessory`). Montados por `public-event.mapper.ts`, `current-event-summary.mapper.ts` e `my-reservation.mapper.ts`, que só formatam. O JSON é o mesmo de antes. O `usecases/event-summary.ts` deixou de existir. |
 | Ids do Transicionais | `repos/transicionais/transicionais-id.ts` | `TransicionaisIdSchema` (número ou texto → `string`) e `numericId` (`string` → número, na ida). |
 | Regra fora do repo | usecases | o repo só faz I/O (R12): o "primeiro encontro de hoje" e a data de busca do `findManagedEvent(ref, from)` vêm do usecase; o envio da reserva devolve o aceito ou lança, e o `SyncingUserBookingUsecase` escolhe o `SyncMode` (tabela do envio). |
 | Log | `lib/logger.ts` | uma linha JSON por registro (`level`, `time`, `scope`, campos, `msg`; o erro em `err`, com `key` e `source` no `InfraError`). Substitui os `console.*`. |
-| Conjuntos fechados | enums | `HttpMethod`, `SupportTypeKind` (também o `type` do `stock[]` do `<resumo>`), `BookingSync`, `SyncMode` etc. Os textos não mudaram. |
+| Conjuntos fechados | enums | `HttpMethod`, `LoanCatalogKind` (também o `type` do `stock[]` do `<resumo>`), `BookingSync`, `SyncMode` etc. Os textos não mudaram. |
 
 ### Nomes e pastas (2026-10-26)
 
@@ -211,10 +211,30 @@ Sem mudança de rota, JSON, key de erro nem tabela/função SQL.
 
 | Peça | Antes | Agora |
 |---|---|---|
-| Reserva e presença | `Attendance`, `AdminAttendance`, `MyReservation`, `StockReservation`, `AttendanceSync`… | `Booking`, `AdminBooking`, `UserBooking`, `StockBooking`, `BookingSync`… (a linha de `hg_attendances`) |
+| Reserva e presença | `Attendance`, `AdminAttendance`, `MyReservation`, `StockReservation`, `AttendanceSync`… | `Booking`, `SummaryAttendance`, `UserBooking`, `SummaryStockBooking`, `BookingSync`… (a linha de `hg_attendances`) |
 | Resumo da Produção | `AdminSummary` | `CurrentEventSummary` |
 | Usecases | `reserve`, `cancel-reservation`, `list-my-reservations`, `send-attendance`, `sync-pending-attendances`, `get-event`, `admin-summary`, `update-event`, `new-event`, `refresh-current-event`, `receive-transicionais-webhook` | gerúndio + objeto, por contexto: `booking/` (`creating-user-booking`, `canceling-user-booking`, `finding-user-bookings`), `event/` (`finding-current-event`, `finding-current-event-summary`, `updating-current-event`, `creating-next-event`) e `sync/` (`receiving-current-event`, `syncing-next-event-pending`, `syncing-stock-pending`, `syncing-booking-pending`, `syncing-user-booking`, `receiving-transicionais-webhook`). `syncing-*` envia ao Transicionais; `receiving-*` recebe de lá. |
 | Mappers | `usecases/mappers/` | `usecases/<contexto>/mappers/` |
+
+### Renomeação dos models (2026-10-26, migration `0011_renomeacao.sql`)
+
+O JSON das rotas não muda, exceto a key de erro `NEXT_EVENT_PENDING_ERROR` → `EVENT_CREATION_PENDING_ERROR`
+(o `app.js` acompanha). Mudam as tabelas e funções da fila, os `kind` e as chaves do jsonb do retrato.
+
+| Antes | Agora |
+|---|---|
+| `AdminBooking`, `AdminEvent`, `StockItem`, `StockBooking` | `SummaryAttendance`, `SummaryEvent`, `SummaryStockItem`, `SummaryStockBooking` |
+| `EventView`, `EventInstrument`, `EventAccessory`, `EventViewMapper` | `PublicEvent`, `PublicInstrument`, `PublicAccessory`, `PublicEventMapper` |
+| `Group`, `Support` (em `current-event.ts`); `CurrentEvent.groups`, `supports`, `findGroup`, `supportsForGroup`, `findSupport` | `Instrument`, `Accessory`; `instruments`, `accessories`, `findInstrument`, `accessoriesForInstrument`, `findAccessory`. Os ids (`groupId`, `supportIds`, `instrumentSupportId`) ficam. |
+| `EventSnapshot`, `EventPublication`, `GroupVacancy` | `CurrentEventSnapshot`, `PublicationSettings`, `GroupCapacity` |
+| `SupportType` (`SupportTypeKind`) | `LoanCatalog` (`LoanCatalogKind`); repo: `findLoanCatalog`, `saveLoanCatalog` |
+| `PendingWrite` (`PendingWriteKind`, `PendingWriteMode`), `PendingSupportCapacity`, `PendingNextEvent` | `PendingSync` (`PendingSyncKind`, `PendingSyncMode`), `PendingStockUpdate`, `PendingEventCreation` |
+| `NextEventPendingError` | `EventCreationPendingError` |
+| `hg_pending_writes`, `claim_escritas`, `marcar_escrita`; `kind` `SUPPORT_CAPACITY`/`NEXT_EVENT`; erro SQL `NEXT_EVENT_PENDING`; `encerrar_local(p_data, p_write)` | `hg_pending_syncs`, `claim_syncs`, `marcar_sync_pendente`; `STOCK_UPDATE`/`EVENT_CREATION`; `EVENT_CREATION_PENDING`; `encerrar_local(p_data, p_sync)` |
+| jsonb do retrato e `p_taken`: `groups`, `supports` | `instruments`, `accessories` (a 0011 converte os gravados) |
+
+Ficam: `Booking`, `CurrentEvent`, `CurrentEventSummary`, `EventDay`, `ManagedEvent`, `UserBooking`,
+`UserBookingAccessory`, `User`, os nomes dos usecases e o `--type` do cron.
 
 ## Tradução Hormônios ↔ Transicionais
 
@@ -333,7 +353,7 @@ constante. Para chamar à mão: `yarn cron:event` e `yarn cron:sync --type=<next
 | Nenhum encontro Público de hoje em diante | Igual a fora do ar: fica o último retrato, `stale: true`, e um aviso no log. |
 | Transicionais fora na reserva ou no "Não vou" | A linha fica `PENDING` contra as vagas do retrato. O cron envia depois. |
 | Vaga tomada lá enquanto ele estava fora | O envio volta recusado, a linha continua `PENDING` (volta na próxima chamada do cron, D46) e a `key` vai para o log (D44). |
-| Transicionais fora no estoque | Vai para a fila (`SUPPORT_CAPACITY`) e o retrato já mostra o valor novo. O cron envia depois; recusado, volta o valor de lá (D52, D53). |
+| Transicionais fora no estoque | Vai para a fila (`STOCK_UPDATE`) e o retrato já mostra o valor novo. O cron envia depois; recusado, volta o valor de lá (D52, D53). |
 | Transicionais fora no "Encerrar" | O próximo nasce só no local (fechado) e o cron o cria lá. Até lá, o retrato local é a verdade, o "Salvar" só aceita estoque e WhatsApp, e outro "Encerrar" dá 409 (D51). |
 | Transicionais fora em data, hora, local ou abertura | 503 `UPSTREAM_UNAVAILABLE_ERROR`. Repetir é seguro (D12). |
 | Webhook perdido | O cron de 5 min corrige o retrato. A resposta de cada envio corrige a reserva. |

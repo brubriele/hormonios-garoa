@@ -1,10 +1,10 @@
 import type { ErrorKey } from "../errors/app-error";
 import type { ApplyValidationResult, Booking, BookingAnswer, SyncMode } from "../models/booking";
 import type { CurrentEvent } from "../models/current-event";
-import type { EventSnapshot } from "../models/event-snapshot";
-import type { PendingNextEvent } from "../models/pending-next-event";
-import type { PendingSupportCapacity } from "../models/pending-support-capacity";
-import type { PendingWriteMode } from "../models/pending-write";
+import type { CurrentEventSnapshot } from "../models/current-event-snapshot";
+import type { PendingEventCreation } from "../models/pending-event-creation";
+import type { PendingStockUpdate } from "../models/pending-stock-update";
+import type { PendingSyncMode } from "../models/pending-sync";
 import type { User } from "../models/user";
 import type { ITransicionaisErrorCause } from "./transicionais";
 import type { UUID } from "./uuid";
@@ -102,8 +102,8 @@ export interface IApplyValidationData {
 export interface ISaveVacanciesData {
   dayKey: string;
   vacanciesAt: string;
-  groups: Record<string, number>;
-  supports: Record<string, number>;
+  instruments: Record<string, number>;
+  accessories: Record<string, number>;
 }
 
 // estoque com o Transicionais fora (D53): enfileira e grava o retrato já com ele
@@ -121,15 +121,15 @@ export interface ICloseEventLocallyData {
   fromDate: string; // YYYY-MM-DD
 }
 
-export interface IClaimPendingWritesFilter {
+export interface IClaimPendingSyncsFilter {
   limit: number;
 }
 
-// resultado de um envio da fila da Produção, gravado só se a linha ainda é a enviada (marcar_escrita)
-export interface IMarkWriteData {
+// resultado de um envio da fila da Produção, gravado só se a linha ainda é a enviada (marcar_sync_pendente)
+export interface IMarkPendingSyncData {
   id: UUID;
   updatedAt: string; // o lido antes do envio
-  mode: PendingWriteMode;
+  mode: PendingSyncMode;
   error: ErrorKey | null; // key do Hormônios, só no REJECTED
   errorCause: ITransicionaisErrorCause | null; // o erro do Transicionais como veio (D50); null = sem resposta
 }
@@ -143,7 +143,7 @@ export interface IHormoniosRepo {
   findCurrentEvent(): Promise<CurrentEvent | null>;
   findCurrentEventOrFail(): Promise<CurrentEvent>;
   // grava o retrato com a trava; true quando trocou
-  saveSnapshot(snapshot: EventSnapshot): Promise<boolean>;
+  saveSnapshot(snapshot: CurrentEventSnapshot): Promise<boolean>;
   // grava o erro da leitura do encontro na linha do retrato e, com manualRetry, o MANUAL_RETRY (D50)
   markEventError(data: IMarkEventErrorData): Promise<void>;
   saveWhatsappUrl(url: string): Promise<void>;
@@ -161,16 +161,16 @@ export interface IHormoniosRepo {
   markSync(data: IMarkSyncData): Promise<boolean>;
   // fila da Produção (D51–D53). A troca da pendente e a trava do retrato ficam na função SQL
   savePendingCapacity(data: ISavePendingCapacityData): Promise<void>;
-  // já há um encerramento aberto: NextEventPendingError
+  // já há um encerramento aberto: EventCreationPendingError
   closeEventLocally(data: ICloseEventLocallyData): Promise<void>;
   // o encerramento ainda não criado no Transicionais (PENDING ou MANUAL_RETRY); null = nenhum
-  findOpenNextEvent(): Promise<PendingNextEvent | null>;
-  listPendingCapacities(): Promise<PendingSupportCapacity[]>;
-  // as pendentes vencidas de cada tipo, com o next_attempt_at adiado (claim_escritas)
-  claimPendingCapacities(filter: IClaimPendingWritesFilter): Promise<PendingSupportCapacity[]>;
-  claimPendingNextEvents(filter: IClaimPendingWritesFilter): Promise<PendingNextEvent[]>;
+  findOpenNextEvent(): Promise<PendingEventCreation | null>;
+  listPendingCapacities(): Promise<PendingStockUpdate[]>;
+  // as pendentes vencidas de cada tipo, com o next_attempt_at adiado (claim_syncs)
+  claimPendingCapacities(filter: IClaimPendingSyncsFilter): Promise<PendingStockUpdate[]>;
+  claimPendingNextEvents(filter: IClaimPendingSyncsFilter): Promise<PendingEventCreation[]>;
   // true quando gravou (a linha não mudou durante o envio)
-  markWrite(data: IMarkWriteData): Promise<boolean>;
+  markPendingSync(data: IMarkPendingSyncData): Promise<boolean>;
   // em rascunho: webhook do Transicionais, ainda não revisado pela Bea. Não usar até a revisão.
   /** @deprecated Em rascunho, aguardando revisão (webhook do Transicionais). */
   applyValidation(data: IApplyValidationData): Promise<ApplyValidationResult>;
