@@ -1,4 +1,10 @@
-import { InvalidParameterError } from "../errors/app-error";
+import { z } from "zod";
+import { CountSchema, NonBlankSchema, validateSchema } from "./model-schema";
+
+const GroupVacancySchema = z.object({
+  groupId: NonBlankSchema,
+  total: CountSchema.nullable(),
+});
 
 // vagas (pessoas) de um grupo na publicação do encontro; o estoque é das assistências (E2.9)
 export class GroupVacancy {
@@ -10,12 +16,6 @@ export class GroupVacancy {
   }
 
   private validate() {
-    if (typeof this.groupId !== "string" || this.groupId.trim() === "") {
-      throw new InvalidParameterError("Field groupVacancy.groupId is invalid");
-    }
-
-    if (this.total !== null && (!Number.isInteger(this.total) || this.total < 0)) {
-      throw new InvalidParameterError("Field groupVacancy.total is invalid");
-    }
+    validateSchema(GroupVacancySchema, this, "groupVacancy");
   }
 }

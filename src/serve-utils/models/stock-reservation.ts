@@ -1,4 +1,11 @@
-import { InvalidParameterError } from "../errors/app-error";
+import { z } from "zod";
+import { validateSchema } from "./model-schema";
+
+const StockReservationSchema = z.object({
+  name: z.string(),
+  pronoun: z.string(),
+  detail: z.string(),
+});
 
 // quem reservou um item do estoque, no resumo da Produção (D30, D31)
 export class StockReservation {
@@ -11,8 +18,6 @@ export class StockReservation {
   }
 
   private validate() {
-    if (typeof this.name !== "string" || typeof this.pronoun !== "string" || typeof this.detail !== "string") {
-      throw new InvalidParameterError("Field stockReservation is invalid");
-    }
+    validateSchema(StockReservationSchema, this, "stockReservation");
   }
 }

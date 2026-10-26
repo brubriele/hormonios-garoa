@@ -1,5 +1,17 @@
-import { InvalidParameterError } from "../errors/app-error";
+import { z } from "zod";
 import { StockItem } from "./stock-item";
+import { CountSchema, NonBlankSchema, validateSchema } from "./model-schema";
+
+const AdminEventSchema = z.object({
+  dayKey: NonBlankSchema,
+  date: z.string(),
+  time: z.string(),
+  location: z.string(),
+  bookingOpen: z.boolean(),
+  whatsappUrl: z.string(),
+  goingCount: CountSchema,
+  stock: z.array(z.instanceof(StockItem)),
+});
 
 // o ensaio no resumo da Produção: o retrato com o estoque (instrumentos e depois acessórios)
 export class AdminEvent {
@@ -17,28 +29,6 @@ export class AdminEvent {
   }
 
   private validate() {
-    if (typeof this.dayKey !== "string" || this.dayKey.trim() === "") {
-      throw new InvalidParameterError("Field adminEvent.dayKey is invalid");
-    }
-
-    if (typeof this.date !== "string" || typeof this.time !== "string" || typeof this.location !== "string") {
-      throw new InvalidParameterError("Field adminEvent.date, time or location is invalid");
-    }
-
-    if (typeof this.bookingOpen !== "boolean") {
-      throw new InvalidParameterError("Field adminEvent.bookingOpen is invalid");
-    }
-
-    if (typeof this.whatsappUrl !== "string") {
-      throw new InvalidParameterError("Field adminEvent.whatsappUrl is invalid");
-    }
-
-    if (!Number.isInteger(this.goingCount) || this.goingCount < 0) {
-      throw new InvalidParameterError("Field adminEvent.goingCount is invalid");
-    }
-
-    if (!Array.isArray(this.stock) || this.stock.some((item) => !(item instanceof StockItem))) {
-      throw new InvalidParameterError("Field adminEvent.stock is invalid");
-    }
+    validateSchema(AdminEventSchema, this, "adminEvent");
   }
 }

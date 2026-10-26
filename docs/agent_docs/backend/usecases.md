@@ -14,19 +14,26 @@
 | U8 | **A regra de negócio é do usecase**, não do repo: escolher entre itens, decidir pelo estado, orquestrar chamadas e o plano de falha (o `catch` de `UpstreamUnavailableError`). O repo só oferece operações simples ([`repos.md`](repos.md), R12). |
 | U6 | Cada passo é um método privado (`find<Fonte><Nome>`) que devolve o que buscou. |
 | U7 | Validações são `private validate<Condição>`, logo abaixo do passo que validam. As do usecase todo ficam no começo do `_execute`. |
+| U10 | **Todo usecase que recebe `input` o valida inteiro por um schema zod**, porque a rota não valida nada ([`api.md`](api.md), A7): o corpo, o `deviceId`, o `ip`, os models recebidos (`z.instanceof(Attendance)`). O schema é `const <Usecase>InputSchema = z.object({...})`, no topo do arquivo, e o `private validateInput(input)`, primeira linha do `_execute`, só chama `validateSchema(<Usecase>InputSchema, input)` (`models/model-schema.ts`, com os schemas comuns `NonBlankSchema`, `UuidSchema`, `CountSchema`...). Vale também para um formato interno conferido antes de ir à fonte (ex.: `CapacityChangeSchema`). Campo que pode faltar é `.optional()`; regra entre campos, `.refine(fn, { path, message })`. Nada de `if (typeof input.x …) throw`. O `check.cjs` acusa usecase com `execute(input)` sem `validateSchema` (`usecase-input-schema`) e `typeof input` (`usecase-manual-validate`). A validação **pelo estado** (o encontro, o estoque, as reservas: `validateBookingOpen`, `validateStocksExist`) continua com `if` e o erro de domínio: é regra de negócio (U8). |
 | U9 | **Mapper:** quando a saída de uma rota junta models de **domínios distintos** (ex.: o ensaio e as reservas), ela é montada por um mapper em `usecases/mappers/<nome>.mapper.ts`, **um por arquivo** (uma classe `<Nome>Mapper` com `static toView(...)`). **A saída do mapper é o retorno do usecase, então é model:** uma classe em `models/` (M1–M8: campos `readonly` no construtor e `validate()`), como `EventView`, `AdminSummary` e `StockItem`. O mapper devolve `new EventView(...)`; **nada de interface de saída solta** (`I<Nome>View`) no usecase ou no mapper. O mapper **só formata**: sem regra nem conta. A regra de um domínio (a conta das vagas, `soldOut`) é método do model de origem, que recebe o que precisa (`group.available(attendances)`). O motivo do mapper é um model não importar o model de outro domínio para montar a saída. A rota responde `{ body: <model> }`: o JSON são os campos `readonly` do construtor, então o model de saída não tem campo a mais, getter nem campo privado que mude o JSON. O `check.cjs` acusa mapper fora da pasta (`mapper-location`). |
 
 ## Exemplo
 
 ```ts
 // src/serve-utils/usecases/find-event.ts
-import { AppError, InvalidParameterError } from "../errors/app-error";
+import { z } from "zod";
+import { AppError } from "../errors/app-error";
 import { createLogger } from "../lib/logger";
 import type { BasicEvent } from "../models/basic-event";
+import { NonBlankSchema, validateSchema } from "../models/model-schema";
 import type { ITransicionaisRepo } from "../interfaces/transicionais";
 import type { UUID } from "../interfaces/uuid";
 
 const logger = createLogger("FindEventUsecase");
+
+const FindEventInputSchema = z.object({
+  id: NonBlankSchema,
+});
 
 export interface IFindEventInput {
   id: UUID;
@@ -56,9 +63,7 @@ export class FindEventUsecase {
   }
 
   private validateInput(input: IFindEventInput) {
-    if (!input.id) {
-      throw new InvalidParameterError("Field id is required");
-    }
+    validateSchema(FindEventInputSchema, input); // U10
   }
 
   private async findTransicionaisEvent(id: UUID): Promise<BasicEvent> {

@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   AppError,
   InvalidParameterError,
@@ -14,6 +15,7 @@ import { CurrentEvent } from "../models/current-event";
 import type { EventDay } from "../models/event-day";
 import { EventPublication } from "../models/event-publication";
 import { GroupVacancy } from "../models/group-vacancy";
+import { CountSchema, NonBlankSchema, validateSchema } from "../models/model-schema";
 import type { ManagedEvent } from "../models/managed-event";
 import type { IHormoniosRepo } from "../interfaces/hormonios";
 import type { IEventChanges, IEventRef, ITransicionaisRepo } from "../interfaces/transicionais";
@@ -82,9 +84,26 @@ export function buildPublication(event: ManagedEvent, open: boolean): EventPubli
   );
 }
 
-const TEXT_FIELDS = ["date", "time", "location", "whatsappUrl"] as const;
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const TIME_PATTERN = /^\d{2}:\d{2}$/;
+// o Transicionais grava YYYY-MM-DD e HH:mm (o front já manda assim); vazio = não muda
+const UpdateEventInputSchema = z.object({
+  date: z.string().regex(/^(\d{4}-\d{2}-\d{2})?$/).optional(),
+  time: z.string().regex(/^(\d{2}:\d{2})?$/).optional(),
+  location: z.string().optional(),
+  whatsappUrl: z.string().optional(),
+  bookingOpen: z.boolean().optional(),
+  stocks: z
+    .array(z.object({ id: NonBlankSchema, stockTotal: CountSchema }))
+    .refine((stocks) => new Set(stocks.map((stock) => stock.id)).size === stocks.length, {
+      message: "has a repeated id",
+    })
+    .optional(),
+});
+
+// o id de assistência no Transicionais é numérico
+const CapacityChangeSchema = z.object({
+  supportId: z.string().refine((id) => Number.isInteger(Number(id)) && Number(id) > 0),
+  capacity: CountSchema,
+});
 
 // "Salvar ensaio" (E2.5): o whatsappUrl grava local; o resto vai para o Transicionais
 export class UpdateEventUsecase {
@@ -141,47 +160,7 @@ export class UpdateEventUsecase {
   }
 
   private validateInput(input: IUpdateEventInput) {
-    for (const field of TEXT_FIELDS) {
-      if (input[field] !== undefined && typeof input[field] !== "string") {
-        throw new InvalidParameterError(`Field ${field} is invalid`);
-      }
-    }
-
-    // o Transicionais grava YYYY-MM-DD e HH:mm (o front já manda assim); vazio = não muda
-    if (input.date && !DATE_PATTERN.test(input.date)) {
-      throw new InvalidParameterError("Field date is invalid");
-    }
-
-    if (input.time && !TIME_PATTERN.test(input.time)) {
-      throw new InvalidParameterError("Field time is invalid");
-    }
-
-    if (input.bookingOpen !== undefined && typeof input.bookingOpen !== "boolean") {
-      throw new InvalidParameterError("Field bookingOpen is invalid");
-    }
-
-    if (input.stocks === undefined) {
-      return;
-    }
-
-    if (!Array.isArray(input.stocks)) {
-      throw new InvalidParameterError("Field stocks is invalid");
-    }
-
-    for (const stock of input.stocks) {
-      if (
-        typeof stock?.id !== "string"
-        || stock.id.trim() === ""
-        || !Number.isInteger(stock.stockTotal)
-        || stock.stockTotal < 0
-      ) {
-        throw new InvalidParameterError("Field stocks is invalid");
-      }
-    }
-
-    if (new Set(input.stocks.map((stock) => stock.id)).size !== input.stocks.length) {
-      throw new InvalidParameterError("Field stocks has a repeated id");
-    }
+    validateSchema(UpdateEventInputSchema, input);
   }
 
   // retrato local da fase 1: lê o Transicionais antes (e migra as reservas)
@@ -282,15 +261,7 @@ export class UpdateEventUsecase {
   }
 
   private validateCapacityChange(change: ICapacityChange) {
-    const id = Number(change.supportId);
-
-    if (!Number.isInteger(id) || id <= 0) {
-      throw new InvalidParameterError("Field supportId is invalid");
-    }
-
-    if (!Number.isInteger(change.capacity) || change.capacity < 0) {
-      throw new InvalidParameterError("Field stockTotal is invalid");
-    }
+    validateSchema(CapacityChangeSchema, change);
   }
 
   // só o que mudou em relação ao retrato; null = nada vai ao Transicionais

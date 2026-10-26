@@ -1,5 +1,14 @@
-import { InvalidParameterError } from "../errors/app-error";
+import { z } from "zod";
 import { CurrentEvent } from "./current-event";
+import { DateTimeSchema, NonBlankSchema, validateSchema } from "./model-schema";
+
+const EventSnapshotSchema = z.object({
+  externalId: NonBlankSchema,
+  version: z.number().int(),
+  hash: NonBlankSchema.nullable(),
+  vacanciesAt: DateTimeSchema,
+  event: z.instanceof(CurrentEvent),
+});
 
 // retrato do encontro lido do Transicionais, com o que a trava precisa (R13)
 export class EventSnapshot {
@@ -14,24 +23,6 @@ export class EventSnapshot {
   }
 
   private validate() {
-    if (typeof this.externalId !== "string" || this.externalId.trim() === "") {
-      throw new InvalidParameterError("Field externalId is invalid");
-    }
-
-    if (!Number.isInteger(this.version)) {
-      throw new InvalidParameterError("Field version is invalid");
-    }
-
-    if (this.hash !== null && (typeof this.hash !== "string" || this.hash.trim() === "")) {
-      throw new InvalidParameterError("Field hash is invalid");
-    }
-
-    if (typeof this.vacanciesAt !== "string" || Number.isNaN(Date.parse(this.vacanciesAt))) {
-      throw new InvalidParameterError("Field vacanciesAt is invalid");
-    }
-
-    if (!(this.event instanceof CurrentEvent)) {
-      throw new InvalidParameterError("Field event is invalid");
-    }
+    validateSchema(EventSnapshotSchema, this);
   }
 }

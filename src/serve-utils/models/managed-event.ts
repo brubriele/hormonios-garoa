@@ -1,8 +1,20 @@
-import { InvalidParameterError } from "../errors/app-error";
+import { z } from "zod";
 import { EventDay } from "./event-day";
 import { EventPublication } from "./event-publication";
+import { DateOnlySchema, DateTimeSchema, NonBlankSchema, validateSchema } from "./model-schema";
 
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const ManagedEventSchema = z.object({
+  id: NonBlankSchema,
+  name: NonBlankSchema,
+  startDate: DateOnlySchema,
+  endDate: DateOnlySchema,
+  categoryId: NonBlankSchema.nullable(),
+  createdAt: DateTimeSchema,
+  version: z.number().int(),
+  groupIds: z.array(NonBlankSchema),
+  days: z.array(z.instanceof(EventDay)),
+  publication: z.instanceof(EventPublication).nullable(),
+});
 
 // o encontro como a Produção o edita no Transicionais (a visão de manager): o id interno, a version das
 // escritas, o intervalo, o ciclo, os grupos, os dias e a publicação
@@ -23,40 +35,6 @@ export class ManagedEvent {
   }
 
   private validate() {
-    if (typeof this.id !== "string" || this.id.trim() === "") {
-      throw new InvalidParameterError("Field event.id is invalid");
-    }
-
-    if (typeof this.name !== "string" || this.name.trim() === "") {
-      throw new InvalidParameterError("Field event.name is invalid");
-    }
-
-    if (!DATE_PATTERN.test(this.startDate) || !DATE_PATTERN.test(this.endDate)) {
-      throw new InvalidParameterError("Field event.startDate is invalid");
-    }
-
-    if (this.categoryId !== null && (typeof this.categoryId !== "string" || this.categoryId.trim() === "")) {
-      throw new InvalidParameterError("Field event.categoryId is invalid");
-    }
-
-    if (typeof this.createdAt !== "string" || Number.isNaN(Date.parse(this.createdAt))) {
-      throw new InvalidParameterError("Field event.createdAt is invalid");
-    }
-
-    if (!Number.isInteger(this.version)) {
-      throw new InvalidParameterError("Field event.version is invalid");
-    }
-
-    if (!Array.isArray(this.groupIds) || this.groupIds.some((id) => typeof id !== "string" || id.trim() === "")) {
-      throw new InvalidParameterError("Field event.groupIds is invalid");
-    }
-
-    if (!Array.isArray(this.days) || this.days.some((day) => !(day instanceof EventDay))) {
-      throw new InvalidParameterError("Field event.days is invalid");
-    }
-
-    if (this.publication !== null && !(this.publication instanceof EventPublication)) {
-      throw new InvalidParameterError("Field event.publication is invalid");
-    }
+    validateSchema(ManagedEventSchema, this, "event");
   }
 }

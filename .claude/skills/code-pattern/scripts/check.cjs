@@ -26,7 +26,8 @@ const LINE_RULES = [
   {
     id: "safe-parse",
     doc: "requests-responses.md RR7",
-    applies: (file) => file !== "src/serve-utils/repos/parse-response.ts",
+    applies: (file) =>
+      file !== "src/serve-utils/repos/parse-response.ts" && file !== "src/serve-utils/models/model-schema.ts",
     pattern: /\.safeParse\(/,
     message: "valide com parseResponse(schema, raw, source, operation)",
   },
@@ -44,6 +45,20 @@ const LINE_RULES = [
     applies: (file) => /^src\/serve-utils\/repos\/[^/]+\/repo\.ts$/.test(file),
     pattern: /\?\?\s*(\[\]|""|''|null|\{\}|0\b|false\b)|\.\.\.\(/,
     message: "montar corpo ou model é do request/response (fromDomain/toDomain), não do repo",
+  },
+  {
+    id: "model-manual-validate",
+    doc: "models.md M3",
+    applies: (file) => file.startsWith("src/serve-utils/models/") && file !== "src/serve-utils/models/model-schema.ts",
+    pattern: /throw new InvalidParameterError\(/,
+    message: "o model se valida pelo schema zod: validateSchema(<Model>Schema, this, \"<prefixo>\")",
+  },
+  {
+    id: "usecase-manual-validate",
+    doc: "usecases.md U10",
+    applies: (file) => file.startsWith("src/serve-utils/usecases/"),
+    pattern: /\btypeof\s+(input|change)\b/,
+    message: "o formato da entrada é um schema zod: validateSchema(<Usecase>InputSchema, input)",
   },
   {
     id: "throw-error",
@@ -212,6 +227,30 @@ function checkMappers(sources) {
   });
 }
 
+// a rota não valida a entrada: todo usecase que recebe input a valida pelo schema (U10)
+function checkUsecaseInputs(sources) {
+  return sources.flatMap(({ file, lines }) => {
+    if (!/^src\/serve-utils\/usecases\/[^/]+\.ts$/.test(file)) {
+      return [];
+    }
+
+    const index = lines.findIndex((line) => /async execute\(input\b/.test(line));
+
+    if (index === -1 || lines.some((line) => /validateSchema\(/.test(line)) || isIgnored(lines, index, "usecase-input-schema")) {
+      return [];
+    }
+
+    return [{
+      file,
+      line: index + 1,
+      rule: "usecase-input-schema",
+      doc: "usecases.md U10",
+      message: "o usecase recebe input e não o valida: validateInput com validateSchema(<Usecase>InputSchema, input)",
+      code: lines[index].trim(),
+    }];
+  });
+}
+
 function main() {
   const targets = process.argv.slice(2);
   const files = [...new Set((targets.length ? targets : DEFAULT_TARGETS).flatMap(listFiles))];
@@ -224,6 +263,7 @@ function main() {
     ...sources.flatMap(({ file, lines }) => checkLines(file, lines)),
     ...checkDuplicateHelpers(sources),
     ...checkMappers(sources),
+    ...checkUsecaseInputs(sources),
   ].sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
 
   if (findings.length === 0) {

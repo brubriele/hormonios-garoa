@@ -1,14 +1,19 @@
-import { InvalidParameterError } from "../errors/app-error";
+import { z } from "zod";
+import { DateOnlySchema, NonBlankSchema, validateSchema } from "./model-schema";
 
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-
-function isOptionalText(value: string | null): boolean {
-  return value === null || typeof value === "string";
-}
-
-function isOptionalInteger(value: number | null): boolean {
-  return value === null || Number.isInteger(value);
-}
+const EventDaySchema = z.object({
+  id: NonBlankSchema.nullable(),
+  date: DateOnlySchema,
+  active: z.boolean(),
+  startTime: z.string().nullable(),
+  endTime: z.string().nullable(),
+  eventId: z.string().nullable(),
+  kind: z.string().nullable(),
+  weekOfYear: z.number().int().nullable(),
+  dayOfWeek: z.number().int().nullable(),
+  utcDayOfWeek: z.number().int().nullable(),
+  inMemory: z.boolean().nullable(),
+});
 
 // dia de um encontro no Transicionais (D7). Os campos do calendário (kind, weekOfYear...) só voltam
 // como vieram no salvamento dos dias; null = não veio
@@ -60,32 +65,6 @@ export class EventDay {
   }
 
   private validate() {
-    if (this.id !== null && (typeof this.id !== "string" || this.id.trim() === "")) {
-      throw new InvalidParameterError("Field day.id is invalid");
-    }
-
-    if (typeof this.date !== "string" || !DATE_PATTERN.test(this.date)) {
-      throw new InvalidParameterError("Field day.date is invalid");
-    }
-
-    if (typeof this.active !== "boolean") {
-      throw new InvalidParameterError("Field day.active is invalid");
-    }
-
-    if (!isOptionalText(this.startTime) || !isOptionalText(this.endTime)) {
-      throw new InvalidParameterError("Field day.time is invalid");
-    }
-
-    if (!isOptionalText(this.eventId) || !isOptionalText(this.kind)) {
-      throw new InvalidParameterError("Field day.eventId is invalid");
-    }
-
-    if (!isOptionalInteger(this.weekOfYear) || !isOptionalInteger(this.dayOfWeek) || !isOptionalInteger(this.utcDayOfWeek)) {
-      throw new InvalidParameterError("Field day.weekOfYear is invalid");
-    }
-
-    if (this.inMemory !== null && typeof this.inMemory !== "boolean") {
-      throw new InvalidParameterError("Field day.inMemory is invalid");
-    }
+    validateSchema(EventDaySchema, this, "day");
   }
 }

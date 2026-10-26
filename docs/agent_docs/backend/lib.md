@@ -10,7 +10,7 @@ procure aqui: helper repetido em dois arquivos é erro de revisão.
 | # | Regra |
 |---|---|
 | L1 | Um arquivo por assunto (`date.ts`, `upstream.ts`, `logger.ts`), com funções exportadas e sem estado. |
-| L2 | Nada de lib externa (zod, supabase-js). O helper que usa o zod fica junto de quem o usa (ex.: `repos/parse-response.ts`). |
+| L2 | Nada de lib externa (zod, supabase-js). O helper que usa o zod fica junto de quem o usa (ex.: `repos/parse-response.ts`, `models/model-schema.ts`). |
 | L3 | Não existe pasta de validações. A validação é do zod, no schema de quem a usa ([`requests-responses.md`](requests-responses.md)). |
 | L4 | **Log só pelo logger:** `const logger = createLogger("<Escopo>")` no topo do arquivo. Nada de `console.*` fora de `lib/logger.ts`. |
 | L5 | `logger.warn(campos, msg)` para dado ignorado ou situação esperada (instrumento sem grupo, encontro não achado). `logger.error({ err }, msg)` para falha. O erro vai sempre no campo `err`. |

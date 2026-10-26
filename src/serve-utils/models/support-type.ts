@@ -1,10 +1,23 @@
-import { InvalidParameterError } from "../errors/app-error";
+import { z } from "zod";
+import { CountSchema, NonBlankSchema, validateSchema } from "./model-schema";
 
 // tipo da assistência: o instrumento emprestado ou um acessório dele (E2.9)
 export enum SupportTypeKind {
   Instrument = "instrumento",
   Accessory = "acessorio",
 }
+
+const SupportTypeSchema = z.object({
+  id: NonBlankSchema,
+  title: NonBlankSchema,
+  description: z.string().nullable(),
+  active: z.boolean(),
+  capacity: CountSchema.nullable(),
+  groupIds: z.array(NonBlankSchema),
+  rotativo: z.boolean(),
+  requiredForActivity: z.boolean(),
+  kind: z.enum(SupportTypeKind).nullable(),
+});
 
 // o catálogo de uma assistência no Transicionais (D26): salvo sempre inteiro, porque sem groupIds ela
 // passaria a valer para a organização inteira
@@ -39,32 +52,6 @@ export class SupportType {
   }
 
   private validate() {
-    if (typeof this.id !== "string" || this.id.trim() === "") {
-      throw new InvalidParameterError("Field supportType.id is invalid");
-    }
-
-    if (typeof this.title !== "string" || this.title.trim() === "") {
-      throw new InvalidParameterError("Field supportType.title is invalid");
-    }
-
-    if (this.description !== null && typeof this.description !== "string") {
-      throw new InvalidParameterError("Field supportType.description is invalid");
-    }
-
-    if (typeof this.active !== "boolean" || typeof this.rotativo !== "boolean" || typeof this.requiredForActivity !== "boolean") {
-      throw new InvalidParameterError("Field supportType.active is invalid");
-    }
-
-    if (this.capacity !== null && (!Number.isInteger(this.capacity) || this.capacity < 0)) {
-      throw new InvalidParameterError("Field supportType.capacity is invalid");
-    }
-
-    if (!Array.isArray(this.groupIds) || this.groupIds.some((id) => typeof id !== "string" || id.trim() === "")) {
-      throw new InvalidParameterError("Field supportType.groupIds is invalid");
-    }
-
-    if (this.kind !== null && !Object.values(SupportTypeKind).includes(this.kind)) {
-      throw new InvalidParameterError("Field supportType.kind is invalid");
-    }
+    validateSchema(SupportTypeSchema, this, "supportType");
   }
 }

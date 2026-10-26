@@ -41,7 +41,7 @@ Tarefas que passam por mais de uma camada. Leia os docs e faça os arquivos **na
 | **Refatoração** (sem mudar comportamento) | o doc de cada camada tocada; antes de mexer, guarde a resposta das rotas afetadas e compare com `diff` depois (seção **Ao terminar**) |
 | **Erro novo** | `errors.md` → `api.md` (conferir se a rota devolve o `status` certo) |
 | **Resposta nova de rota** (formato de saída) | `models.md` (a saída é model em `models/`; a regra de um domínio, como a conta das vagas, é método do model de origem) → `usecases.md` (U9: se a saída junta models de domínios distintos, um mapper em `usecases/mappers/` que devolve o model de saída) |
-| **Regra de negócio nova numa rota** | `usecases.md` (novo passo ou `validate*` no usecase da rota) |
+| **Regra de negócio nova numa rota** | `usecases.md` (novo passo ou `validate*` no usecase da rota; formato da entrada é schema zod, U10) |
 | **Teste de usecase** | `usecases.md` (seção "Teste com fake") → `interfaces.md` |
 
 Se a tarefa não está na tabela, leia o doc de cada pasta que vai tocar, como em **Por camada**.
@@ -75,6 +75,7 @@ api/                                   rotas da Vercel: só montam o usecase e r
 src/serve-utils/
   errors/                              AppError e erros de domínio
   models/                              entidades
+  models/model-schema.ts               validateSchema e os schemas comuns (NonBlankSchema, CountSchema...): o zod de todo model e de toda entrada de usecase
   interfaces/                          contratos (I*): interface do repo, entradas e filtros
   clients/                             HTTP/SDK compartilhado
   http/                                handle, cookies, hg_device, hg_admin, cron, webhook e IP real
@@ -108,7 +109,7 @@ api/<rota>.ts (handle) → Usecase.execute(input) → Repo (pela interface) → 
 | G5 | **Nomes:** classes em `PascalCase`, arquivos em `kebab-case`. Confira erros de digitação com `tsc --noEmit`. |
 | G6 | **Conjunto fechado é enum**, nunca texto solto ([`models.md`](models.md), M6). |
 | G7 | **Log só pelo logger** (`createLogger`), nunca `console.*` ([`lib.md`](lib.md)). |
-| G8 | **Sem helper repetido:** procure em `lib/` e em `repos/parse-response.ts` antes de escrever um. |
+| G8 | **Sem helper repetido:** procure em `lib/`, em `repos/parse-response.ts` e em `models/model-schema.ts` antes de escrever um. |
 
 ## Checklist ao terminar
 
@@ -123,6 +124,6 @@ api/<rota>.ts (handle) → Usecase.execute(input) → Repo (pela interface) → 
 9. **Sobrou texto solto** (`"PENDING"`, `"vou"`, `string` para conjunto fechado) onde cabe um enum? (M6)
 10. **Falha de fonte com `throw new Error`** em vez de `InfraError`? (E6, E7)
 11. **`console.*`** em vez do logger? (L4)
-12. **Criei um helper** sem procurar em `lib/` e `repos/parse-response.ts`? (G8)
+12. **Criei um helper** sem procurar em `lib/`, `repos/parse-response.ts` e `models/model-schema.ts`? (G8)
 13. **Algum model importa o model de outro domínio para montar a saída, ou o usecase devolve uma interface solta?** É mapper com model de saída (U9).
 14. `yarn typecheck` passa e o `check.cjs` não acusa nada nos arquivos tocados.

@@ -1,7 +1,9 @@
+import { z } from "zod";
 import { AppError } from "../errors/app-error";
 import { createLogger } from "../lib/logger";
 import { type Attendance, AttendanceAnswer } from "../models/attendance";
 import type { CurrentEvent } from "../models/current-event";
+import { UuidSchema, validateSchema } from "../models/model-schema";
 import type { MyReservation } from "../models/my-reservation";
 import type { IHormoniosRepo } from "../interfaces/hormonios";
 import type { UUID } from "../interfaces/uuid";
@@ -12,6 +14,10 @@ const logger = createLogger("ListMyReservationsUsecase");
 export interface IListMyReservationsInput {
   deviceId: UUID;
 }
+
+const ListMyReservationsInputSchema = z.object({
+  deviceId: UuidSchema,
+});
 
 export class ListMyReservationsUsecase {
   constructor(private readonly hormoniosRepo: IHormoniosRepo) {}
@@ -30,10 +36,16 @@ export class ListMyReservationsUsecase {
   }
 
   private async _execute(input: IListMyReservationsInput): Promise<MyReservation[]> {
+    this.validateInput(input);
+
     const event = await this.findSupabaseCurrentEvent();
     const attendances = await this.findSupabaseDeviceAttendances(event, input.deviceId);
 
     return attendances.map((attendance) => MyReservationMapper.toView(event, attendance));
+  }
+
+  private validateInput(input: IListMyReservationsInput) {
+    validateSchema(ListMyReservationsInputSchema, input);
   }
 
   private async findSupabaseCurrentEvent(): Promise<CurrentEvent> {

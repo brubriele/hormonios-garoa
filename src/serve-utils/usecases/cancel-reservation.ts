@@ -1,7 +1,9 @@
-import { AppError, InvalidParameterError } from "../errors/app-error";
+import { z } from "zod";
+import { AppError } from "../errors/app-error";
 import { createLogger } from "../lib/logger";
 import type { Attendance } from "../models/attendance";
 import type { CurrentEvent } from "../models/current-event";
+import { UuidSchema, validateSchema } from "../models/model-schema";
 import type { IHormoniosRepo } from "../interfaces/hormonios";
 import type { ITransicionaisRepo } from "../interfaces/transicionais";
 import type { UUID } from "../interfaces/uuid";
@@ -9,7 +11,11 @@ import { SendAttendanceUsecase } from "./send-attendance";
 
 const logger = createLogger("CancelReservationUsecase");
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const CancelReservationInputSchema = z.object({
+  id: UuidSchema,
+  deviceId: UuidSchema,
+  ip: z.string().nullable(),
+});
 
 // o corpo do POST /api/reserva/desfazer
 export interface ICancelReservationBody {
@@ -55,9 +61,7 @@ export class CancelReservationUsecase {
   }
 
   private validateInput(input: ICancelReservationInput) {
-    if (typeof input.id !== "string" || !UUID_PATTERN.test(input.id)) {
-      throw new InvalidParameterError("Field id is invalid");
-    }
+    validateSchema(CancelReservationInputSchema, input);
   }
 
   private async findSupabaseCurrentEvent(): Promise<CurrentEvent> {

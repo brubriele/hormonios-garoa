@@ -1,7 +1,14 @@
-import { InvalidParameterError } from "../errors/app-error";
+import { z } from "zod";
 import type { UUID } from "../interfaces/uuid";
+import { NonBlankSchema, validateSchema } from "./model-schema";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const UserSchema = z.object({
+  email: z.string().regex(EMAIL_PATTERN).refine((email) => email === email.toLowerCase()), // R15
+  name: NonBlankSchema,
+  pronoun: NonBlankSchema,
+});
 
 export class User {
   constructor(
@@ -14,16 +21,6 @@ export class User {
   }
 
   private validate() {
-    if (typeof this.email !== "string" || !EMAIL_PATTERN.test(this.email) || this.email !== this.email.toLowerCase()) {
-      throw new InvalidParameterError("Field email is invalid");
-    }
-
-    if (typeof this.name !== "string" || this.name.trim() === "") {
-      throw new InvalidParameterError("Field name is invalid");
-    }
-
-    if (typeof this.pronoun !== "string" || this.pronoun.trim() === "") {
-      throw new InvalidParameterError("Field pronoun is invalid");
-    }
+    validateSchema(UserSchema, this);
   }
 }

@@ -1,4 +1,12 @@
-import { InvalidParameterError } from "../errors/app-error";
+import { z } from "zod";
+import { CountSchema, NonBlankSchema, validateSchema } from "./model-schema";
+
+const EventAccessorySchema = z.object({
+  id: NonBlankSchema,
+  name: z.string(),
+  available: CountSchema.nullable(),
+  soldOut: z.boolean(),
+});
 
 // acessório de um instrumento no ensaio público (GET /api/ensaio), com as vagas
 export class EventAccessory {
@@ -12,20 +20,6 @@ export class EventAccessory {
   }
 
   private validate() {
-    if (typeof this.id !== "string" || this.id.trim() === "") {
-      throw new InvalidParameterError("Field eventAccessory.id is invalid");
-    }
-
-    if (typeof this.name !== "string") {
-      throw new InvalidParameterError("Field eventAccessory.name is invalid");
-    }
-
-    if (this.available !== null && (!Number.isInteger(this.available) || this.available < 0)) {
-      throw new InvalidParameterError("Field eventAccessory.available is invalid");
-    }
-
-    if (typeof this.soldOut !== "boolean") {
-      throw new InvalidParameterError("Field eventAccessory.soldOut is invalid");
-    }
+    validateSchema(EventAccessorySchema, this, "eventAccessory");
   }
 }

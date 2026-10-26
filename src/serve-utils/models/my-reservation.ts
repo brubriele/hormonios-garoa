@@ -1,7 +1,22 @@
-import { ErrorKey, InvalidParameterError } from "../errors/app-error";
+import { z } from "zod";
+import { ErrorKey } from "../errors/app-error";
 import type { UUID } from "../interfaces/uuid";
 import { AttendanceSync } from "./attendance";
 import { MyReservationAccessory } from "./my-reservation-accessory";
+import { NonBlankSchema, validateSchema } from "./model-schema";
+
+const MyReservationSchema = z.object({
+  id: NonBlankSchema,
+  groupId: z.string().nullable(),
+  groupName: z.string().nullable(),
+  supportIds: z.array(z.string()),
+  accessories: z.array(z.instanceof(MyReservationAccessory)),
+  email: z.string(),
+  name: z.string(),
+  pronoun: z.string(),
+  sync: z.enum(AttendanceSync),
+  syncError: z.enum(ErrorKey).nullable(),
+});
 
 // uma reserva "vou" deste aparelho em "Minhas reservas" (GET /api/minhas-reservas), com o status do envio
 export class MyReservation {
@@ -21,39 +36,6 @@ export class MyReservation {
   }
 
   private validate() {
-    if (typeof this.id !== "string" || this.id.trim() === "") {
-      throw new InvalidParameterError("Field myReservation.id is invalid");
-    }
-
-    if (this.groupId !== null && typeof this.groupId !== "string") {
-      throw new InvalidParameterError("Field myReservation.groupId is invalid");
-    }
-
-    if (this.groupName !== null && typeof this.groupName !== "string") {
-      throw new InvalidParameterError("Field myReservation.groupName is invalid");
-    }
-
-    if (!Array.isArray(this.supportIds) || this.supportIds.some((id) => typeof id !== "string")) {
-      throw new InvalidParameterError("Field myReservation.supportIds is invalid");
-    }
-
-    if (
-      !Array.isArray(this.accessories)
-      || this.accessories.some((item) => !(item instanceof MyReservationAccessory))
-    ) {
-      throw new InvalidParameterError("Field myReservation.accessories is invalid");
-    }
-
-    if (typeof this.email !== "string" || typeof this.name !== "string" || typeof this.pronoun !== "string") {
-      throw new InvalidParameterError("Field myReservation.email, name or pronoun is invalid");
-    }
-
-    if (!Object.values(AttendanceSync).includes(this.sync)) {
-      throw new InvalidParameterError("Field myReservation.sync is invalid");
-    }
-
-    if (this.syncError !== null && !Object.values(ErrorKey).includes(this.syncError)) {
-      throw new InvalidParameterError("Field myReservation.syncError is invalid");
-    }
+    validateSchema(MyReservationSchema, this, "myReservation");
   }
 }

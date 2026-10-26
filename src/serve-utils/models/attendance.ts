@@ -1,6 +1,8 @@
-import { ErrorKey, InvalidParameterError } from "../errors/app-error";
+import { z } from "zod";
+import { ErrorKey } from "../errors/app-error";
 import type { UUID } from "../interfaces/uuid";
 import { User } from "./user";
+import { NonBlankSchema, validateSchema } from "./model-schema";
 
 export enum AttendanceAnswer {
   Going = "vou",
@@ -33,9 +35,22 @@ export enum ApplyValidationResult {
   NoRow = "NO_ROW", // a pessoa não tem linha no dia
 }
 
-const ANSWERS = Object.values(AttendanceAnswer);
-const SYNCS = Object.values(AttendanceSync);
-const ERROR_KEYS = Object.values(ErrorKey);
+const AttendanceSchema = z
+  .object({
+    user: z.instanceof(User),
+    dayKey: NonBlankSchema,
+    answer: z.enum(AttendanceAnswer),
+    groupId: NonBlankSchema.nullable(), // null = só presença
+    supportIds: z.array(NonBlankSchema),
+    createdAt: NonBlankSchema,
+    sync: z.enum(AttendanceSync),
+    syncError: z.enum(ErrorKey).nullable(),
+    updatedAt: NonBlankSchema.nullable(),
+  })
+  .refine((attendance) => attendance.groupId !== null || attendance.supportIds.length === 0, {
+    path: ["supportIds"],
+    message: "must be empty without groupId",
+  });
 
 export class Attendance {
   constructor(
@@ -56,45 +71,7 @@ export class Attendance {
   }
 
   private validate() {
-    if (!(this.user instanceof User)) {
-      throw new InvalidParameterError("Field user is invalid");
-    }
-
-    if (typeof this.dayKey !== "string" || this.dayKey.trim() === "") {
-      throw new InvalidParameterError("Field dayKey is invalid");
-    }
-
-    if (!ANSWERS.includes(this.answer)) {
-      throw new InvalidParameterError("Field answer is invalid");
-    }
-
-    if (this.groupId !== null && (typeof this.groupId !== "string" || this.groupId.trim() === "")) {
-      throw new InvalidParameterError("Field groupId is invalid");
-    }
-
-    if (!Array.isArray(this.supportIds) || this.supportIds.some((id) => typeof id !== "string" || id.trim() === "")) {
-      throw new InvalidParameterError("Field supportIds is invalid");
-    }
-
-    if (this.groupId === null && this.supportIds.length > 0) {
-      throw new InvalidParameterError("Field supportIds must be empty without groupId");
-    }
-
-    if (typeof this.createdAt !== "string" || this.createdAt.trim() === "") {
-      throw new InvalidParameterError("Field createdAt is invalid");
-    }
-
-    if (!SYNCS.includes(this.sync)) {
-      throw new InvalidParameterError("Field sync is invalid");
-    }
-
-    if (this.syncError !== null && !ERROR_KEYS.includes(this.syncError)) {
-      throw new InvalidParameterError("Field syncError is invalid");
-    }
-
-    if (this.updatedAt !== null && (typeof this.updatedAt !== "string" || this.updatedAt.trim() === "")) {
-      throw new InvalidParameterError("Field updatedAt is invalid");
-    }
+    validateSchema(AttendanceSchema, this);
   }
 
   // REJECTED não ocupa vaga e não conta como reserva

@@ -1,8 +1,10 @@
+import { z } from "zod";
 import { AppError, UpstreamUnavailableError } from "../errors/app-error";
 import { AnswerChangedError, UpstreamBadContractError, UpstreamResponseError } from "../errors/infra-error";
 import { createLogger } from "../lib/logger";
-import { type Attendance, AttendanceAnswer, AttendanceSync, SyncMode } from "../models/attendance";
-import type { CurrentEvent } from "../models/current-event";
+import { Attendance, AttendanceAnswer, AttendanceSync, SyncMode } from "../models/attendance";
+import { CurrentEvent } from "../models/current-event";
+import { validateSchema } from "../models/model-schema";
 import type { IHormoniosRepo, IMarkSyncData, IMarkSyncLock } from "../interfaces/hormonios";
 import type { ITransicionaisPresence, ITransicionaisRepo } from "../interfaces/transicionais";
 
@@ -13,6 +15,12 @@ export interface ISendAttendanceInput {
   event: CurrentEvent;
   ip: string | null; // IP real (H11); no cron, null
 }
+
+const SendAttendanceInputSchema = z.object({
+  attendance: z.instanceof(Attendance),
+  event: z.instanceof(CurrentEvent),
+  ip: z.string().nullable(),
+});
 
 export interface ISendAttendanceOutcome {
   sync: AttendanceSync; // como a linha ficou: SYNCED, PENDING ou MANUAL_RETRY (D44, D50: nunca REJECTED)
@@ -39,6 +47,8 @@ export class SendAttendanceUsecase {
   }
 
   private async _execute(input: ISendAttendanceInput): Promise<ISendAttendanceOutcome> {
+    this.validateInput(input);
+
     if (!this.canSend(input)) {
       return { sync: input.attendance.sync };
     }
@@ -46,6 +56,10 @@ export class SendAttendanceUsecase {
     const result = await this.sendTransicionaisAttendance(input);
 
     return this.markSupabaseSync(result);
+  }
+
+  private validateInput(input: ISendAttendanceInput) {
+    validateSchema(SendAttendanceInputSchema, input);
   }
 
   // retrato local da fase 1 (externalId null), linha de ensaio antigo da fase 1 ou que já saiu de

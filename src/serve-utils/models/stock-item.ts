@@ -1,6 +1,17 @@
-import { InvalidParameterError } from "../errors/app-error";
+import { z } from "zod";
 import { StockReservation } from "./stock-reservation";
 import { SupportTypeKind } from "./support-type";
+import { CountSchema, NonBlankSchema, validateSchema } from "./model-schema";
+
+const StockItemSchema = z.object({
+  id: NonBlankSchema,
+  name: z.string(),
+  type: z.enum(SupportTypeKind),
+  stockTotal: CountSchema.nullable(),
+  available: CountSchema.nullable(),
+  rotativo: z.boolean(),
+  reservations: z.array(z.instanceof(StockReservation)),
+});
 
 // um item do estoque no resumo da Produção (E2.9): o instrumento ou o acessório, com as vagas
 export class StockItem {
@@ -17,32 +28,6 @@ export class StockItem {
   }
 
   private validate() {
-    if (typeof this.id !== "string" || this.id.trim() === "") {
-      throw new InvalidParameterError("Field stockItem.id is invalid");
-    }
-
-    if (typeof this.name !== "string") {
-      throw new InvalidParameterError("Field stockItem.name is invalid");
-    }
-
-    if (!Object.values(SupportTypeKind).includes(this.type)) {
-      throw new InvalidParameterError("Field stockItem.type is invalid");
-    }
-
-    if (this.stockTotal !== null && (!Number.isInteger(this.stockTotal) || this.stockTotal < 0)) {
-      throw new InvalidParameterError("Field stockItem.stockTotal is invalid");
-    }
-
-    if (this.available !== null && (!Number.isInteger(this.available) || this.available < 0)) {
-      throw new InvalidParameterError("Field stockItem.available is invalid");
-    }
-
-    if (typeof this.rotativo !== "boolean") {
-      throw new InvalidParameterError("Field stockItem.rotativo is invalid");
-    }
-
-    if (!Array.isArray(this.reservations) || this.reservations.some((item) => !(item instanceof StockReservation))) {
-      throw new InvalidParameterError("Field stockItem.reservations is invalid");
-    }
+    validateSchema(StockItemSchema, this, "stockItem");
   }
 }

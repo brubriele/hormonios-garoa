@@ -1,8 +1,10 @@
+import { z } from "zod";
 import { AppError } from "../errors/app-error";
 import { createLogger } from "../lib/logger";
 import { AttendanceAnswer } from "../models/attendance";
 import type { CurrentEvent } from "../models/current-event";
 import type { EventSnapshot } from "../models/event-snapshot";
+import { validateSchema } from "../models/model-schema";
 import { EventWebhookStatus, WebhookType } from "../models/transicionais-webhook";
 import type { IHormoniosRepo } from "../interfaces/hormonios";
 import type {
@@ -19,6 +21,11 @@ const logger = createLogger("ReceiveTransicionaisWebhookUsecase");
 export interface IReceiveTransicionaisWebhookInput {
   body: unknown; // corpo cru do webhook: só o repo do Transicionais o lê
 }
+
+// o formato do corpo é do schema do repo do Transicionais (parseWebhook); aqui, só que ele veio
+const ReceiveTransicionaisWebhookInputSchema = z.object({
+  body: z.record(z.string(), z.unknown()),
+});
 
 export interface IReceiveTransicionaisWebhookResult {
   processed: boolean; // false = entrega repetida (deduplicação)
@@ -52,6 +59,8 @@ export class ReceiveTransicionaisWebhookUsecase {
   }
 
   private async _execute(input: IReceiveTransicionaisWebhookInput): Promise<IReceiveTransicionaisWebhookResult> {
+    this.validateInput(input);
+
     const current = await this.findSupabaseCurrentEvent();
     const webhook = this.transicionaisRepo.parseWebhook(input.body, this.buildEventRef(current));
     const isNew = await this.registerSupabaseDelivery(webhook);
@@ -69,6 +78,10 @@ export class ReceiveTransicionaisWebhookUsecase {
     }
 
     return { processed: true };
+  }
+
+  private validateInput(input: IReceiveTransicionaisWebhookInput) {
+    validateSchema(ReceiveTransicionaisWebhookInputSchema, input);
   }
 
   private async findSupabaseCurrentEvent(): Promise<CurrentEvent | null> {

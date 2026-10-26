@@ -1,5 +1,15 @@
-import { InvalidParameterError } from "../errors/app-error";
+import { z } from "zod";
 import { EventAccessory } from "./event-accessory";
+import { CountSchema, NonBlankSchema, validateSchema } from "./model-schema";
+
+const EventInstrumentSchema = z.object({
+  id: NonBlankSchema,
+  name: z.string(),
+  stockTotal: CountSchema.nullable(),
+  available: CountSchema.nullable(),
+  soldOut: z.boolean(),
+  accessories: z.array(z.instanceof(EventAccessory)),
+});
 
 // instrumento do ensaio público (GET /api/ensaio), com as vagas e os acessórios que valem para ele
 export class EventInstrument {
@@ -15,28 +25,6 @@ export class EventInstrument {
   }
 
   private validate() {
-    if (typeof this.id !== "string" || this.id.trim() === "") {
-      throw new InvalidParameterError("Field eventInstrument.id is invalid");
-    }
-
-    if (typeof this.name !== "string") {
-      throw new InvalidParameterError("Field eventInstrument.name is invalid");
-    }
-
-    if (this.stockTotal !== null && (!Number.isInteger(this.stockTotal) || this.stockTotal < 0)) {
-      throw new InvalidParameterError("Field eventInstrument.stockTotal is invalid");
-    }
-
-    if (this.available !== null && (!Number.isInteger(this.available) || this.available < 0)) {
-      throw new InvalidParameterError("Field eventInstrument.available is invalid");
-    }
-
-    if (typeof this.soldOut !== "boolean") {
-      throw new InvalidParameterError("Field eventInstrument.soldOut is invalid");
-    }
-
-    if (!Array.isArray(this.accessories) || this.accessories.some((item) => !(item instanceof EventAccessory))) {
-      throw new InvalidParameterError("Field eventInstrument.accessories is invalid");
-    }
+    validateSchema(EventInstrumentSchema, this, "eventInstrument");
   }
 }

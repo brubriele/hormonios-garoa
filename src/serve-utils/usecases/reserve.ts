@@ -1,7 +1,9 @@
+import { z } from "zod";
 import { AppError, BookingClosedError, InvalidParameterError } from "../errors/app-error";
 import { createLogger } from "../lib/logger";
 import type { Attendance, AttendanceSync } from "../models/attendance";
 import type { CurrentEvent } from "../models/current-event";
+import { NonBlankSchema, UuidSchema, validateSchema } from "../models/model-schema";
 import type { User } from "../models/user";
 import type { IHormoniosRepo } from "../interfaces/hormonios";
 import type { ITransicionaisRepo } from "../interfaces/transicionais";
@@ -11,6 +13,26 @@ import { SendAttendanceUsecase } from "./send-attendance";
 const logger = createLogger("ReserveUsecase");
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// minúsculas e sem espaços (R15)
+function normalizeEmail(email: string): string {
+  return email.replace(/\s+/g, "").toLowerCase();
+}
+
+const ReserveInputSchema = z
+  .object({
+    email: z.string().refine((email) => EMAIL_PATTERN.test(normalizeEmail(email))),
+    name: NonBlankSchema,
+    pronoun: NonBlankSchema,
+    groupId: NonBlankSchema.nullable(), // null = só presença
+    supportIds: z.array(z.string()),
+    deviceId: UuidSchema,
+    ip: z.string().nullable(),
+  })
+  .refine((input) => input.groupId !== null || input.supportIds.length === 0, {
+    path: ["supportIds"],
+    message: "must be empty without groupId",
+  });
 
 // o corpo do POST /api/reserva
 export interface IReserveBody {
@@ -77,34 +99,7 @@ export class ReserveUsecase {
   }
 
   private validateInput(input: IReserveInput) {
-    if (typeof input.email !== "string" || !EMAIL_PATTERN.test(this.normalizeEmail(input.email))) {
-      throw new InvalidParameterError("Field email is invalid");
-    }
-
-    if (typeof input.name !== "string" || input.name.trim() === "") {
-      throw new InvalidParameterError("Field name is required");
-    }
-
-    if (typeof input.pronoun !== "string" || input.pronoun.trim() === "") {
-      throw new InvalidParameterError("Field pronoun is required");
-    }
-
-    if (input.groupId !== null && (typeof input.groupId !== "string" || input.groupId.trim() === "")) {
-      throw new InvalidParameterError("Field groupId is invalid");
-    }
-
-    if (!Array.isArray(input.supportIds) || input.supportIds.some((id) => typeof id !== "string")) {
-      throw new InvalidParameterError("Field supportIds is invalid");
-    }
-
-    if (input.groupId === null && input.supportIds.length > 0) {
-      throw new InvalidParameterError("Field supportIds must be empty without groupId");
-    }
-  }
-
-  // minúsculas e sem espaços (R15)
-  private normalizeEmail(email: string): string {
-    return email.replace(/\s+/g, "").toLowerCase();
+    validateSchema(ReserveInputSchema, input);
   }
 
   private async findSupabaseCurrentEvent(input: IReserveInput): Promise<CurrentEvent> {
@@ -139,7 +134,7 @@ export class ReserveUsecase {
   // sobrescreve nome e pronome do e-mail
   private async upsertSupabaseUser(input: IReserveInput): Promise<User> {
     return this.hormoniosRepo.upsertUserByEmail({
-      email: this.normalizeEmail(input.email),
+      email: normalizeEmail(input.email),
       name: input.name.trim(),
       pronoun: input.pronoun.trim(),
     });

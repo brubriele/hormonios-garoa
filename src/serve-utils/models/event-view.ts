@@ -1,5 +1,19 @@
-import { InvalidParameterError } from "../errors/app-error";
+import { z } from "zod";
 import { EventInstrument } from "./event-instrument";
+import { CountSchema, NonBlankSchema, validateSchema } from "./model-schema";
+
+const EventViewSchema = z.object({
+  dayKey: NonBlankSchema,
+  date: z.string(),
+  time: z.string(),
+  location: z.string(),
+  bookingOpen: z.boolean(),
+  whatsappUrl: z.string(),
+  goingCount: CountSchema,
+  instruments: z.array(z.instanceof(EventInstrument)),
+  stale: z.boolean(),
+  fetchedAt: z.string().nullable(),
+});
 
 // o ensaio público (GET /api/ensaio): o retrato com as vagas pelas reservas (D22)
 export class EventView {
@@ -19,32 +33,6 @@ export class EventView {
   }
 
   private validate() {
-    if (typeof this.dayKey !== "string" || this.dayKey.trim() === "") {
-      throw new InvalidParameterError("Field eventView.dayKey is invalid");
-    }
-
-    if (typeof this.date !== "string" || typeof this.time !== "string" || typeof this.location !== "string") {
-      throw new InvalidParameterError("Field eventView.date, time or location is invalid");
-    }
-
-    if (typeof this.bookingOpen !== "boolean" || typeof this.stale !== "boolean") {
-      throw new InvalidParameterError("Field eventView.bookingOpen or stale is invalid");
-    }
-
-    if (typeof this.whatsappUrl !== "string") {
-      throw new InvalidParameterError("Field eventView.whatsappUrl is invalid");
-    }
-
-    if (!Number.isInteger(this.goingCount) || this.goingCount < 0) {
-      throw new InvalidParameterError("Field eventView.goingCount is invalid");
-    }
-
-    if (!Array.isArray(this.instruments) || this.instruments.some((item) => !(item instanceof EventInstrument))) {
-      throw new InvalidParameterError("Field eventView.instruments is invalid");
-    }
-
-    if (this.fetchedAt !== null && typeof this.fetchedAt !== "string") {
-      throw new InvalidParameterError("Field eventView.fetchedAt is invalid");
-    }
+    validateSchema(EventViewSchema, this, "eventView");
   }
 }
