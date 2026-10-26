@@ -1,4 +1,5 @@
 import type { ZodError } from "zod";
+import type { ITransicionaisErrorCause } from "../interfaces/transicionais";
 import { InvalidParameterError } from "./app-error";
 
 // falha de uma fonte (Supabase, Transicionais). Não é AppError: a rota responde 500 INTERNAL_ERROR
@@ -9,6 +10,7 @@ export enum InfraErrorKey {
   InvalidResponse = "INVALID_RESPONSE_ERROR",
   AnswerChanged = "ANSWER_CHANGED_ERROR",
   VersionConflict = "VERSION_CONFLICT_ERROR",
+  UpstreamBadContract = "UPSTREAM_BAD_CONTRACT_ERROR",
 }
 
 export enum InfraSource {
@@ -41,8 +43,23 @@ export class DatabaseError extends InfraError {
 export class UpstreamResponseError extends InfraError {
   readonly key = InfraErrorKey.UpstreamResponse;
 
-  constructor(operation: string, status: number, detail: string | undefined) {
+  constructor(
+    operation: string,
+    status: number,
+    detail: string | undefined,
+    readonly errorCause: ITransicionaisErrorCause | null = null, // o erro como veio, para gravar (D50)
+  ) {
     super(InfraSource.Transicionais, `${operation} failed with ${status}: ${detail}`);
+  }
+}
+
+// o Transicionais recusou o contrato (400, 409 ou 422, isBadContract): repetir igual não resolve,
+// precisa de ajuste manual. O usecase grava o erro como veio e MANUAL_RETRY (D50)
+export class UpstreamBadContractError extends InfraError {
+  readonly key = InfraErrorKey.UpstreamBadContract;
+
+  constructor(readonly errorCause: ITransicionaisErrorCause) {
+    super(InfraSource.Transicionais, `${errorCause.operation} rejected with ${errorCause.status}`);
   }
 }
 

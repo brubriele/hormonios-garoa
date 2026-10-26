@@ -11,7 +11,8 @@ chegar lá depois, sem duplicar.
 
 **Decisão.**
 - Com retrato local da fase 1, não faz nada.
-- `claim_pending` pega até 10 linhas vencidas do dia atual (`skip locked`, adia 2 min, D11, D39).
+- `claim_pending` pega até 10 linhas vencidas de todos os dias do Transicionais (`skip locked`, adia
+  2 min, D39). As de ensaio antigo da fase 1 (`day_key` UUID) ficam de fora (D45, revê a D11).
 - Envia cada uma pelo `SendAttendanceUsecase`, em paralelo e sem IP. Responde a contagem.
 
 **Consequências.**

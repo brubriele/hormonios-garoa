@@ -7,30 +7,46 @@ import type { SupportType } from "../models/support-type";
 import type { EventWebhookStatus, WebhookType } from "../models/transicionais-webhook";
 import type { UUID } from "./uuid";
 
-// a pessoa da reserva, em nome de quem o BFF envia
+// a pessoa da reserva, cadastrada como convidado da organização (D41)
 export interface ISendAttendancePerson {
   email: string;
   name: string;
   pronoun: string;
 }
 
-// envio da reserva (E2.8): o estado atual da linha
+// a conta da pessoa na organização: convidado (guestId = profileGuestId) ou, se o e-mail é de membro,
+// memberId (= profileId). Sempre um dos dois, nunca os dois
+export interface ITransicionaisAccount {
+  guestId: string | null;
+  memberId: string | null;
+}
+
+// o erro do Transicionais como veio, para gravar e ajustar à mão (D50): não é traduzido
+export interface ITransicionaisErrorCause {
+  operation: string;
+  status: number;
+  body: unknown; // o corpo do erro ({ statusCode, error, key, message }); null sem corpo
+}
+
+// a presença da pessoa no dia, como está no Transicionais (D49): o envio compara com a linha local
+// para não reenviar o que já está lá
+export interface ITransicionaisPresence {
+  hash: string; // md5 da presença: muda quando algum campo muda
+  orderId: string | null;
+  answer: AttendanceAnswer;
+  groupId: string | null;
+  supportTypeIds: string[]; // assistência do instrumento + acessórios
+}
+
+// envio da reserva (E2.8, revista na D41): o estado atual da linha, em nome da conta
 export interface ISendAttendanceData {
   attendanceId: UUID;
-  updatedAt: string; // entra na idempotencyKey (<id>:<updated_at>)
+  account: ITransicionaisAccount;
   dayKey: string; // = configDayId
   answer: AttendanceAnswer;
   groupId: string | null; // null = só presença
   supportTypeIds: string[]; // assistência do instrumento + acessórios (E2.9); vazio sem grupo ou "não vou"
-  person: ISendAttendancePerson;
   ip: string | null; // IP real (H11); no cron, null
-}
-
-// envio aceito: os ids do Transicionais e quando ele gravou; null = não veio na resposta (dúvida D33)
-export interface ISentAttendance {
-  guestId: string | null;
-  orderId: string | null;
-  changedAt: string | null;
 }
 
 // envelope de um webhook já validado; rawType = o type como veio (WebhookType.Other para o desconhecido)
@@ -154,11 +170,17 @@ export interface ITransicionaisRepo {
   findSupportType(supportId: string): Promise<SupportType | null>;
   // grava o catálogo inteiro da assistência (D26). 404 -> NotFoundError
   saveSupportType(supportType: SupportType): Promise<void>;
-  // envia o estado atual da reserva (E2.8). Recusa -> AppError da tabela "Tradução das keys"
+  // cadastra a pessoa como convidado da organização, ou devolve a conta que já tem o e-mail (D41).
+  // Falhas como no sendAttendance
+  registerGuest(person: ISendAttendancePerson): Promise<ITransicionaisAccount>;
+  // a presença da pessoa (pelo e-mail) no dia. null = ainda não respondeu. Falhas como no
+  // sendAttendance (D49)
+  findPresence(dayKey: string, email: string): Promise<ITransicionaisPresence | null>;
+  // envia o estado atual da reserva (E2.8, D41). Recusa -> AppError da tabela "Tradução das keys"
   // (SoldOutError, BookingClosedError, ReservationRejectedError); fora do ar ->
   // UpstreamUnavailableError; VALIDATION_ANSWER_CHANGED -> AnswerChangedError; outro status ->
   // UpstreamResponseError. O que fazer com cada um (REJECTED, RETRY, BACKOFF) é do usecase
-  sendAttendance(data: ISendAttendanceData): Promise<ISentAttendance>;
+  sendAttendance(data: ISendAttendanceData): Promise<void>;
   // traduz o corpo de um webhook; current = o encontro do retrato (null = retrato local da fase 1).
   // Corpo inválido -> InvalidParameterError
   // em rascunho: webhook do Transicionais, ainda não revisado pela Bea. Não usar até a revisão.

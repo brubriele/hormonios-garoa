@@ -10,7 +10,7 @@ import { TransicionaisIdSchema } from "../transicionais-id";
 
 const logger = createLogger("PublicEventResponse");
 
-// configDays[].summary.supports: a assistência com a capacidade e o ocupado do dia
+// configDays[].summary.supports: a assistência com a capacidade e quem a pediu no dia
 const DaySupportSchema = z.object({
   id: TransicionaisIdSchema,
   title: z.string(),
@@ -18,7 +18,9 @@ const DaySupportSchema = z.object({
   isActive: z.boolean(),
   capacity: z.number().int().nullable(), // null = sem limite
   rotativo: z.boolean(), // a capacidade conta, mas não bloqueia
-  occupied: z.number().int(), // em uso no dia (D19)
+  // quem disse "vou" no dia pedindo a assistência (membros + convidados): a ocupação do ensaio. O
+  // occupied é outra conta (empréstimos ativos agora) e não serve para o estoque do dia (D47)
+  confirmed: z.number().int(),
   groupIds: z.array(TransicionaisIdSchema), // vazio = vale para todos os grupos
 });
 
@@ -42,6 +44,9 @@ const EventGroupSchema = z.object({
 // docs/plans/transicionais/public-event-exemplo.json). Também o retrato do webhook event.updated
 const PublicEventSchema = z.object({
   version: z.number().int(),
+  // md5 do encontro: muda quando algum campo muda; é ele que diz se o retrato precisa ser gravado
+  // (D48). O retrato do webhook não traz: null
+  hash: z.string().min(1).nullable().catch(null),
   location: z.string().nullable().transform((location) => location ?? ""),
   groups: z.array(EventGroupSchema),
   configDays: z.array(ConfigDaySchema).nonempty(),
@@ -81,7 +86,7 @@ export class PublicEventResponse {
       vacanciesAt,
     );
 
-    return new EventSnapshot(ref.externalId, event.version, vacanciesAt, current);
+    return new EventSnapshot(ref.externalId, event.version, event.hash, vacanciesAt, current);
   }
 
   // um grupo por assistência type='instrumento', na ordem do Transicionais. O grupo é o primeiro de
@@ -110,7 +115,7 @@ export class PublicEventResponse {
           support.title,
           support.capacity,
           true,
-          Math.max(0, support.occupied),
+          Math.max(0, support.confirmed),
           support.id,
           support.rotativo,
         ),
@@ -130,7 +135,7 @@ export class PublicEventResponse {
             support.id,
             support.title,
             support.capacity,
-            Math.max(0, support.occupied),
+            Math.max(0, support.confirmed),
             support.rotativo,
             support.groupIds,
           ),

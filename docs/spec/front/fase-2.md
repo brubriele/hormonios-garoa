@@ -16,7 +16,7 @@
 | Tela | O que muda |
 |---|---|
 | **02 Instrumentos** | Uma linha por item de `event.instruments`. Com `available: null` (sem limite), aparece só "disponíveis", sem número. O botão vira "Esgotado" e fica `disabled` quando `soldOut` é `true` (não mais quando `available` é 0: um rotativo com 0 continua reservável). |
-| **Folha (`#reserve-dialog`)** | As duas caixas fixas (talabarte e baqueta) saem. O `#reserve-accessories` é montado com os `accessories` do instrumento: uma caixa "Preciso de <nome>" por acessório. Acessório com `soldOut` vem `disabled` e com "(esgotado)". |
+| **Folha (`#reserve-dialog`)** | As duas caixas fixas (talabarte e baqueta) saem. O `#reserve-accessories` é montado com os `accessories` do instrumento: uma caixa "Preciso de <nome>" por acessório. Acessório com `soldOut` vem `disabled` e com "(esgotado)". O e-mail vem preenchido com o `email` de "Minhas reservas" (D43), como o nome e o pronome. |
 | **03 Minhas reservas** | Os acessórios vêm de `accessories[].name`, juntos por " · ". Sem nenhum: "Sem acessórios". |
 | **Produção, ESTOQUE** | Uma linha por item de `admin.event.stock` (instrumentos e depois acessórios). "<n> reservados · <available> disponíveis", ou "sem limite" com `available: null`. Sem limite (`stockTotal: null`): o número vira "—" e o `−`/`+` fica `disabled` (D20). A lista de nomes vem de `reservations[]` ("nome — pronome") e a coluna de opções, do `detail` de cada uma. |
 

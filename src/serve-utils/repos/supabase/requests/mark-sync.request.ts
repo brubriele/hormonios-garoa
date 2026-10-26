@@ -1,5 +1,6 @@
 import type { ErrorKey } from "../../../errors/app-error";
 import type { IMarkSyncData } from "../../../interfaces/hormonios";
+import type { ITransicionaisErrorCause } from "../../../interfaces/transicionais";
 import type { UUID } from "../../../interfaces/uuid";
 import { SyncMode } from "../../../models/attendance";
 
@@ -11,7 +12,9 @@ export interface IMarkSyncParams {
   p_order_id: string | null;
   p_changed_at: string | null;
   p_guest_id: string | null;
+  p_hash: string | null;
   p_error: ErrorKey | null;
+  p_error_cause: ITransicionaisErrorCause | null; // jsonb: o erro do Transicionais como veio (D50)
 }
 
 export class MarkSyncRequest {
@@ -25,7 +28,9 @@ export class MarkSyncRequest {
       p_order_id: synced ? synced.orderId : null,
       p_changed_at: synced ? synced.changedAt : null,
       p_guest_id: synced ? synced.guestId : null,
+      p_hash: synced ? synced.hash : null,
       p_error: data.mode === SyncMode.Rejected ? data.error : null,
+      p_error_cause: "errorCause" in data ? data.errorCause : null,
     };
   }
 }

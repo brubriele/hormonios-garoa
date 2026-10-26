@@ -12,14 +12,16 @@ export enum AttendanceSync {
   Pending = "PENDING",
   Synced = "SYNCED",
   Rejected = "REJECTED",
+  ManualRetry = "MANUAL_RETRY", // o Transicionais recusou o contrato: o cron não envia, ajuste manual (D50)
 }
 
 // como gravar o resultado de um envio ao Transicionais (função marcar_sync)
 export enum SyncMode {
   Synced = "SYNCED",
   Rejected = "REJECTED",
+  ManualRetry = "MANUAL_RETRY", // 400, 409 ou 422: sai do cron até o ajuste manual (D50)
   Retry = "RETRY", // fica PENDING para o próximo ciclo
-  Backoff = "BACKOFF", // fica PENDING com espera crescente
+  Backoff = "BACKOFF", // fica PENDING, attempts + 1, e volta na próxima chamada do cron (D46)
 }
 
 // resultado de um validation.changed aplicado à reserva (função aplicar_validacao)
@@ -102,5 +104,16 @@ export class Attendance {
 
   get isPending(): boolean {
     return this.sync === AttendanceSync.Pending;
+  }
+
+  // ainda não está no Transicionais: PENDING ou MANUAL_RETRY (D50). Ocupa vaga além do taken
+  get isLocalOnly(): boolean {
+    return this.isPending || this.sync === AttendanceSync.ManualRetry;
+  }
+
+  // dia do Transicionais (configDayId, numérico). O de ensaio antigo da fase 1 é um UUID local, que
+  // não existe lá (D45)
+  get isFromTransicionaisDay(): boolean {
+    return /^[0-9]+$/.test(this.dayKey);
   }
 }

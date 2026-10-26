@@ -24,7 +24,8 @@ webhooks).
 - **E2.7. O encontro atual vem da API, sem env:** o primeiro encontro Público da listagem de
   manager com data de hoje em diante. Os ids de grupos e assistências são os do Transicionais.
 - **E2.8. A reserva vai com o token de membro**, que também escreve como convidado:
-  `POST v2/community/validations/change` com a pessoa no corpo (setup, item 6).
+  `POST v2/community/validations/change` com a pessoa no corpo (setup, item 6). **Revista na D41:**
+  cadastro (`manager-organization/users`) + `manager-validations/change`.
 - **Setup do Transicionais:** [`transicionais/setup-hormonios.md`](transicionais/setup-hormonios.md).
   O dev do Transicionais é resetado sempre; o setup recria a organização, os grupos, as
   assistências e o encontro.
@@ -167,7 +168,8 @@ mudanças. Toda resposta é JSON. O erro é sempre `{ key, message }`.
 1. **`ITransicionaisRepo.sendAttendance(...)`** → `POST v2/community/validations/change`, com o
    token de membro e o corpo do setup, item 6 (`idempotencyKey` = id da linha + `updated_at`).
    Devolve `{ guestId, orderId, changedAt }` ou o erro traduzido. Manda o `X-Forwarded-For` com o
-   IP real (`clientIp`, `http.md`); no cron, sem IP.
+   IP real (`clientIp`, `http.md`); no cron, sem IP. **Revisto na D41:** `registerGuest` +
+   `sendAttendance` pelas rotas de manager.
 2. **`ReserveUsecase` e `CancelReservationUsecase`**: grava local primeiro (`PENDING`), tenta enviar
    na hora e aplica a tabela de respostas. Fora ou lento: responde 201/204 com `PENDING`.
 3. **Função `claim_pending(n)`** (`for update skip locked`, adia `next_attempt_at`) e

@@ -16,7 +16,10 @@ import type {
   IManagedEventItem,
   INewEventData,
   ISendAttendanceData,
-  ISentAttendance,
+  ISendAttendancePerson,
+  ITransicionaisAccount,
+  ITransicionaisErrorCause,
+  ITransicionaisPresence,
   ITransicionaisRepo,
   ITransicionaisWebhook,
 } from "../../interfaces/transicionais";
@@ -25,15 +28,21 @@ import type { EventSnapshot } from "../../models/event-snapshot";
 import type { ManagedEvent } from "../../models/managed-event";
 import type { SupportType } from "../../models/support-type";
 import { WebhookType } from "../../models/transicionais-webhook";
-import { AnswerChangedError, UpstreamResponseError, VersionConflictError } from "../../errors/infra-error";
+import {
+  AnswerChangedError,
+  UpstreamBadContractError,
+  UpstreamResponseError,
+  VersionConflictError,
+} from "../../errors/infra-error";
 import { createLogger } from "../../lib/logger";
-import { isUnavailable } from "../../lib/upstream";
+import { isBadContract, isUnavailable } from "../../lib/upstream";
 import { DeleteEventsRequest } from "./requests/delete-events.request";
 import { EventCategoryRequest } from "./requests/event-category.request";
 import { EventCreateRequest } from "./requests/event-create.request";
 import { EventDaysRequest } from "./requests/event-days.request";
 import { EventGroupsRequest } from "./requests/event-groups.request";
 import { EventUpdateRequest } from "./requests/event-update.request";
+import { GuestAccountRequest } from "./requests/guest-account.request";
 import { SupportTypeUpdateRequest } from "./requests/support-type-update.request";
 import { ValidationChangeRequest } from "./requests/validation-change.request";
 import { CreatedEventResponse } from "./responses/created-event.response";
@@ -42,10 +51,11 @@ import { EventDayResponse } from "./responses/event-day.response";
 import { EventListResponse } from "./responses/event-list.response";
 import { EventSummaryResponse } from "./responses/event-summary.response";
 import { EventUpdatedResponse } from "./responses/event-updated.response";
+import { GuestAccountResponse } from "./responses/guest-account.response";
+import { GuestPresenceResponse } from "./responses/guest-presence.response";
 import { ManagedEventResponse } from "./responses/managed-event.response";
 import { PublicEventResponse } from "./responses/public-event.response";
 import { SupportTypeResponse } from "./responses/support-type.response";
-import { ValidationChangeResponse } from "./responses/validation-change.response";
 import { ValidationChangedResponse } from "./responses/validation-changed.response";
 import { VersionResponse } from "./responses/version.response";
 import { WebhookEnvelopeResponse } from "./responses/webhook-envelope.response";
@@ -64,28 +74,42 @@ const TRANSICIONAIS_ERRORS: Record<string, () => AppError> = {
 };
 
 // envio da reserva: key do Transicionais -> AppError do Hormônios; o usecase grava REJECTED (tabela
-// "Tradução das keys do Transicionais" de bff-fase-2-implementacao.md)
+// "Tradução das keys do Transicionais" de bff-fase-2-implementacao.md): as de convidado (profileGuestId)
+// e as de membro (profileId, D41)
 const SEND_REJECTIONS: Record<string, () => AppError> = {
   VALIDATION_GUEST_GROUP_FULL: () => new SoldOutError("Group is sold out"),
   VALIDATION_GUEST_EVENT_FULL: () => new SoldOutError("Event is sold out"),
   VALIDATION_GUEST_FREE_SEATS_FULL: () => new SoldOutError("Free seats are sold out"),
+  VALIDATION_GROUP_FULL: () => new SoldOutError("Group is sold out"),
+  VALIDATION_EVENT_FULL: () => new SoldOutError("Event is sold out"),
   VALIDATION_GUEST_ANSWER_CLOSED: () => new BookingClosedError("Booking is closed"),
   VALIDATION_GUEST_ANSWER_NOT_OPEN: () => new BookingClosedError("Booking is not open"),
+  VALIDATION_ANSWER_DEADLINE_PASSED: () => new BookingClosedError("Booking is closed"),
+  VALIDATION_MEMBER_ANSWER_NOT_OPEN: () => new BookingClosedError("Booking is not open"),
   VALIDATION_DAY_INACTIVE: () => new BookingClosedError("Day is inactive"),
 };
 // a resposta mudou ao mesmo tempo em outro lugar (VAL-19): AnswerChangedError
 const SEND_ANSWER_CHANGED_KEY = "VALIDATION_ANSWER_CHANGED";
+// conta do BFF sem o papel ADMIN/MANAGER: a rota fica escondida (404). É configuração, não recusa
+const SEND_HIDDEN_ROUTE_KEY = "NOT_FOUND";
 // outro 400/404/409/422 é recusa de regra: RESERVATION_REJECTED_ERROR
 const SEND_REJECTED_STATUSES = [400, 404, 409, 422];
 // 401/403: a sessão renova o token uma vez e reenvia
 const SEND_RENEW_ON = [401, 403];
 const SEND_OPERATION = "validationChange";
+const REGISTER_OPERATION = "registerGuest";
+const PRESENCE_OPERATION = "guestPresence";
 
 // EVENT_VERSION_CONFLICT: VersionConflictError; o usecase lê a version de novo e tenta uma vez mais
 const VERSION_CONFLICT_KEY = "EVENT_VERSION_CONFLICT";
 
 function errorKey(response: IClientResponse<unknown>): string | undefined {
   return ErrorBodyResponse.toDomain(response.error?.details).key;
+}
+
+// o erro do Transicionais como veio, para gravar (D50)
+function errorCause(response: IClientResponse<unknown>, operation: string): ITransicionaisErrorCause {
+  return ErrorBodyResponse.toCause(response.error?.details, response.status, operation);
 }
 
 export class TransicionaisRepo implements ITransicionaisRepo {
@@ -115,7 +139,7 @@ export class TransicionaisRepo implements ITransicionaisRepo {
     }
 
     if (response.error || response.data === undefined) {
-      throw new UpstreamResponseError("publicEvent", response.status, errorKey(response));
+      throw this.readError(response, "publicEvent", errorKey(response));
     }
 
     return PublicEventResponse.toDomain(response.data, ref, vacanciesAt);
@@ -297,17 +321,70 @@ export class TransicionaisRepo implements ITransicionaisRepo {
       // a message do Transicionais diz o campo recusado (REQUEST_ERROR)
       const message = JSON.stringify(error.message ?? response.error?.message);
 
-      throw new UpstreamResponseError(operation, response.status, `${error.key} ${message}`);
+      throw this.readError(response, operation, `${error.key} ${message}`);
     }
 
     return response.data;
   }
 
+  // 400, 409 ou 422: UpstreamBadContractError; o resto: UpstreamResponseError. Os dois levam o erro
+  // como veio (D50)
+  private readError(response: IClientResponse<unknown>, operation: string, detail: string | undefined): Error {
+    const cause = errorCause(response, operation);
+
+    return isBadContract(response.status)
+      ? new UpstreamBadContractError(cause)
+      : new UpstreamResponseError(operation, response.status, detail, cause);
+  }
+
   // ------------ envio da reserva (E2.8) ---------
 
-  // POST v2/community/validations/change com o token de membro, em nome do convidado (setup, item 6).
-  // 401/403: a sessão renova o token uma vez e reenvia (D40). O que fazer com cada falha é do usecase
-  async sendAttendance(data: ISendAttendanceData): Promise<ISentAttendance> {
+  // POST v2/manager-organization/users com o token de membro (D41): idempotente pelo e-mail, devolve a
+  // conta que já existe (convidado ou membro). Falhas como no sendAttendance
+  async registerGuest(person: ISendAttendancePerson): Promise<ITransicionaisAccount> {
+    const response = await this.session.request<unknown>(
+      {
+        method: HttpMethod.Post,
+        url: TransicionaisUrlCollection.organizationUsers(),
+        body: GuestAccountRequest.fromDomain(person),
+      },
+      SEND_RENEW_ON,
+    );
+
+    if (isUnavailable(response.status)) {
+      throw new UpstreamUnavailableError("Transicionais is unavailable");
+    }
+
+    if (response.error || response.status < 200 || response.status >= 300) {
+      throw this.sendError(response, REGISTER_OPERATION);
+    }
+
+    return GuestAccountResponse.toDomain(response.data);
+  }
+
+  // GET v2/manager-validations/guests?configDayIds=&search=<email> com o token de membro (D49): a
+  // presença da pessoa no dia, com o hash. null = ainda não respondeu. Falhas como no sendAttendance
+  async findPresence(dayKey: string, email: string): Promise<ITransicionaisPresence | null> {
+    const response = await this.session.request<unknown>(
+      { method: HttpMethod.Get, url: TransicionaisUrlCollection.guestPresence(dayKey, email) },
+      SEND_RENEW_ON,
+    );
+
+    if (isUnavailable(response.status)) {
+      throw new UpstreamUnavailableError("Transicionais is unavailable");
+    }
+
+    if (response.error || response.status < 200 || response.status >= 300) {
+      throw this.sendError(response, PRESENCE_OPERATION);
+    }
+
+    return GuestPresenceResponse.toDomain(response.data, email);
+  }
+
+  // POST v2/manager-validations/change com o token de membro, em nome da conta da pessoa (D41).
+  // 401/403: a sessão renova o token uma vez e reenvia (D40). Qualquer 2xx é aceito (APPROVED ou
+  // ALREADY). O que fazer com cada falha é do usecase
+  async sendAttendance(data: ISendAttendanceData): Promise<void> {
     const response = await this.session.request<unknown>(
       {
         method: HttpMethod.Post,
@@ -323,23 +400,26 @@ export class TransicionaisRepo implements ITransicionaisRepo {
     }
 
     if (response.error || response.status < 200 || response.status >= 300) {
-      throw this.sendError(response, data);
+      throw this.sendError(response, SEND_OPERATION, data.attendanceId);
     }
-
-    return ValidationChangeResponse.toDomain(response.data);
   }
 
   // tabela "Tradução das keys do Transicionais" (envio da reserva, R11)
-  private sendError(response: IClientResponse<unknown>, data: ISendAttendanceData): Error {
+  private sendError(response: IClientResponse<unknown>, operation: string, attendanceId?: string): Error {
     const key = errorKey(response);
 
-    // continuou 401/403 depois de renovar: é configuração, não culpa da pessoa
-    if (SEND_RENEW_ON.includes(response.status)) {
-      return new UpstreamResponseError(SEND_OPERATION, response.status, key);
+    // continuou 401/403 depois de renovar, ou a rota escondida: é configuração, não culpa da pessoa
+    if (SEND_RENEW_ON.includes(response.status) || key === SEND_HIDDEN_ROUTE_KEY) {
+      return new UpstreamResponseError(operation, response.status, key, errorCause(response, operation));
     }
 
     if (key === SEND_ANSWER_CHANGED_KEY) {
-      return new AnswerChangedError(SEND_OPERATION);
+      return new AnswerChangedError(operation);
+    }
+
+    // 400, 409 ou 422: o contrato foi recusado; o usecase grava o erro e MANUAL_RETRY (D50)
+    if (isBadContract(response.status)) {
+      return new UpstreamBadContractError(errorCause(response, operation));
     }
 
     const knownError = key ? SEND_REJECTIONS[key] : undefined;
@@ -349,11 +429,11 @@ export class TransicionaisRepo implements ITransicionaisRepo {
     }
 
     if (SEND_REJECTED_STATUSES.includes(response.status)) {
-      logger.error({ attendanceId: data.attendanceId, status: response.status, key }, "attendance rejected by an unknown rule");
+      logger.error({ operation, attendanceId, status: response.status, key }, "attendance rejected by an unknown rule");
       return new ReservationRejectedError("Reservation was rejected");
     }
 
-    return new UpstreamResponseError(SEND_OPERATION, response.status, key);
+    return new UpstreamResponseError(operation, response.status, key, errorCause(response, operation));
   }
 
   // ------------ webhooks ---------

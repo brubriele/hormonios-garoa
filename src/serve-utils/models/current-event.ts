@@ -8,13 +8,13 @@ function isStock(value: number | null): boolean {
 // a reserva ocupa vaga a mais do que o taken do retrato? No retrato do Transicionais (taken não null),
 // só a "vou" local PENDING (a SYNCED já está no taken); no retrato local da fase 1, toda "vou"
 function countsOverTaken(taken: number | null, attendance: Attendance): boolean {
-  return attendance.isGoing && (taken === null || attendance.isPending);
+  return attendance.isGoing && (taken === null || attendance.isLocalOnly);
 }
 
 // o que tem estoque no encontro (instrumento ou acessório): a conta das vagas é a mesma
 abstract class Stock {
   abstract readonly stockTotal: number | null; // null = sem limite
-  abstract readonly taken: number | null; // occupied do dia no Transicionais; null = retrato local
+  abstract readonly taken: number | null; // confirmed do dia no Transicionais (D47); null = retrato local
   abstract readonly rotativo: boolean; // pode passar da capacidade
 
   // vagas ocupadas pelas reservas do encontro
@@ -43,7 +43,7 @@ export class Group extends Stock {
     readonly name: string, // título da assistência do instrumento
     readonly stockTotal: number | null, // capacity da assistência; null = sem limite
     readonly active: boolean,
-    readonly taken: number | null = null, // occupied do dia no Transicionais; null = retrato local (conta da fase 1)
+    readonly taken: number | null = null, // confirmed do dia no Transicionais (D47); null = retrato local (conta da fase 1)
     // assistência do instrumento. Interna ao BFF, fora das respostas de /api. A reserva com este grupo
     // a manda em supportTypeIds, junto dos acessórios
     readonly instrumentSupportId: string | null = null,
@@ -104,7 +104,7 @@ export class Support extends Stock {
     readonly id: string,
     readonly name: string,
     readonly stockTotal: number | null = null, // capacity; null = sem limite
-    readonly taken: number | null = null, // occupied do dia no Transicionais; null = retrato local
+    readonly taken: number | null = null, // confirmed do dia no Transicionais (D47); null = retrato local
     readonly rotativo: boolean = false,
     readonly groupIds: string[] = [], // vazio = vale para todos os grupos
   ) {

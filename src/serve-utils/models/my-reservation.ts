@@ -11,6 +11,7 @@ export class MyReservation {
     readonly groupName: string | null, // null = sem grupo ou grupo fora do retrato
     readonly supportIds: string[],
     readonly accessories: MyReservationAccessory[], // os do retrato; id que saiu do encontro fica de fora
+    readonly email: string, // o e-mail da própria pessoa: a folha preenche como o nome e o pronome
     readonly name: string,
     readonly pronoun: string,
     readonly sync: AttendanceSync,
@@ -43,8 +44,8 @@ export class MyReservation {
       throw new InvalidParameterError("Field myReservation.accessories is invalid");
     }
 
-    if (typeof this.name !== "string" || typeof this.pronoun !== "string") {
-      throw new InvalidParameterError("Field myReservation.name or pronoun is invalid");
+    if (typeof this.email !== "string" || typeof this.name !== "string" || typeof this.pronoun !== "string") {
+      throw new InvalidParameterError("Field myReservation.email, name or pronoun is invalid");
     }
 
     if (!Object.values(AttendanceSync).includes(this.sync)) {

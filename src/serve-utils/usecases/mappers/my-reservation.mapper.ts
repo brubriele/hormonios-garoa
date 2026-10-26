@@ -15,6 +15,7 @@ export class MyReservationMapper {
       event.supports
         .filter((support) => attendance.supportIds.includes(support.id))
         .map((support) => new MyReservationAccessory(support.id, support.name)),
+      attendance.user.email,
       attendance.user.name,
       attendance.user.pronoun,
       attendance.sync,

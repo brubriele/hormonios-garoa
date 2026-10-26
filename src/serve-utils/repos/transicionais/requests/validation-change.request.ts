@@ -14,22 +14,16 @@ export enum ValidationAnswer {
   Tentative = "TENTATIVE",
 }
 
-export interface IValidationChangePerson {
-  email: string;
-  name: string;
-  pronoun: string;
-}
-
-// corpo do POST v2/community/validations/change com o token de membro, em nome do convidado
-// (E2.8; setup-hormonios.md, item 6: ainda fora do contrato local, D3)
+// corpo do POST v2/manager-validations/change com o token de membro, em nome da conta da pessoa
+// (D41): profileGuestId (convidado) ou profileId (membro), nunca os dois
 export interface IValidationChangeBody {
   type: ValidationType;
   configDayId: number;
+  profileGuestId?: string;
+  profileId?: number;
   status: ValidationAnswer;
   groupId?: number; // ausente = só presença ("Não se aplica")
   supportTypeIds: number[];
-  person: IValidationChangePerson;
-  idempotencyKey: string; // <id>:<updated_at>: a mesma nos reenvios da mesma mudança
 }
 
 export class ValidationChangeRequest {
@@ -37,16 +31,17 @@ export class ValidationChangeRequest {
   static fromDomain(data: ISendAttendanceData): IValidationChangeBody {
     const attending = data.answer === AttendanceAnswer.Going;
     const groupId = attending && data.groupId !== null ? numericId(data.groupId, "groupId") : undefined;
+    const { guestId, memberId } = data.account;
 
     return {
       type: ValidationType.Attendance,
       configDayId: numericId(data.dayKey, "configDayId"),
+      ...(guestId === null ? {} : { profileGuestId: guestId }),
+      ...(guestId === null && memberId !== null ? { profileId: numericId(memberId, "profileId") } : {}),
       status: attending ? ValidationAnswer.Attending : ValidationAnswer.Declined,
       ...(groupId === undefined ? {} : { groupId }),
       supportTypeIds:
         groupId === undefined ? [] : [...new Set(data.supportTypeIds)].map((id) => numericId(id, "supportTypeId")),
-      person: data.person,
-      idempotencyKey: `${data.attendanceId}:${data.updatedAt}`,
     };
   }
 }

@@ -3,7 +3,8 @@ export class TransicionaisUrlCollection {
   static readonly COMMUNITY_PATH = "v2/community/organizations";
   static readonly EVENT_PATH = "v2/manager-events/details";
   static readonly SUPPORT_TYPE_PATH = "v2/manager-support-types";
-  static readonly VALIDATION_PATH = "v2/community/validations";
+  static readonly MANAGER_ORGANIZATION_PATH = "v2/manager-organization";
+  static readonly VALIDATION_PATH = "v2/manager-validations";
 
   // lido na chamada, nao no import: env ausente quebra na hora certa (R2)
   // TRANSICIONAIS_URL já traz o prefixo /apps_nodejs
@@ -87,7 +88,19 @@ export class TransicionaisUrlCollection {
     return `${this.apiUrl}/${this.SUPPORT_TYPE_PATH}/${encodeURIComponent(id)}`;
   }
 
-  // resposta do convidado, escrita pelo token de membro em nome dele (E2.8)
+  // cadastro da pessoa como convidado da organização (D41)
+  static organizationUsers(): string {
+    return `${this.apiUrl}/${this.MANAGER_ORGANIZATION_PATH}/users`;
+  }
+
+  // a presença de uma pessoa (pelo e-mail) num dia (D49)
+  static guestPresence(dayKey: string, email: string): string {
+    const query = new URLSearchParams({ configDayIds: dayKey, search: email, perPage: "10" });
+
+    return `${this.apiUrl}/${this.VALIDATION_PATH}/guests?${query.toString()}`;
+  }
+
+  // resposta da pessoa, escrita pelo token de membro em nome da conta dela (E2.8, D41)
   static validationChange(): string {
     return `${this.apiUrl}/${this.VALIDATION_PATH}/change`;
   }

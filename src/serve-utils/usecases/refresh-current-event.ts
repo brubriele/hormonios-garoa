@@ -1,4 +1,5 @@
 import { AppError, UpstreamUnavailableError } from "../errors/app-error";
+import { UpstreamBadContractError, UpstreamResponseError } from "../errors/infra-error";
 import { today } from "../lib/date";
 import { createLogger } from "../lib/logger";
 import type { CurrentEvent } from "../models/current-event";
@@ -67,7 +68,25 @@ export class RefreshCurrentEventUsecase {
         return null;
       }
 
+      await this.markSupabaseEventError(error);
       throw error;
+    }
+  }
+
+  // o erro do Transicionais vai como veio para a linha do retrato; 400, 409 ou 422 também deixam
+  // MANUAL_RETRY (D50). Uma falha ao gravar não esconde o erro da leitura
+  private async markSupabaseEventError(error: unknown): Promise<void> {
+    const manualRetry = error instanceof UpstreamBadContractError;
+    const errorCause = manualRetry || error instanceof UpstreamResponseError ? error.errorCause : null;
+
+    if (!errorCause) {
+      return;
+    }
+
+    try {
+      await this.hormoniosRepo.markEventError({ manualRetry, errorCause });
+    } catch (markError) {
+      logger.error({ err: markError }, "event error not saved (D50)");
     }
   }
 

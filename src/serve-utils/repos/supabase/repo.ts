@@ -12,6 +12,7 @@ import { SupabaseClient } from "../../clients/supabase-client";
 import { ApplyValidationRequest } from "./requests/apply-validation.request";
 import { CancelByDeviceRequest } from "./requests/cancel-by-device.request";
 import { ClaimPendingRequest } from "./requests/claim-pending.request";
+import { MarkEventErrorRequest } from "./requests/mark-event-error.request";
 import { MarkSyncRequest } from "./requests/mark-sync.request";
 import { MoveAttendancesRequest } from "./requests/move-attendances.request";
 import { RegisterWebhookDeliveryRequest } from "./requests/register-webhook-delivery.request";
@@ -38,6 +39,7 @@ import type {
   IClaimPendingFilter,
   IHormoniosRepo,
   IListByDeviceFilter,
+  IMarkEventErrorData,
   IMarkSyncData,
   IMoveAttendancesData,
   IReserveData,
@@ -100,6 +102,16 @@ export class HormoniosRepo implements IHormoniosRepo {
     }
 
     return SavedResponse.toDomain(response.data, "gravar_retrato");
+  }
+
+  async markEventError(data: IMarkEventErrorData): Promise<void> {
+    const response = await this.supabaseClient.query<unknown>((sdk) =>
+      sdk.rpc("marcar_erro_retrato", MarkEventErrorRequest.fromDomain(data)),
+    );
+
+    if (response.error) {
+      throw new DatabaseError("marcar_erro_retrato", response.status, response.error.message);
+    }
   }
 
   async saveWhatsappUrl(url: string): Promise<void> {

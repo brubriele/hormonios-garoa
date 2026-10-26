@@ -62,7 +62,7 @@ Como na fase 1, a env é lida na chamada. Ausente: 500 `INTERNAL_ERROR`. As envs
 | `groups[].instrumentSupportId` | id da assistência do instrumento. Interno ao BFF: não sai nas respostas de `/api`. |
 | `supports[]` | assistências `type='acessorio'`. `groupIds` vazio = vale para todos os grupos. |
 | `stockTotal` | `capacity` da assistência. `null` = sem limite (D20). |
-| `taken` | `occupied` de `configDays[].summary.supports` do dia (D19). Só no retrato do Transicionais. |
+| `taken` | `confirmed` de `configDays[].summary.supports` do dia: quem disse "vou" pedindo a assistência (D47; antes `occupied`, D19). Só no retrato do Transicionais. |
 | `rotativo` | `rotativo` da assistência: pode passar da capacidade. |
 
 - Assistência inativa ou com `type` desconhecido fica fora (D24).
@@ -77,12 +77,12 @@ Todas `security definer`, com `execute` só para `service_role`.
 
 | Função | Migration | O que faz |
 |---|---|---|
-| `gravar_retrato(p_external_id, p_version, p_vacancies_at, p_data)` → boolean | 0002 | Grava o retrato com trava. Troca a linha se o `external_id` é outro, se não há versão gravada, se a versão é maior, ou se é igual com vagas mais novas **e** `data` diferente. Senão, só marca `fetched_at`. Mantém o `whatsappUrl` gravado. `true` = trocou. |
+| `gravar_retrato(p_external_id, p_version, p_hash, p_vacancies_at, p_data)` → boolean | 0002, revista na 0007 (D48) | Grava o retrato com trava. Troca a linha se o `external_id` é outro, ou se o `hash` do Transicionais mudou e a leitura é mais nova (`p_vacancies_at`). Sem `hash` (retrato do webhook): a regra antiga, pela version. Sem mudança, só marca `fetched_at`. O `whatsappUrl` gravado fica. |
 | `gravar_whatsapp(p_url)` | 0002 | Grava só o `whatsappUrl` no `data`, sem disputar com o retrato. |
 | `migrar_fase1(p_old_day_key, p_new_day_key, p_group_map)` → int | 0002 | Leva as linhas de um dia para outro, marca `PENDING`, zera `attempts` e muda o `updated_at`. Grupo fora do mapa vira só presença. Quem já tem linha no dia novo fica com ela. Usada na primeira leitura do Transicionais (mapa vazio, E2.2 e D15) e na troca de data (mapa identidade, D7). |
 | `reservar(...)` | 0003 | A da fase 1 com estoque por assistência. Ver abaixo. |
-| `claim_pending(p_day_key, p_limit)` → linhas | 0004 | Pega até N linhas `PENDING` do dia com `next_attempt_at` vencido (`for update skip locked`) e adia o `next_attempt_at` em 2 min. Só o dia atual (D11). |
-| `marcar_sync(p_id, p_updated_at, p_mode, …)` → boolean | 0004 | Grava o resultado do envio só se a linha ainda tem o `updated_at` lido **e** está `PENDING`. Modos na tabela do envio. `false` = a linha mudou (continua `PENDING`). |
+| `claim_pending(p_limit)` → linhas | 0005 (antes 0004) | Pega até N linhas `PENDING` com `next_attempt_at` vencido (`for update skip locked`) e adia o `next_attempt_at` em 2 min. Todos os dias do Transicionais (`day_key` numérico); os de ensaio antigo da fase 1 (UUID) ficam de fora (D45, revê a D11). |
+| `marcar_sync(p_id, p_updated_at, p_mode, …)` → boolean | 0004, revista na 0006 (D46) | Grava o resultado do envio só se a linha ainda tem o `updated_at` lido **e** está `PENDING`. Modos na tabela do envio. `false` = a linha mudou (continua `PENDING`). |
 | `aplicar_validacao(p_order_id, p_day_key, p_guest_id, p_email, p_data, p_changed_at)` → text | 0004 | Webhook `validation.changed`. Devolve `APPLIED`, `STALE`, `LOCAL_NEWER`, `UNKNOWN_PERSON` ou `NO_ROW`. |
 | `gravar_vagas(p_day_key, p_vacancies_at, p_taken)` → boolean | 0004 | Troca o `taken` de grupos e supports pelo ocupado do webhook. Só no retrato do Transicionais, no mesmo dia e com `p_vacancies_at` mais novo que `vacancies_at`. |
 
@@ -135,7 +135,7 @@ Um `Error` sem `key` no log é bug ou env ausente.
 | `GET /api/ensaio` | — | 200 `<ensaio>` | `NOT_FOUND`, `INTERNAL` |
 | `POST /api/reserva` | igual à fase 1 | 201 `{ id, groupId, supportIds, name, pronoun, sync: "PENDING" \| "SYNCED" }` | os da fase 1 + `ACCESSORY_SOLD_OUT`, `RESERVATION_REJECTED` |
 | `POST /api/reserva/desfazer` | `{ id }` | 204 | os da fase 1 + as recusas do Transicionais (D34) |
-| `GET /api/minhas-reservas` | — | 200 `[{ id, groupId, groupName, supportIds, accessories: [{ id, name }], name, pronoun, sync, syncError }]` | `NOT_FOUND`, `INTERNAL` |
+| `GET /api/minhas-reservas` | — | 200 `[{ id, groupId, groupName, supportIds, accessories: [{ id, name }], email, name, pronoun, sync, syncError }]` | `NOT_FOUND`, `INTERNAL` |
 | `GET /api/admin/resumo` | — | 200 `<resumo>` | igual |
 | `PUT /api/admin/ensaio` | parcial de `{ date, time, location, whatsappUrl, bookingOpen, stocks: [{ id, stockTotal }] }` | 200 `<resumo>` | `UNAUTHORIZED`, `INVALID_PARAMETER`, `NOT_FOUND`, `STOCK_BELOW_RESERVATIONS`, `UPSTREAM_UNAVAILABLE`, `INTERNAL` |
 | `POST /api/admin/novo-ensaio` | — | 200 `<resumo>` | `UNAUTHORIZED`, `NOT_FOUND`, `UPSTREAM_UNAVAILABLE`, `INTERNAL` |
@@ -227,17 +227,37 @@ credencial errada é erro de configuração (500), não queda. Todo pedido tem t
 
 ## Envio da reserva
 
-`POST v2/community/validations/change` com o token de membro (E2.8):
+Com o token de membro, pelas rotas de manager (E2.8 revista, D41). Quem orquestra é o
+`SendAttendanceUsecase`:
 
-```
-{ type: "ATTENDANCE", configDayId, status: "ATTENDING" | "DECLINED", groupId?,
-  supportTypeIds, person: { email, name, pronoun }, idempotencyKey: "<id>:<updated_at>" }
-```
+0. `GET v2/manager-validations/guests?configDayIds=<dia>&search=<e-mail>` → a presença da pessoa no
+   dia, com `hash` e `orderId` (D49). Se a resposta, o grupo e as assistências já são os da linha
+   local, a linha vira `SYNCED` sem os passos 1 e 2.
+
+1. `POST v2/manager-organization/users` → a conta da pessoa (idempotente pelo e-mail): `profileGuestId`
+   (convidado) ou `profileId` (o e-mail é de membro).
+
+   ```
+   { type: "GUEST", name, email, pronouns }
+   ```
+
+2. `POST v2/manager-validations/change` em nome da conta. Qualquer 2xx (`APPROVED` ou `ALREADY`) é
+   aceito.
+
+   ```
+   { type: "ATTENDANCE", configDayId, profileGuestId | profileId,
+     status: "ATTENDING" | "DECLINED", groupId?, supportTypeIds }
+   ```
+
+Se o passo 0 ou o 1 falha, os seguintes não são enviados, e a falha segue a mesma tabela. Depois do
+passo 2, a presença é relida só para gravar o `hash` e o `orderId` (`hg_attendances.transicionais_hash`,
+migration 0008); se a releitura falhar, o envio vale e fica sem `hash`.
 
 - `supportTypeIds` = a assistência do instrumento + os acessórios. Só presença ou "Não vou": sem
   `groupId` e vazio.
 - Vai com `x-forwarded-for` = IP real da pessoa (R4). No cron, sem IP.
-- A resposta é lida de `content` ou da raiz: `guestId`, `orderId`, `changedAt` (D33).
+- Sem `idempotencyKey`: reenviar a mesma resposta devolve `ALREADY`. O `order_id` e o `changed_at`
+  não vêm no envio e só chegam pelo webhook `validation.changed`.
 
 **Quem envia.** A reserva e o "Não vou" enviam na hora, depois de gravar local. O cron envia o que
 ficou `PENDING`. Não envia: retrato local da fase 1, linha de outro dia ou que não está `PENDING`
@@ -245,27 +265,26 @@ ficou `PENDING`. Não envia: retrato local da fase 1, linha de outro dia ou que 
 
 | Resposta | Linha (`marcar_sync`) | Rota de reserva/desfazer |
 |---|---|---|
-| 2xx | `SYNCED`, `order_id`, `changed_at` e o `guest_id` da pessoa (unique: se já for de outra, não troca) | 201 `sync: "SYNCED"` / 204 |
-| `VALIDATION_GUEST_GROUP_FULL`, `…_EVENT_FULL`, `…_FREE_SEATS_FULL` | `REJECTED`, `sync_error = SOLD_OUT_ERROR` | 409 `SOLD_OUT_ERROR` |
-| `VALIDATION_GUEST_ANSWER_CLOSED`, `…_ANSWER_NOT_OPEN`, `VALIDATION_DAY_INACTIVE` | `REJECTED`, `BOOKING_CLOSED_ERROR` | 409 `BOOKING_CLOSED_ERROR` |
+| 2xx (ou a presença de lá já igual, D49) | `SYNCED`, o `hash` e o `order_id` da presença relida, e o `guest_id` da pessoa = `profileGuestId` (unique: se já for de outra, não troca; membro ou presença já igual: fica como estava). `changed_at` fica como estava | 201 `sync: "SYNCED"` / 204 |
+| outro 404 (ex.: `VALIDATION_EVENT_NOT_FOUND`) | `PENDING`, modo `BACKOFF` + log de erro (D44). As recusas de regra (`…_FULL`, `…_ANSWER_CLOSED`, prazo) são 409/400 e caem no `MANUAL_RETRY` (D50) | 201 `PENDING` / 204 |
 | `VALIDATION_ANSWER_CHANGED` | `PENDING`, modo `RETRY` (`next_attempt_at = now()`) | 201 `PENDING` / 204 |
-| outro 400/404/409/422 | `REJECTED`, `RESERVATION_REJECTED_ERROR` (inclui acessório esgotado lá, D39) | 409 `RESERVATION_REJECTED_ERROR` |
-| 401/403 depois de renovar | `PENDING`, modo `BACKOFF` + log de erro | 201 `PENDING` / 204 |
-| 0 (rede, timeout), 429, 5xx, outro status, exceção | `PENDING`, modo `BACKOFF` (`attempts + 1`, espera 1, 2, 4, 8, 16, depois 30 min) | 201 `PENDING` / 204 |
+| 400, 409 ou 422 (menos `VALIDATION_ANSWER_CHANGED`) | `MANUAL_RETRY` com o `error_cause` (o erro como veio): sai do cron até o ajuste manual (D50) | 201 `sync: "MANUAL_RETRY"` / 204 |
+| 401/403 depois de renovar, ou 404 `NOT_FOUND` (conta do BFF sem ADMIN/MANAGER) | `PENDING`, modo `BACKOFF` + log de erro | 201 `PENDING` / 204 |
+| 0 (rede, timeout), 429, 5xx, outro status, exceção | `PENDING`, modo `BACKOFF` (`attempts + 1`, volta na próxima chamada do cron: quem chama decide o ritmo, D46) | 201 `PENDING` / 204 |
 
 - `marcar_sync` só grava se o `updated_at` é o lido antes do envio e a linha está `PENDING`. Se a
   linha mudou durante o envio (ou um webhook já a resolveu), nada é gravado e a rota responde
   `PENDING`.
 - Uma falha do envio nunca derruba a reserva local (D32).
-- A recusa do "Não vou" deixa a linha `nao-vou` e `REJECTED`. No Transicionais a pessoa continua
-  `ATTENDING` (D34).
+- O envio não grava mais `REJECTED` (D44): a linha fica `PENDING` até sincronizar de fato. As linhas
+  `REJECTED` de antes continuam valendo como `nao-vou`.
 
 ## Cron
 
 | Rota | O que faz |
 |---|---|
 | `GET /api/cron/event` | `refreshCurrentEvent()`: lê o Transicionais e grava com `gravar_retrato`. Na primeira leitura sobre o retrato local, chama `migrar_fase1`. `changed` = o retrato mudou. Fora do ar: 200 `{ changed: false }`. |
-| `GET /api/cron/sync` | `claim_pending(dayKey atual, 10)` e envia as 10 linhas em paralelo. Responde a contagem por resultado. Retrato local da fase 1: tudo 0, sem enviar. |
+| `GET /api/cron/sync` | `claim_pending(10)` (só `PENDING`, de todos os dias do Transicionais, D45) e envia as 10 linhas em paralelo. Responde a contagem por resultado. Retrato local da fase 1: tudo 0, sem enviar. |
 
 `requireCron` compara o `Authorization` com `Bearer <CRON_SECRET>` por hash SHA-256, em tempo
 constante. Para chamar à mão: `yarn cron:event` e `yarn cron:sync` (`scripts/cron.mjs`, com
@@ -296,7 +315,7 @@ constante. Para chamar à mão: `yarn cron:event` e `yarn cron:sync` (`scripts/c
 | Transicionais fora ou lento (> 3 s) na leitura | `GET /api/ensaio` responde o último retrato com `stale: true` e o `fetchedAt` dele. |
 | Nenhum encontro Público de hoje em diante | Igual a fora do ar: fica o último retrato, `stale: true`, e um aviso no log. |
 | Transicionais fora na reserva ou no "Não vou" | A linha fica `PENDING` contra as vagas do retrato. O cron envia depois. |
-| Vaga tomada lá enquanto ele estava fora | O envio volta recusado e a linha fica `REJECTED`, com a `key` em `syncError`. |
+| Vaga tomada lá enquanto ele estava fora | O envio volta recusado, a linha continua `PENDING` (volta na próxima chamada do cron, D46) e a `key` vai para o log (D44). |
 | Transicionais fora numa ação da Produção | 503 `UPSTREAM_UNAVAILABLE_ERROR`. Repetir é seguro (D12). |
 | Webhook perdido | O cron de 5 min corrige o retrato. A resposta de cada envio corrige a reserva. |
 | Webhook repetido ou fora de ordem | `deliveryId`, `version` e `changedAt`: não muda nada. |
@@ -312,7 +331,8 @@ constante. Para chamar à mão: `yarn cron:event` e `yarn cron:sync` (`scripts/c
   retrato, `claim_pending` em paralelo, a trava do `updated_at`, os webhooks e `migrar_fase1`.
 - **Testado contra o dev pela Bea:** a leitura do encontro, a Produção e as regras de reserva da E2.9.
   **Não testados:** o envio da reserva, o cron de sync e os webhooks.
-- **Chamada real ao `validations/change`:** não feita. O formato da resposta é suposição (D33).
+- **Chamada real ao envio pelas rotas de manager (`manager-organization/users` e
+  `manager-validations/change`):** não feita (D41).
 - **`dayVacancies` por assistência no webhook:** depende do Transicionais mandar `supports` com o
   `occupied` (D36).
 - **Role `SERVICE` (T2.4/T2.5):** o BFF ainda entra como membro (E2.6) e escreve pela rota de

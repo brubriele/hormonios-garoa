@@ -6,6 +6,7 @@ export class EventSnapshot {
   constructor(
     readonly externalId: string,
     readonly version: number,
+    readonly hash: string | null, // md5 do encontro no Transicionais: muda quando algum campo muda (D48). null = sem hash (webhook)
     readonly vacanciesAt: string, // ISO de quando as vagas foram lidas
     readonly event: CurrentEvent,
   ) {
@@ -19,6 +20,10 @@ export class EventSnapshot {
 
     if (!Number.isInteger(this.version)) {
       throw new InvalidParameterError("Field version is invalid");
+    }
+
+    if (this.hash !== null && (typeof this.hash !== "string" || this.hash.trim() === "")) {
+      throw new InvalidParameterError("Field hash is invalid");
     }
 
     if (typeof this.vacanciesAt !== "string" || Number.isNaN(Date.parse(this.vacanciesAt))) {

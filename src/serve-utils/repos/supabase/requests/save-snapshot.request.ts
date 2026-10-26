@@ -30,6 +30,7 @@ interface ISnapshotData {
 export interface ISaveSnapshotParams {
   p_external_id: string;
   p_version: number;
+  p_hash: string | null;
   p_vacancies_at: string;
   p_data: ISnapshotData;
 }
@@ -41,6 +42,7 @@ export class SaveSnapshotRequest {
     return {
       p_external_id: snapshot.externalId,
       p_version: snapshot.version,
+      p_hash: snapshot.hash,
       p_vacancies_at: snapshot.vacanciesAt,
       p_data: {
         dayKey: event.dayKey,

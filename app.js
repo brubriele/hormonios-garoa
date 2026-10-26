@@ -251,7 +251,7 @@ function openReserve(id){
 
   const mine=state.mine[0];
   const email=document.querySelector("#reserve-email");
-  if(!email.value) email.value=state.email;
+  if(!email.value) email.value=mine?.email||state.email;
   if(mine){
     document.querySelector("#reserve-name").value=mine.name;
     document.querySelector("#reserve-pronoun").value=mine.pronoun;

@@ -73,13 +73,9 @@ export class CancelReservationUsecase {
     });
   }
 
-  // envia DECLINED na hora. Recusou: a linha fica REJECTED e a rota responde o erro traduzido
-  // (dúvida D34). Fora ou lento: PENDING, o cron envia depois
+  // envia DECLINED na hora. Qualquer falha, inclusive a recusa do Transicionais, deixa a linha PENDING,
+  // e o cron envia depois (D44)
   private async sendTransicionaisAttendance(attendance: Attendance, event: CurrentEvent, ip: string | null) {
-    const outcome = await this.sendAttendance.execute({ attendance, event, ip });
-
-    if (outcome.error) {
-      throw outcome.error;
-    }
+    await this.sendAttendance.execute({ attendance, event, ip });
   }
 }

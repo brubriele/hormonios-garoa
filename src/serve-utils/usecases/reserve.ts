@@ -155,18 +155,14 @@ export class ReserveUsecase {
     });
   }
 
-  // grava local primeiro (PENDING) e envia na hora. Recusou: a linha fica REJECTED e a rota responde
-  // o erro traduzido. Fora ou lento: PENDING, o cron envia depois
+  // grava local primeiro (PENDING) e envia na hora. Qualquer falha, inclusive a recusa do Transicionais,
+  // deixa a linha PENDING, e o cron envia depois (D44)
   private async sendTransicionaisAttendance(
     attendance: Attendance,
     event: CurrentEvent,
     ip: string | null,
   ): Promise<AttendanceSync> {
     const outcome = await this.sendAttendance.execute({ attendance, event, ip });
-
-    if (outcome.error) {
-      throw outcome.error;
-    }
 
     return outcome.sync;
   }
