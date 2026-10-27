@@ -94,6 +94,7 @@ encontro) e `fetchedAt` (a última leitura). O `User` guarda a conta inteira em 
 | T4 | Uma `key` conhecida do Transicionais vira o `AppError` do Hormônios (`TRANSICIONAIS_ERRORS`: estoque abaixo das reservas, encontro ou assistência não encontrados). `EVENT_VERSION_CONFLICT` vira `VersionConflictError`. |
 | T5 | Qualquer outra recusa vira `UpstreamBadContractError` (400, 409, 422) ou `UpstreamResponseError`, com o erro como veio, para gravar no `errorCtx`. |
 | T6 | O repo loga toda falha antes de lançar (`repositoryError`, `context: TransicionaisRepository`). |
+| T7 | A presença lida (Supabase ou webhook) com `groupId` ou `supportIds` fora do evento vira `InvalidCacheStateError` (422 `INVALID_CACHE_STATE_ERROR`, E9), e não 500. O front mostra "Não foi possível concluir. Tente de novo." (a `key` não tem mensagem própria no `app.js`). |
 
 #### Envio (Supabase → Transicionais)
 

@@ -76,6 +76,7 @@ api/                                   rotas da Vercel: só montam o usecase e r
 src/serve-utils/
   errors/                              AppError e erros de domínio
   domain/                              entidades
+  domain/mappers/                      <Nome>Mapper.ts: fromData monta o domain a partir do dado (M11)
   lib/schema.ts                        validateSchema e os schemas comuns (NonBlankSchema, CountSchema...): o zod de todo domain e de toda entrada de usecase
   interfaces/                          contratos (I*): interface do repo, entradas e filtros
   clients/                             HTTP/SDK compartilhado

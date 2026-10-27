@@ -16,6 +16,7 @@
 | M9 | **Regra de um domínio é método do domain**, mesmo quando ela precisa de outro domain como entrada: a conta das vagas é `group.countTaken(attendances)`, `available(attendances)`, `soldOut(attendances)` e `isBelowBookings(capacity, attendances)`. A saída que junta os dois é do mapper ([`usecases.md`](usecases.md), U9). |
 | M10 | **A saída de uma rota também é domain** (`PublicEvent`, `CurrentEventSummary`, `SummaryStockItem`, `UserBooking`), com as regras M1–M8. O JSON da resposta são os campos `readonly` do construtor: nada de getter ou campo a mais que mude o que sai. |
 | M8 | Enum no schema: `z.enum(<Enum>)`. Regra entre campos: `.refine(fn, { path: ["campo"], message: "must be empty without groupId" })`, e a mensagem sai como `Field supportIds must be empty without groupId`. |
+| M11 | **Montar o domain a partir do dado é um mapper em `domain/mappers/<Nome>Mapper.ts`** (`AttendanceMapper`, `EventMapper`, `UserMapper`), um por domain: `static fromData(data, ...)`, com a entrada `I<Nome>Data` declarada no próprio arquivo (o formato já validado, sem zod). Quem chama: os `responses/` dos repos, os `_requests/` das rotas e os usecases que reconstroem um domain. Os outros domains que ele precisa entram como parâmetro (`fromData(data, event)`). Id que não está no domain recebido é `InvalidCacheStateError` ([`errors.md`](errors.md), E9), não `InvalidParameterError`. Não é o mapper de saída ([`usecases.md`](usecases.md), U9). O `check.cjs` acusa arquivo fora do nome (`mapper-location`). |
 
 ## Exemplo
 

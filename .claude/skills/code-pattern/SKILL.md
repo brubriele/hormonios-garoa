@@ -25,7 +25,8 @@ O detalhe está nos docs; isto é o que mais aparece na revisão da Bea:
 - **Regra de um domínio é método do domain** (a conta das vagas: `group.available(attendances)`). A
   saída que junta domains distintos é um **mapper** em `usecases/<contexto>/mappers/`, um por arquivo,
   que só formata e devolve um **domain de saída** de `domain/` (`PublicEvent`, `CurrentEventSummary`), nunca
-  interface solta (`usecases.md` U9).
+  interface solta (`usecases.md` U9). Montar o domain a partir do dado é outro mapper, em
+  `domain/mappers/<Nome>Mapper.ts` (`fromData`, `domain.md` M11).
 - **Um enum por conceito:** o response usa o enum do domain (`z.enum(LoanCatalogKind)`), sem duplicar.
 - **Enum, não texto** para conjunto fechado; **`InfraError` com key**, não `throw new Error`, para falha
   de fonte; **logger**, não `console.*`; **helper comum em `lib/`**, nunca repetido.
@@ -41,7 +42,7 @@ node .claude/skills/code-pattern/scripts/check.cjs <arquivos ou pastas tocados> 
 Lista cada desvio com `arquivo:linha [regra]` e o doc da regra: `console`, `safe-parse`,
 `response-fallback`, `throw-error`, `string-union`, `nullable-optional`, `raw-interface`,
 `repo-mapper`, `repo-mapping`, `const-enum`, `duplicate-helper` e `mapper-location` (mapper fora de
-`usecases/<contexto>/mappers/` ou mais de um por arquivo). Corrija os desvios dos arquivos que você tocou.
+`usecases/<contexto>/mappers/` ou mais de um por arquivo; em `domain/mappers/`, nome fora de `<Nome>Mapper.ts`). Corrija os desvios dos arquivos que você tocou.
 Uma exceção justificada leva `// check-ignore <regra>: motivo` na linha ou na de cima. O código fora
 do piloto ainda tem desvios de legado: não os corrija fora do escopo da tarefa.
 

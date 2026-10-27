@@ -15,5 +15,6 @@
 - **Adicionadas:** envio ao Transicionais do ensaio, da pessoa e da presença, com fila e novas
   tentativas; webhook do Transicionais para encontro, pessoa e presença; job que reenvia a fila.
 - **Alteradas:** criar ensaio, gravar pessoa e reservar passam a enviar ao Transicionais; os logs
-  ganham os contextos `Sync`, `Job` e `TransicionaisRepository`.
+  ganham os contextos `Sync`, `Job` e `TransicionaisRepository`; a presença lida com grupo ou
+  suporte fora do evento responde 422 `INVALID_CACHE_STATE_ERROR` em vez de 500.
 - **Removidas:** —

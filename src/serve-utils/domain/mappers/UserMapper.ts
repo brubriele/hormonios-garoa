@@ -39,7 +39,7 @@ export interface IUserData {
   metadata: IUserMetadataData;
 }
 
-// F11
+// M11
 export class UserMapper {
   static fromData(data: IUserData, attendances: Attendance[]): User {
     const { metadata } = data;

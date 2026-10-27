@@ -77,7 +77,7 @@ export interface IEventData {
   metadata: IEventMetadataData;
 }
 
-// F11
+// M11
 export class EventMapper {
   static fromData(data: IEventData): Event {
     const groups = data.groups.map((group) => EventMapper.toGroup(group));

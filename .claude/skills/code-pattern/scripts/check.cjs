@@ -193,23 +193,24 @@ function checkDuplicateHelpers(sources) {
 const MAPPERS_DIR = /^src\/serve-utils\/usecases\/[^/]+\/mappers\//;
 const DOMAIN_MAPPERS_DIR = /^src\/serve-utils\/domain\/mappers\//;
 const MAPPER_DOC = "usecases.md U9";
+const DOMAIN_MAPPER_DOC = "domain.md M11";
 const MAPPER_DECLARATION =
   /^\s*(?:export\s+)?(?:(?:private|public|protected|static|async|abstract)\s+)*(?:class\s+\w*Mapper\b|(?:function\s+)?to[A-Z]\w*View\s*[(<])/;
 const EXPORTED_MAPPER = /^export\s+(?:abstract\s+)?(?:class|function)\s+(\w+)/;
 
 function checkMappers(sources) {
   return sources.flatMap(({ file, lines }) => {
-    const finding = (line, message) => ({
+    const finding = (line, message, doc = MAPPER_DOC) => ({
       file,
       line,
       rule: "mapper-location",
-      doc: MAPPER_DOC,
+      doc,
       message,
       code: (lines[line - 1] ?? "").trim(),
     });
 
     if (DOMAIN_MAPPERS_DIR.test(file)) {
-      return /\/[A-Z]\w*Mapper\.ts$/.test(file) ? [] : [finding(1, "arquivo de domain/mappers/ se chama <Nome>Mapper.ts (F11)")];
+      return /\/[A-Z]\w*Mapper\.ts$/.test(file) ? [] : [finding(1, "arquivo de domain/mappers/ se chama <Nome>Mapper.ts", DOMAIN_MAPPER_DOC)];
     }
 
     if (!MAPPERS_DIR.test(file)) {

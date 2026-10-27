@@ -1,4 +1,4 @@
-import { InvalidParameterError } from "../../errors/app-error";
+import { InvalidCacheStateError } from "../../errors/app-error";
 import { Attendance, type AttendanceAnswer, AttendanceMetadata } from "../Attendance";
 import type { Event, EventCatalog, EventGroup } from "../Event";
 import type { SyncStatus } from "../SyncStatus";
@@ -24,7 +24,7 @@ export interface IAttendanceData {
   metadata: IAttendanceMetadataData;
 }
 
-// F11
+// M11
 export class AttendanceMapper {
   static fromData(data: IAttendanceData, event: Event): Attendance {
     const { metadata } = data;
@@ -53,7 +53,7 @@ export class AttendanceMapper {
     const group = event.groups.find((item) => item.id === groupId);
 
     if (!group) {
-      throw new InvalidParameterError(`Field groupId ${groupId} is not in event ${event.id}`);
+      throw new InvalidCacheStateError(`Field groupId ${groupId} is not in event ${event.id}`);
     }
 
     return group;
@@ -63,7 +63,7 @@ export class AttendanceMapper {
     const item = event.catalog.find((entry) => entry.id === supportId);
 
     if (!item) {
-      throw new InvalidParameterError(`Field supportIds ${supportId} is not in event ${event.id}`);
+      throw new InvalidCacheStateError(`Field supportIds ${supportId} is not in event ${event.id}`);
     }
 
     return item;

@@ -12,6 +12,7 @@ export enum ErrorKey {
   UpstreamUnavailable = "UPSTREAM_UNAVAILABLE_ERROR",
   ReservationRejected = "RESERVATION_REJECTED_ERROR",
   EventCreationPending = "EVENT_CREATION_PENDING_ERROR",
+  InvalidCacheState = "INVALID_CACHE_STATE_ERROR",
 }
 
 export abstract class AppError extends Error {
@@ -86,4 +87,10 @@ export class ReservationRejectedError extends AppError {
 export class EventCreationPendingError extends AppError {
   readonly key = ErrorKey.EventCreationPending;
   readonly status = 409;
+}
+
+// E9
+export class InvalidCacheStateError extends AppError {
+  readonly key = ErrorKey.InvalidCacheState;
+  readonly status = 422;
 }
