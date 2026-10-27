@@ -1,6 +1,7 @@
 import type { Attendance } from "../domain/Attendance";
 import type { Event } from "../domain/Event";
 import type { IntegrationEntity, IntegrationStatus } from "../domain/IntegrationStatus";
+import type { SyncStatus } from "../domain/SyncStatus";
 import type { User } from "../domain/User";
 
 export interface IHormoniosRepository {
@@ -9,9 +10,11 @@ export interface IHormoniosRepository {
   findCurrentEvent(): Promise<Event | null>; // D2
   findEventByIntegrationId(integrationId: number): Promise<Event | null>; // D7
   findEventByTransicionaisDayId(transicionaisDayId: number): Promise<Event | null>;
+  findEventByAttendanceId(attendanceId: string): Promise<Event | null>;
   createEvent(event: Event): Promise<Event>;
   updateEvent(event: Event): Promise<Event>;
 
+  findUser(id: string): Promise<User | null>;
   findUserByEmail(email: string): Promise<User | null>;
   findUserByIntegrationId(integrationId: string): Promise<User | null>; // D7
   findUserById(id: string, event: Event): Promise<User | null>; // D3, D16
@@ -26,5 +29,7 @@ export interface IHormoniosRepository {
   createOrUpdateAttendance(attendance: Attendance, event: Event): Promise<Attendance>; // D8
 
   findIntegrationStatus(entity: IntegrationEntity, entityId: string): Promise<IntegrationStatus | null>;
+  // status igual e nextSyncAt vencido (ou null), do syncAt mais antigo para o mais novo
+  findDueIntegrationStatus(entity: IntegrationEntity, status: SyncStatus, now: Date, limit: number): Promise<IntegrationStatus[]>;
   createOrUpdateIntegrationStatus(integrationStatus: IntegrationStatus): Promise<IntegrationStatus>;
 }

@@ -2,9 +2,9 @@ import type { Attendance } from "../../domain/Attendance";
 import type { Event } from "../../domain/Event";
 import { AppError, NotFoundError } from "../../errors/app-error";
 import type { IHormoniosRepository } from "../../interfaces/IHormoniosRepository";
-import { createLogger } from "../../lib/logger";
+import { createLogger, LogContext } from "../../lib/logger";
 
-const logger = createLogger("FindingPublicEventUsecase");
+const logger = createLogger("FindingPublicEventUsecase", LogContext.Event);
 
 export class FindingPublicEventUsecase {
   constructor(private readonly hormoniosRepository: IHormoniosRepository) {}
@@ -14,6 +14,7 @@ export class FindingPublicEventUsecase {
       return await this._execute();
     } catch (error) {
       if (error instanceof AppError) {
+        logger.appError(error);
         throw error;
       }
 
@@ -24,6 +25,8 @@ export class FindingPublicEventUsecase {
 
   // F4
   private async _execute(): Promise<Event> {
+    logger.track("finding public event");
+
     const event = await this.findCurrentEvent();
     const attendances = await this.findEventAttendance(event);
 

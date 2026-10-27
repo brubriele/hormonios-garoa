@@ -4,13 +4,13 @@ import { Webhook, WebhookEntity, WebhookResult } from "../../domain/Webhook";
 import { AppError } from "../../errors/app-error";
 import type { IHormoniosRepository } from "../../interfaces/IHormoniosRepository";
 import type { ITransicionaisRepo } from "../../interfaces/transicionais";
-import { createLogger } from "../../lib/logger";
+import { createLogger, LogContext } from "../../lib/logger";
 import { DateTimeSchema, NonBlankSchema, UuidSchema, validateSchema } from "../../lib/schema";
 import { AttendanceWebhookUsecase } from "./AttendanceWebhookUsecase";
 import { EventWebhookUsecase } from "./EventWebhookUsecase";
 import { UserWebhookUsecase } from "./UserWebhookUsecase";
 
-const logger = createLogger("WebhookUsecase");
+const logger = createLogger("WebhookUsecase", LogContext.Sync);
 
 const WebhookInputSchema = z
   .object({
@@ -51,6 +51,7 @@ export class WebhookUsecase {
       return await this._execute(input);
     } catch (error) {
       if (error instanceof AppError) {
+        logger.appError(error);
         throw error;
       }
 
@@ -60,12 +61,13 @@ export class WebhookUsecase {
   }
 
   private async _execute(input: IWebhookInput): Promise<WebhookResult> {
+    logger.track("receiving webhook");
+
     const data = this.validateInput(input);
 
     const { eventId, userId, validationId } = data.body;
 
     if (data.entity === WebhookEntity.Event && eventId !== undefined) {
-      logger.info('Processing EventWebhookUseCase')
       const webhook = new Webhook(eventId, WebhookEntity.Event);
       const usecase = new EventWebhookUsecase(this.transicionaisRepo, this.hormoniosRepository);
 

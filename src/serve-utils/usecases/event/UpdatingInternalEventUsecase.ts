@@ -6,11 +6,11 @@ import { EventMapper, type IEventCatalogData, type IEventGroupData, type IEventM
 import type { User } from "../../domain/User";
 import { AppError, InvalidParameterError, NotFoundError, StockBelowReservationsError } from "../../errors/app-error";
 import type { IHormoniosRepository } from "../../interfaces/IHormoniosRepository";
-import { createLogger } from "../../lib/logger";
+import { createLogger, LogContext } from "../../lib/logger";
 import { validateSchema } from "../../lib/schema";
 import { EventBodySchema } from "./CreatingInternalEventUsecase";
 
-const logger = createLogger("UpdatingInternalEventUsecase");
+const logger = createLogger("UpdatingInternalEventUsecase", LogContext.Event);
 
 const UpdatingInternalEventInputSchema = z.instanceof(Event);
 
@@ -22,6 +22,7 @@ export class UpdatingInternalEventUsecase {
       return await this._execute(data);
     } catch (error) {
       if (error instanceof AppError) {
+        logger.appError(error, { hormoniosEventId: data.id });
         throw error;
       }
 
@@ -32,6 +33,8 @@ export class UpdatingInternalEventUsecase {
 
   // D13, F10
   private async _execute(data: Event): Promise<ManagerEvent> {
+    logger.track("updating internal event", { hormoniosEventId: data.id });
+
     const valid = this.validateInput(data);
     const current = await this.findEvent(valid);
     const attendances = await this.findEventAttendance(current);

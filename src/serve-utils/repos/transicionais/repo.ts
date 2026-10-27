@@ -31,7 +31,7 @@ import {
   UpstreamResponseError,
   VersionConflictError,
 } from "../../errors/infra-error";
-import { createLogger } from "../../lib/logger";
+import { createLogger, LogContext } from "../../lib/logger";
 import { isBadContract, isUnavailable } from "../../lib/upstream";
 import { DeleteEventsRequest } from "./requests/delete-events.request";
 import { EventCategoryRequest } from "./requests/event-category.request";
@@ -58,7 +58,7 @@ import { VersionResponse } from "./responses/version.response";
 import { TransicionaisSession } from "./session";
 import { OrganizationUserRef, TransicionaisUrlCollection } from "./url-collection";
 
-const logger = createLogger("TransicionaisRepo");
+const logger = createLogger("TransicionaisRepo", LogContext.TransicionaisRepository);
 
 // key do Transicionais -> AppError do Hormônios, nas ações da Produção (R11)
 const TRANSICIONAIS_ERRORS: Record<string, () => AppError> = {
@@ -154,11 +154,11 @@ export class TransicionaisRepo implements ITransicionaisRepo {
     }
 
     if (isUnavailable(response.status)) {
-      throw new UpstreamUnavailableError("Transicionais is unavailable");
+      throw this.logged(new UpstreamUnavailableError("Transicionais is unavailable"), "publicEvent");
     }
 
     if (response.error || response.data === undefined) {
-      throw this.readError(response, "publicEvent", errorKey(response));
+      throw this.logged(this.readError(response, "publicEvent", errorKey(response)), "publicEvent");
     }
 
     return PublicEventResponse.toDomain(response.data, fetchedAt);
@@ -579,29 +579,35 @@ export class TransicionaisRepo implements ITransicionaisRepo {
   // VersionConflictError (o usecase tenta de novo); o resto -> UpstreamResponseError (R8, R11)
   private assertWrite(response: IClientResponse<unknown>, operation: string): unknown {
     if (isUnavailable(response.status)) {
-      throw new UpstreamUnavailableError("Transicionais is unavailable");
+      throw this.logged(new UpstreamUnavailableError("Transicionais is unavailable"), operation);
     }
 
     const error = ErrorBodyResponse.toDomain(response.error?.details);
 
     if (error.key === VERSION_CONFLICT_KEY) {
-      throw new VersionConflictError(operation);
+      throw this.logged(new VersionConflictError(operation), operation);
     }
 
     const knownError = error.key ? TRANSICIONAIS_ERRORS[error.key] : undefined;
 
     if (knownError) {
-      throw knownError();
+      throw this.logged(knownError(), operation);
     }
 
     if (response.error || response.data === undefined) {
       // a message do Transicionais diz o campo recusado (REQUEST_ERROR)
       const message = JSON.stringify(error.message ?? response.error?.message);
 
-      throw this.readError(response, operation, `${error.key} ${message}`);
+      throw this.logged(this.readError(response, operation, `${error.key} ${message}`), operation);
     }
 
     return response.data;
+  }
+
+  private logged(error: Error, operation: string): Error {
+    logger.repositoryError(error, operation);
+
+    return error;
   }
 
   // 400, 409 ou 422: UpstreamBadContractError; o resto: UpstreamResponseError. Os dois levam o erro

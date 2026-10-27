@@ -9,11 +9,11 @@ import { Webhook, WebhookResult } from "../../domain/Webhook";
 import { AppError, NotFoundError, UpstreamUnavailableError } from "../../errors/app-error";
 import type { IHormoniosRepository } from "../../interfaces/IHormoniosRepository";
 import type { ITransicionaisRepo } from "../../interfaces/transicionais";
-import { createLogger } from "../../lib/logger";
+import { createLogger, LogContext } from "../../lib/logger";
 import { validateSchema } from "../../lib/schema";
 import { CreatingOrUpdateUserUsecase } from "../booking/CreatingOrUpdateUserUsecase";
 
-const logger = createLogger("AttendanceWebhookUsecase");
+const logger = createLogger("AttendanceWebhookUsecase", LogContext.Sync);
 
 const AttendanceWebhookInputSchema = z.instanceof(Webhook);
 
@@ -28,6 +28,7 @@ export class AttendanceWebhookUsecase {
       return await this._execute(input);
     } catch (error) {
       if (error instanceof AppError) {
+        logger.appError(error);
         throw error;
       }
 
@@ -37,6 +38,8 @@ export class AttendanceWebhookUsecase {
   }
 
   private async _execute(input: Webhook): Promise<WebhookResult> {
+    logger.track("receiving attendance webhook");
+
     const webhook = this.validateInput(input);
 
     try {

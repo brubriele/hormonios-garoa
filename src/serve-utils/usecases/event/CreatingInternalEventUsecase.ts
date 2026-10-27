@@ -6,11 +6,11 @@ import { SyncStatus } from "../../domain/SyncStatus";
 import { AppError, UpstreamUnavailableError } from "../../errors/app-error";
 import type { IHormoniosRepository } from "../../interfaces/IHormoniosRepository";
 import type { ITransicionaisRepo } from "../../interfaces/transicionais";
-import { createLogger } from "../../lib/logger";
+import { createLogger, LogContext } from "../../lib/logger";
 import { CountSchema, NonBlankSchema, validateSchema } from "../../lib/schema";
 import { toErrorCtx } from "../../lib/upstream";
 
-const logger = createLogger("CreatingInternalEventUsecase");
+const logger = createLogger("CreatingInternalEventUsecase", LogContext.Event);
 
 const TimeSchema = z.string().regex(/^\d{2}:\d{2}$/);
 
@@ -86,6 +86,7 @@ export class CreatingInternalEventUsecase {
       return await this._execute(data);
     } catch (error) {
       if (error instanceof AppError) {
+        logger.appError(error, { hormoniosEventId: data.id });
         throw error;
       }
 
@@ -95,6 +96,8 @@ export class CreatingInternalEventUsecase {
   }
 
   private async _execute(data: Event): Promise<Event> {
+    logger.track("creating internal event", { hormoniosEventId: data.id });
+
     const valid = this.validateInput(data);
     const event = this.withId(valid);
     const created = await this.createEvent(event);
@@ -170,7 +173,7 @@ export class CreatingInternalEventUsecase {
       return integrationStatus.pending(errorCtx, now);
     }
 
-    logger.error({ err: error, eventId: integrationStatus.entityId }, "event rejected by Transicionais");
+    logger.error({ err: error, hormoniosEventId: integrationStatus.entityId }, "event rejected by Transicionais");
 
     return integrationStatus.manualRetry(errorCtx, now);
   }

@@ -5,11 +5,11 @@ import type { User } from "../../domain/User";
 import { AppError, NotFoundError } from "../../errors/app-error";
 import type { IHormoniosRepository } from "../../interfaces/IHormoniosRepository";
 import type { ITransicionaisRepo } from "../../interfaces/transicionais";
-import { createLogger } from "../../lib/logger";
+import { createLogger, LogContext } from "../../lib/logger";
 import { emptyState } from "../../repos/supabase/mock/emptyState";
 import { CreatingInternalEventUsecase } from "./CreatingInternalEventUsecase";
 
-const logger = createLogger("FindingInternalEventUsecase");
+const logger = createLogger("FindingInternalEventUsecase", LogContext.Event);
 
 export class FindingInternalEventUsecase {
   constructor(
@@ -22,6 +22,7 @@ export class FindingInternalEventUsecase {
       return await this._execute();
     } catch (error) {
       if (error instanceof AppError) {
+        logger.appError(error);
         throw error;
       }
 
@@ -32,6 +33,8 @@ export class FindingInternalEventUsecase {
 
   // D5, F4
   private async _execute(): Promise<ManagerEvent> {
+    logger.track("finding internal event");
+
     const event = await this.findCurrentEventOrMock();
     const attendances = await this.findEventAttendance(event);
     const users = await this.findEventUsers(event);

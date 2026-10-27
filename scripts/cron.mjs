@@ -4,13 +4,13 @@
 //      yarn cron:webhook --entity=event --id=1 [BFF_URL] → POST /api/webhooks/transicionais (atualiza a base interna)
 //      ids: event = id do encontro ou uuid do link público; user = userId da conta; validation = validationId
 //      yarn cron:event [BFF_URL]                → GET /api/cron/event
-//      yarn cron:sync --type=nextEvent [BFF_URL] → GET /api/cron/sync?type=nextEvent
-//      tipos do sync: nextEvent, stock, booking
+//      yarn cron:sync --type=event [BFF_URL] → GET /api/cron/sync?type=event (reenvia a fila integration_status)
+//      tipos do sync: event, user, attendance
 // BFF_URL padrão: BFF_URL do .env.local ou http://localhost:5173
 import { existsSync } from 'node:fs'
 
 const ROUTES = ['event', 'sync']
-const SYNC_TYPES = ['nextEvent', 'stock', 'booking']
+const SYNC_TYPES = ['event', 'user', 'attendance']
 const WEBHOOK_ENTITIES = ['event', 'user', 'validation']
 const WEBHOOK_BODY_KEYS = { event: 'eventId', user: 'userId', validation: 'validationId' }
 

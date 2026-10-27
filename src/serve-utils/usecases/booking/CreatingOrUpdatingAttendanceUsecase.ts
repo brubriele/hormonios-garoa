@@ -18,13 +18,13 @@ import {
 } from "../../errors/app-error";
 import type { IHormoniosRepository } from "../../interfaces/IHormoniosRepository";
 import type { ITransicionaisRepo } from "../../interfaces/transicionais";
-import { createLogger } from "../../lib/logger";
+import { createLogger, LogContext } from "../../lib/logger";
 import { NonBlankSchema, UuidSchema, validateSchema } from "../../lib/schema";
 import { toErrorCtx } from "../../lib/upstream";
 import type { CreatingOrUpdateUserUsecase } from "./CreatingOrUpdateUserUsecase";
 import type { FindingUserUsecase } from "./FindingUserUsecase";
 
-const logger = createLogger("CreatingOrUpdatingAttendanceUsecase");
+const logger = createLogger("CreatingOrUpdatingAttendanceUsecase", LogContext.Attendance);
 
 const CreatingOrUpdatingAttendanceInputSchema = z
   .object({
@@ -77,6 +77,7 @@ export class CreatingOrUpdatingAttendanceUsecase {
       return await this._execute(input);
     } catch (error) {
       if (error instanceof AppError) {
+        logger.appError(error, { hormoniosUserId: input.userId ?? undefined });
         throw error;
       }
 
@@ -87,6 +88,8 @@ export class CreatingOrUpdatingAttendanceUsecase {
 
   // F7, F8
   private async _execute(input: ICreatingOrUpdatingAttendanceInput): Promise<User> {
+    logger.track("creating or updating attendance", { hormoniosUserId: input.userId ?? undefined });
+
     const data = this.validateInput(input);
     const event = await this.findCurrentEvent();
     const found = await this.findUser(data, event);
@@ -396,7 +399,7 @@ export class CreatingOrUpdatingAttendanceUsecase {
       return integrationStatus.pending(errorCtx, now);
     }
 
-    logger.error({ err: error, attendanceId: integrationStatus.entityId }, "attendance rejected by Transicionais");
+    logger.error({ err: error, hormoniosAttendanceId: integrationStatus.entityId }, "attendance rejected by Transicionais");
 
     return integrationStatus.manualRetry(errorCtx, now);
   }

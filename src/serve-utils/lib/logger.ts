@@ -2,6 +2,8 @@
 // JSON por registro (os logs da Vercel indexam os campos). Para trocar pelo pino, basta outra
 // implementação de Logger
 
+import type { AppError } from "../errors/app-error";
+
 export enum LogLevel {
   Debug = "debug",
   Info = "info",
@@ -9,7 +11,23 @@ export enum LogLevel {
   Error = "error",
 }
 
+export enum LogContext {
+  Event = "Event",
+  User = "User",
+  Attendance = "Attendance",
+  Job = "Job",
+  Sync = "Sync",
+  HormoniosRepository = "HormoniosRepository",
+  TransicionaisRepository = "TransicionaisRepository",
+}
+
 export type LogBindings = Record<string, unknown>;
+
+export interface ILogIds {
+  hormoniosEventId?: string;
+  hormoniosUserId?: string;
+  hormoniosAttendanceId?: string;
+}
 
 export abstract class Logger {
   constructor(protected readonly bindings: LogBindings = {}) {}
@@ -32,6 +50,18 @@ export abstract class Logger {
 
   error(fieldsOrMessage: LogBindings | string, message?: string): void {
     this.log(LogLevel.Error, fieldsOrMessage, message);
+  }
+
+  appError(error: AppError, ids: ILogIds = {}): void {
+    this.error({ ...ids, err: error, key: error.key }, "app error");
+  }
+
+  repositoryError(error: Error, operation: string): void {
+    this.error({ err: error, operation }, "repository error");
+  }
+
+  track(message: string, ids: ILogIds = {}): void {
+    this.info({ ...ids }, message);
   }
 
   private log(level: LogLevel, fieldsOrMessage: LogBindings | string, message?: string): void {
@@ -72,7 +102,7 @@ class ConsoleLogger extends Logger {
   }
 }
 
-// um logger por arquivo: createLogger("FindingCurrentEventUsecase")
-export function createLogger(scope: string): Logger {
-  return new ConsoleLogger({ scope });
+// um logger por arquivo: createLogger("FindingCurrentEventUsecase", LogContext.Event)
+export function createLogger(scope: string, context?: LogContext): Logger {
+  return new ConsoleLogger(context ? { context, scope } : { scope });
 }

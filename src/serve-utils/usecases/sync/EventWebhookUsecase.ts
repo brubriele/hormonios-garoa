@@ -5,12 +5,12 @@ import { Webhook, WebhookResult } from "../../domain/Webhook";
 import { AppError, NotFoundError, UpstreamUnavailableError } from "../../errors/app-error";
 import type { IHormoniosRepository } from "../../interfaces/IHormoniosRepository";
 import type { ITransicionaisRepo } from "../../interfaces/transicionais";
-import { createLogger } from "../../lib/logger";
+import { createLogger, LogContext } from "../../lib/logger";
 import { validateSchema } from "../../lib/schema";
 import { CreatingInternalEventUsecase } from "../event/CreatingInternalEventUsecase";
 import { UpdatingInternalEventUsecase } from "../event/UpdatingInternalEventUsecase";
 
-const logger = createLogger("EventWebhookUsecase");
+const logger = createLogger("EventWebhookUsecase", LogContext.Sync);
 
 const EventWebhookInputSchema = z.instanceof(Webhook);
 
@@ -25,6 +25,7 @@ export class EventWebhookUsecase {
       return await this._execute(input);
     } catch (error) {
       if (error instanceof AppError) {
+        logger.appError(error);
         throw error;
       }
 
@@ -34,6 +35,8 @@ export class EventWebhookUsecase {
   }
 
   private async _execute(input: Webhook): Promise<WebhookResult> {
+    logger.track("receiving event webhook");
+
     const webhook = this.validateInput(input);
 
     try {
@@ -55,27 +58,32 @@ export class EventWebhookUsecase {
     const external = await this.findTransicionaisEvent(webhook.id);
 
     if (!external) {
-       logger.info('Event not found', String(webhook.id))
+      logger.track("event not found in Transicionais");
+
       return new WebhookResult(SyncStatus.Rejected, false);
     }
 
     const current = await this.findInternalEvent(external);
 
     if (!current) {
-      await this.createEvent(external);
-       logger.info('Sucess to create event', String(webhook.id))
+      const created = await this.createEvent(external);
+
+      logger.track("event created", { hormoniosEventId: created.id });
 
       return new WebhookResult(SyncStatus.Synced, true);
     }
 
     const changed = this.isChanged(external, current);
 
-    if (changed) {
-      logger.info('Sucess to update event', String(webhook.id))
-      await this.updateEvent(external);
+    if (!changed) {
+      logger.track("event already processed", { hormoniosEventId: current.id });
+
+      return new WebhookResult(SyncStatus.Synced, true);
     }
 
-     logger.info('Event already processed', String(webhook.id))
+    await this.updateEvent(external);
+
+    logger.track("event updated", { hormoniosEventId: current.id });
 
     return new WebhookResult(SyncStatus.Synced, true);
   }

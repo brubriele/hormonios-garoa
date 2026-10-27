@@ -3,10 +3,10 @@ import type { Event } from "../../domain/Event";
 import type { User } from "../../domain/User";
 import { AppError, NotFoundError } from "../../errors/app-error";
 import type { IHormoniosRepository } from "../../interfaces/IHormoniosRepository";
-import { createLogger } from "../../lib/logger";
+import { createLogger, LogContext } from "../../lib/logger";
 import { UuidSchema, validateSchema } from "../../lib/schema";
 
-const logger = createLogger("FindingUserBookingUsecase");
+const logger = createLogger("FindingUserBookingUsecase", LogContext.User);
 
 const FindingUserBookingInputSchema = z.object({
   userId: UuidSchema.nullable(),
@@ -26,6 +26,7 @@ export class FindingUserBookingUsecase {
       return await this._execute(input);
     } catch (error) {
       if (error instanceof AppError) {
+        logger.appError(error, { hormoniosUserId: input.userId ?? undefined });
         throw error;
       }
 
@@ -36,6 +37,8 @@ export class FindingUserBookingUsecase {
 
   // D3, D16
   private async _execute(input: IFindingUserBookingInput): Promise<User> {
+    logger.track("finding user booking", { hormoniosUserId: input.userId ?? undefined });
+
     const data = this.validateInput(input);
     const userId = this.validateUserId(data.userId);
     const event = await this.findCurrentEvent();

@@ -6,11 +6,11 @@ import { User } from "../../domain/User";
 import { AppError, UpstreamUnavailableError } from "../../errors/app-error";
 import type { IHormoniosRepository } from "../../interfaces/IHormoniosRepository";
 import type { ITransicionaisRepo } from "../../interfaces/transicionais";
-import { createLogger } from "../../lib/logger";
+import { createLogger, LogContext } from "../../lib/logger";
 import { validateSchema } from "../../lib/schema";
 import { toErrorCtx } from "../../lib/upstream";
 
-const logger = createLogger("CreatingOrUpdateUserUsecase");
+const logger = createLogger("CreatingOrUpdateUserUsecase", LogContext.User);
 
 const CreatingOrUpdateUserInputSchema = z.instanceof(User);
 
@@ -25,6 +25,7 @@ export class CreatingOrUpdateUserUsecase {
       return await this._execute(user);
     } catch (error) {
       if (error instanceof AppError) {
+        logger.appError(error, { hormoniosUserId: user.id });
         throw error;
       }
 
@@ -34,6 +35,8 @@ export class CreatingOrUpdateUserUsecase {
   }
 
   private async _execute(user: User): Promise<User> {
+    logger.track("creating or updating user", { hormoniosUserId: user.id });
+
     const valid = this.validateInput(user);
     const withoutAttendances = this.withoutAttendances(valid);
     const saved = await this.createOrUpdateUser(withoutAttendances);
@@ -96,7 +99,7 @@ export class CreatingOrUpdateUserUsecase {
       return integrationStatus.pending(errorCtx, now);
     }
 
-    logger.error({ err: error, userId: integrationStatus.entityId }, "user rejected by Transicionais");
+    logger.error({ err: error, hormoniosUserId: integrationStatus.entityId }, "user rejected by Transicionais");
 
     return integrationStatus.manualRetry(errorCtx, now);
   }

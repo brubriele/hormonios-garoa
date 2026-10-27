@@ -2,9 +2,11 @@ import { SupabaseClient } from "../../clients/supabase-client";
 import type { Attendance } from "../../domain/Attendance";
 import type { Event } from "../../domain/Event";
 import type { IntegrationEntity, IntegrationStatus } from "../../domain/IntegrationStatus";
+import type { SyncStatus } from "../../domain/SyncStatus";
 import type { User } from "../../domain/User";
 import { DatabaseError } from "../../errors/infra-error";
 import type { IHormoniosRepository } from "../../interfaces/IHormoniosRepository";
+import { createLogger, LogContext } from "../../lib/logger";
 import { AttendanceRequest } from "./requests/AttendanceRequest";
 import { EventRequest } from "./requests/EventRequest";
 import { IntegrationStatusRequest } from "./requests/IntegrationStatusRequest";
@@ -13,6 +15,8 @@ import { AttendanceResponse } from "./responses/AttendanceResponse";
 import { EventResponse } from "./responses/EventResponse";
 import { IntegrationStatusResponse } from "./responses/IntegrationStatusResponse";
 import { UserResponse } from "./responses/UserResponse";
+
+const logger = createLogger("HormoniosRepository", LogContext.HormoniosRepository);
 
 const TABLE = "event";
 const USER_TABLE = "user";
@@ -29,7 +33,7 @@ export class HormoniosRepository implements IHormoniosRepository {
     );
 
     if (response.error) {
-      throw new DatabaseError(
+      throw this.databaseError(
         "findEvent",
         response.status,
         response.error.message,
@@ -46,7 +50,7 @@ export class HormoniosRepository implements IHormoniosRepository {
     );
 
     if (response.error) {
-      throw new DatabaseError("findEventByIntegrationId", response.status, response.error.message);
+      throw this.databaseError("findEventByIntegrationId", response.status, response.error.message);
     }
 
     return response.data ? EventResponse.toDomain(response.data) : null;
@@ -58,7 +62,19 @@ export class HormoniosRepository implements IHormoniosRepository {
     );
 
     if (response.error) {
-      throw new DatabaseError("findEventByTransicionaisDayId", response.status, response.error.message);
+      throw this.databaseError("findEventByTransicionaisDayId", response.status, response.error.message);
+    }
+
+    return response.data ? EventResponse.toDomain(response.data) : null;
+  }
+
+  async findEventByAttendanceId(attendanceId: string): Promise<Event | null> {
+    const response = await this.supabaseClient.query<unknown>((sdk) =>
+      sdk.from(TABLE).select(`data, ${ATTENDANCE_TABLE}!inner(id)`).eq(`${ATTENDANCE_TABLE}.id`, attendanceId).maybeSingle(),
+    );
+
+    if (response.error) {
+      throw this.databaseError("findEventByAttendanceId", response.status, response.error.message);
     }
 
     return response.data ? EventResponse.toDomain(response.data) : null;
@@ -71,7 +87,7 @@ export class HormoniosRepository implements IHormoniosRepository {
     );
 
     if (response.error) {
-      throw new DatabaseError("findCurrentEvent", response.status, response.error.message);
+      throw this.databaseError("findCurrentEvent", response.status, response.error.message);
     }
 
     return response.data ? EventResponse.toDomain(response.data) : null;
@@ -87,7 +103,7 @@ export class HormoniosRepository implements IHormoniosRepository {
     );
 
     if (response.error || !response.data) {
-      throw new DatabaseError(
+      throw this.databaseError(
         "createEvent",
         response.status,
         response.error?.message,
@@ -108,7 +124,7 @@ export class HormoniosRepository implements IHormoniosRepository {
     );
 
     if (response.error || !response.data) {
-      throw new DatabaseError(
+      throw this.databaseError(
         "updateEvent",
         response.status,
         response.error?.message,
@@ -118,13 +134,25 @@ export class HormoniosRepository implements IHormoniosRepository {
     return EventResponse.toDomain(response.data);
   }
 
+  async findUser(id: string): Promise<User | null> {
+    const response = await this.supabaseClient.query<unknown>((sdk) =>
+      sdk.from(USER_TABLE).select("data").eq("id", id).maybeSingle(),
+    );
+
+    if (response.error) {
+      throw this.databaseError("findUser", response.status, response.error.message);
+    }
+
+    return response.data ? UserResponse.toDomain(response.data, []) : null;
+  }
+
   async findUserByEmail(email: string): Promise<User | null> {
     const response = await this.supabaseClient.query<unknown>((sdk) =>
       sdk.from(USER_TABLE).select("data").eq("email", email).maybeSingle(),
     );
 
     if (response.error) {
-      throw new DatabaseError("findUserByEmail", response.status, response.error.message);
+      throw this.databaseError("findUserByEmail", response.status, response.error.message);
     }
 
     return response.data ? UserResponse.toDomain(response.data, []) : null;
@@ -137,7 +165,7 @@ export class HormoniosRepository implements IHormoniosRepository {
     );
 
     if (response.error) {
-      throw new DatabaseError("findUserByIntegrationId", response.status, response.error.message);
+      throw this.databaseError("findUserByIntegrationId", response.status, response.error.message);
     }
 
     return response.data ? UserResponse.toDomain(response.data, []) : null;
@@ -150,7 +178,7 @@ export class HormoniosRepository implements IHormoniosRepository {
     );
 
     if (response.error) {
-      throw new DatabaseError("findUserById", response.status, response.error.message);
+      throw this.databaseError("findUserById", response.status, response.error.message);
     }
 
     if (!response.data) {
@@ -170,7 +198,7 @@ export class HormoniosRepository implements IHormoniosRepository {
     );
 
     if (response.error || !response.data) {
-      throw new DatabaseError("createOrUpdateUser", response.status, response.error?.message);
+      throw this.databaseError("createOrUpdateUser", response.status, response.error?.message);
     }
 
     return UserResponse.toDomain(response.data, user.attendances);
@@ -191,7 +219,7 @@ export class HormoniosRepository implements IHormoniosRepository {
     );
 
     if (response.error || !response.data) {
-      throw new DatabaseError("findEventUsers", response.status, response.error?.message);
+      throw this.databaseError("findEventUsers", response.status, response.error?.message);
     }
 
     return response.data.map((row) => {
@@ -208,7 +236,7 @@ export class HormoniosRepository implements IHormoniosRepository {
     );
 
     if (response.error) {
-      throw new DatabaseError("findAttendance", response.status, response.error.message);
+      throw this.databaseError("findAttendance", response.status, response.error.message);
     }
 
     return response.data ? AttendanceResponse.toDomain(response.data, event) : null;
@@ -220,7 +248,7 @@ export class HormoniosRepository implements IHormoniosRepository {
     );
 
     if (response.error || !response.data) {
-      throw new DatabaseError("findEventAttendance", response.status, response.error?.message);
+      throw this.databaseError("findEventAttendance", response.status, response.error?.message);
     }
 
     return response.data.map((row) => AttendanceResponse.toDomain(row, event));
@@ -238,7 +266,7 @@ export class HormoniosRepository implements IHormoniosRepository {
     );
 
     if (response.error) {
-      throw new DatabaseError("findAttendanceByIntegrationId", response.status, response.error.message);
+      throw this.databaseError("findAttendanceByIntegrationId", response.status, response.error.message);
     }
 
     return response.data ? AttendanceResponse.toDomain(response.data, event) : null;
@@ -252,7 +280,7 @@ export class HormoniosRepository implements IHormoniosRepository {
     );
 
     if (response.error || !response.data) {
-      throw new DatabaseError("createOrUpdateAttendance", response.status, response.error?.message);
+      throw this.databaseError("createOrUpdateAttendance", response.status, response.error?.message);
     }
 
     return AttendanceResponse.toDomain(response.data, event);
@@ -264,10 +292,30 @@ export class HormoniosRepository implements IHormoniosRepository {
     );
 
     if (response.error) {
-      throw new DatabaseError("findIntegrationStatus", response.status, response.error.message);
+      throw this.databaseError("findIntegrationStatus", response.status, response.error.message);
     }
 
     return response.data ? IntegrationStatusResponse.toDomain(response.data) : null;
+  }
+
+  async findDueIntegrationStatus(entity: IntegrationEntity, status: SyncStatus, now: Date, limit: number): Promise<IntegrationStatus[]> {
+    const until = now.toISOString();
+    const response = await this.supabaseClient.query<unknown[]>((sdk) =>
+      sdk
+        .from(INTEGRATION_STATUS_TABLE)
+        .select(INTEGRATION_STATUS_COLUMNS)
+        .eq("entity", entity)
+        .eq("status", status)
+        .or(`nextSyncAt.is.null,nextSyncAt.lte.${until}`)
+        .order("syncAt")
+        .limit(limit),
+    );
+
+    if (response.error || !response.data) {
+      throw this.databaseError("findDueIntegrationStatus", response.status, response.error?.message);
+    }
+
+    return response.data.map((row) => IntegrationStatusResponse.toDomain(row));
   }
 
   async createOrUpdateIntegrationStatus(integrationStatus: IntegrationStatus): Promise<IntegrationStatus> {
@@ -281,7 +329,7 @@ export class HormoniosRepository implements IHormoniosRepository {
     );
 
     if (response.error || !response.data) {
-      throw new DatabaseError("createOrUpdateIntegrationStatus", response.status, response.error?.message);
+      throw this.databaseError("createOrUpdateIntegrationStatus", response.status, response.error?.message);
     }
 
     return IntegrationStatusResponse.toDomain(response.data);
@@ -294,9 +342,17 @@ export class HormoniosRepository implements IHormoniosRepository {
     );
 
     if (response.error || !response.data) {
-      throw new DatabaseError("findUserAttendances", response.status, response.error?.message);
+      throw this.databaseError("findUserAttendances", response.status, response.error?.message);
     }
 
     return response.data.map((row) => AttendanceResponse.toDomain(row, event));
+  }
+
+  private databaseError(operation: string, status: number, message?: string): DatabaseError {
+    const error = new DatabaseError(operation, status, message);
+
+    logger.repositoryError(error, operation);
+
+    return error;
   }
 }

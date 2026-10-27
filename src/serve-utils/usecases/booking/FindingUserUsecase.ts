@@ -5,10 +5,10 @@ import type { User } from "../../domain/User";
 import { AppError } from "../../errors/app-error";
 import type { IHormoniosRepository } from "../../interfaces/IHormoniosRepository";
 import { emailHash } from "../../lib/hash";
-import { createLogger } from "../../lib/logger";
+import { createLogger, LogContext } from "../../lib/logger";
 import { UuidSchema, validateSchema } from "../../lib/schema";
 
-const logger = createLogger("FindingUserUsecase");
+const logger = createLogger("FindingUserUsecase", LogContext.User);
 
 const EmailSchema = z.email();
 
@@ -36,6 +36,7 @@ export class FindingUserUsecase {
       return await this._execute(input);
     } catch (error) {
       if (error instanceof AppError) {
+        logger.appError(error, { hormoniosUserId: input.userId ?? undefined });
         throw error;
       }
 
@@ -46,6 +47,8 @@ export class FindingUserUsecase {
 
   // D3
   private async _execute(input: IFindingUserInput): Promise<User | null> {
+    logger.track("finding user", { hormoniosUserId: input.userId ?? undefined });
+
     const data = this.validateInput(input);
     const cookieUser = await this.findCookieUser(data);
 
