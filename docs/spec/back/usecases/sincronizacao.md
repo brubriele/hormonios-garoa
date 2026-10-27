@@ -57,6 +57,51 @@ o `WEBHOOK_API_KEY` (`requireWebhookKey`, em tempo constante) e passa o corpo.
 - Um erro de validação dos usecases internos (ex.: tirar um grupo com presença) sai como 400 para
   o Transicionais.
 
+## UserWebhookUsecase — sem rota (`entity: "user"`, `body.userId` = o `userId` da conta)
+
+> [`usecases/sync/UserWebhookUsecase.ts`](../../../../src/serve-utils/usecases/sync/UserWebhookUsecase.ts)
+
+**Contexto.** Traz para a base uma pessoa que mudou no Transicionais.
+
+**Decisão.**
+- Busca no repo do Transicionais (`findUser`): `GET manager-organization/users/{userId}?by=userId`
+  dá a conta (convidado ou membro), gravada inteira em `user.metadata.account`; o `integrationId`
+  da pessoa é o `userId`. Convidado: `GET manager-validations/guests?profileGuestId={id}` dá o nome
+  e o e-mail. Membro (ou convidado sem resposta): sem nome nem e-mail. Não existe → `REJECTED`; fora do ar → `PENDING`.
+- Acha a pessoa na base pelo `integrationId` (D7) ou, sem ele, pelo e-mail (se veio). Não existe
+  aqui e veio sem e-mail → `REJECTED`:
+  - não existe → `CreatingOrUpdateUserUsecase` com a pessoa do Transicionais (gera o `id`; não
+    reenvia, porque ela vem `SYNCED`);
+  - existe → só vincula: grava o `integrationId` se ainda não tinha e atualiza o
+    `metadata.account`; nome, e-mail e pronome ficam os do Hormônios (o Transicionais não manda
+    `hash` nem `version` da pessoa);
+  - responde `{ status: SYNCED, accept: true }`.
+
+## AttendanceWebhookUsecase — sem rota (`entity: "validation"`, `body.validationId`)
+
+> [`usecases/sync/AttendanceWebhookUsecase.ts`](../../../../src/serve-utils/usecases/sync/AttendanceWebhookUsecase.ts)
+
+**Contexto.** Traz para a base uma presença (validação) que mudou no Transicionais.
+
+**Decisão.**
+- Busca no repo do Transicionais (`findAttendance`: `GET manager-validations/guests?validationId={id}`,
+  o primeiro item). O repo devolve o `User` (`integrationId` = o `userId` do item, nome e e-mail,
+  sem `account`) com a `Attendance` (`event` = o `configDayId`; `integrationId` = `validationId`; `hash`).
+  `ATTENDING` é `vou`; `DECLINED` e `TENTATIVE` são `nao-vou`, sem grupo nem catálogo. Não
+  existe → `REJECTED`; fora do ar → `PENDING`.
+- Acha o evento pelo `transicionaisDayId`. Não achou → `REJECTED`.
+- Acha a pessoa (`integrationId`, depois e-mail) ou a cria pelo `CreatingOrUpdateUserUsecase`.
+- Acha a presença pelo `integrationId` no evento ou, sem ela, a da pessoa no evento. Grava (nova
+  ou com o `hash` mudado) direto no repo (`createOrUpdateAttendance`), mantendo `id`, `createdAt`
+  e `deviceId` da gravada. Dos `supportTypeIds`, ficam só os acessórios do evento (o instrumento é
+  o do grupo).
+
+**Consequências.**
+- Não passa pelo `CreatingOrUpdatingAttendanceUsecase`: o Transicionais é a fonte e já validou
+  estoque e prazo, e aquele usecase reenviaria.
+- A validação não traz `version`: a regra fica só no `hash`.
+- Grupo que não existe no evento recusa a gravação (`InvalidParameterError`, 400).
+
 ## Envio (Supabase → Transicionais)
 
 **Contexto.** `CreatingInternalEventUsecase`, `CreatingOrUpdateUserUsecase` e

@@ -17,6 +17,7 @@ const AttendanceMetadataSchema = z.object({
   syncError: z.string().nullable(),
   syncHash: z.string().nullable(),
   syncedAt: z.string().nullable(),
+  version: z.number().int().nullable().default(null),
 });
 
 // jsonb de attendance.data: a Attendance inteira (Attendance.toJson)

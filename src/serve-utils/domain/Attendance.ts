@@ -42,12 +42,14 @@ export class AttendanceMetadata {
     readonly syncedAt: string | null, // ISO do último envio
     readonly userId: string,
     readonly integrationId: number | null, // D7
+    readonly version: number | null,
   ) {}
 
   toJson() {
     return {
       userId: this.userId,
       integrationId: this.integrationId,
+      version: this.version,
       deviceId: this.deviceId,
       answer: this.answer,
       sync: this.sync,

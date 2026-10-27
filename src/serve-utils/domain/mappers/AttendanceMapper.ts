@@ -12,6 +12,7 @@ export interface IAttendanceMetadataData {
   syncError: string | null;
   syncHash: string | null;
   syncedAt: string | null;
+  version: number | null;
 }
 
 export interface IAttendanceData {
@@ -38,6 +39,7 @@ export class AttendanceMapper {
       metadata.syncedAt,
       metadata.userId,
       metadata.integrationId,
+      metadata.version,
     );
 
     return new Attendance(event, data.id, group, catalog, data.createdAt, attendanceMetadata);

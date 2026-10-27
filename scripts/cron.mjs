@@ -1,7 +1,8 @@
 // Chama uma rota /api/cron/* como o Worker faz (Authorization: Bearer <CRON_SECRET>).
 // Uso: node scripts/cron.mjs <event|sync> [--type=<tipo>] [BFF_URL]
-//      node scripts/cron.mjs --type=webhook --entity=event --id=<1|uuid> [BFF_URL]
+//      node scripts/cron.mjs --type=webhook --entity=<event|user|validation> --id=<1|uuid> [BFF_URL]
 //      yarn cron:webhook --entity=event --id=1 [BFF_URL] → POST /api/webhooks/transicionais (atualiza a base interna)
+//      ids: event = id do encontro ou uuid do link público; user = userId da conta; validation = validationId
 //      yarn cron:event [BFF_URL]                → GET /api/cron/event
 //      yarn cron:sync --type=nextEvent [BFF_URL] → GET /api/cron/sync?type=nextEvent
 //      tipos do sync: nextEvent, stock, booking
@@ -10,7 +11,8 @@ import { existsSync } from 'node:fs'
 
 const ROUTES = ['event', 'sync']
 const SYNC_TYPES = ['nextEvent', 'stock', 'booking']
-const WEBHOOK_ENTITIES = ['event']
+const WEBHOOK_ENTITIES = ['event', 'user', 'validation']
+const WEBHOOK_BODY_KEYS = { event: 'eventId', user: 'userId', validation: 'validationId' }
 
 for (const file of ['.env.local', '.env']) {
   if (existsSync(file)) process.loadEnvFile(file) // não sobrescreve o que já está no ambiente
@@ -81,9 +83,9 @@ async function callWebhook(args) {
     process.exit(1)
   }
 
-  const eventId = /^\d+$/.test(rawId) ? Number(rawId) : rawId
+  const id = /^\d+$/.test(rawId) ? Number(rawId) : rawId
   const url = `${baseUrl}/api/webhooks/transicionais`
-  const body = { entity, sendAt: new Date().toISOString(), body: { eventId } }
+  const body = { entity, sendAt: new Date().toISOString(), body: { [WEBHOOK_BODY_KEYS[entity]]: id } }
   const startedAt = Date.now()
   const response = await fetch(url, {
     method: 'POST',

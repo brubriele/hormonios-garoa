@@ -1,4 +1,5 @@
 import { type Attendance, AttendanceAnswer } from "../../../domain/Attendance";
+import type { UserAccount } from "../../../domain/User";
 import { numericId } from "../transicionais-id";
 
 // tipo da validação: o Hormônios só envia presença
@@ -13,27 +14,36 @@ export enum ValidationAnswer {
   Tentative = "TENTATIVE",
 }
 
-// corpo do POST v2/manager-validations/change com o token de membro, em nome do convidado (D41)
+// corpo do POST v2/manager-validations/change com o token de membro, em nome da pessoa (D41):
+// profileGuestId (convidado) ou profileId (membro), nunca os dois
 export interface IValidationChangeBody {
   type: ValidationType;
   configDayId: number;
-  profileGuestId: string;
+  profileGuestId?: string;
+  profileId?: number;
   status: ValidationAnswer;
   groupId?: number; // ausente = só presença ("Não se aplica")
   supportTypeIds: number[];
 }
 
 export class ValidationChangeRequest {
-  static fromDomain(attendance: Attendance, guestId: string, dayId: number): IValidationChangeBody {
+  static fromDomain(attendance: Attendance, account: UserAccount, dayId: number): IValidationChangeBody {
     const attending = attendance.metadata.answer === AttendanceAnswer.Going;
     const group = attending ? attendance.eventGroup : null;
     const body: IValidationChangeBody = {
       type: ValidationType.Attendance,
       configDayId: dayId,
-      profileGuestId: guestId,
       status: attending ? ValidationAnswer.Attending : ValidationAnswer.Declined,
       supportTypeIds: [],
     };
+
+    if (account.profileGuestId !== null) {
+      body.profileGuestId = account.profileGuestId;
+    }
+
+    if (account.profileGuestId === null && account.profileId !== null) {
+      body.profileId = account.profileId;
+    }
 
     if (group !== null) {
       body.groupId = numericId(group.id, "groupId");

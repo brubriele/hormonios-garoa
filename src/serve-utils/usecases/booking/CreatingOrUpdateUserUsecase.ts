@@ -47,8 +47,9 @@ export class CreatingOrUpdateUserUsecase {
 
   private withoutAttendances(user: User): User {
     const data = user.toJson();
+    const id = data.id || globalThis.crypto.randomUUID();
 
-    return UserMapper.fromData(data, []);
+    return UserMapper.fromData({ ...data, id }, []);
   }
 
   private async createOrUpdateUser(user: User): Promise<User> {

@@ -8,12 +8,27 @@ import { parseResponse } from "../../parse-response";
 
 const OPERATION = "findUser";
 
+const UserAccountSchema = z.object({
+  id: z.number().int(),
+  organizationId: z.string(),
+  userId: z.string().nullable(),
+  profileId: z.number().int().nullable(),
+  profileGuestId: z.string().nullable(),
+  customId: z.string().nullable(),
+  status: z.string(),
+  isOwner: z.boolean(),
+  role: z.string(),
+  pendingSteps: z.array(z.object({ name: z.string(), status: z.string(), condition: z.string() })),
+});
+
 const UserMetadataSchema = z.object({
   integrationId: z.union([z.string(), z.number().int().transform(String)]).nullable(),
   sync: z.enum(SyncStatus),
   syncError: z.string().nullable(),
   syncHash: z.string().nullable(),
   syncedAt: z.string().nullable(),
+  version: z.number().int().nullable().default(null),
+  account: UserAccountSchema.nullable().default(null),
 });
 
 // jsonb de "user".data: o User inteiro (User.toJson)

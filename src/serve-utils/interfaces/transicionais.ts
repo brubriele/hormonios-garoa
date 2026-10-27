@@ -12,6 +12,8 @@ export interface ITransicionaisRepo {
   // findUserAttendance(user: User): Promise<Attendance>
 
   createUser(user: User): Promise<User>;
+  findUser(externalId: string): Promise<User>;
+  findAttendance(externalId: string): Promise<User>;
   // updateUser(user: User): Promise<User>;
 }
 

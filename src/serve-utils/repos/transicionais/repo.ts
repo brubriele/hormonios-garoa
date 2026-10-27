@@ -24,7 +24,7 @@ import type {
 } from "../../interfaces/transicionais";
 import type { Attendance } from "../../domain/Attendance";
 import type { Event, EventCatalog } from "../../domain/Event";
-import type { User } from "../../domain/User";
+import type { User, UserAccount } from "../../domain/User";
 import {
   AnswerChangedError,
   UpstreamBadContractError,
@@ -49,12 +49,14 @@ import { EventListResponse } from "./responses/event-list.response";
 import { EventSummaryResponse } from "./responses/event-summary.response";
 import { GuestAccountResponse } from "./responses/guest-account.response";
 import { GuestPresenceResponse } from "./responses/guest-presence.response";
+import { GuestValidationResponse } from "./responses/guest-validation.response";
+import { OrganizationUserResponse } from "./responses/organization-user.response";
 import { ManagedEventResponse } from "./responses/managed-event.response";
 import { PublicEventResponse } from "./responses/public-event.response";
 import { LoanCatalogResponse } from "./responses/loan-catalog.response";
 import { VersionResponse } from "./responses/version.response";
 import { TransicionaisSession } from "./session";
-import { TransicionaisUrlCollection } from "./url-collection";
+import { OrganizationUserRef, TransicionaisUrlCollection } from "./url-collection";
 
 const logger = createLogger("TransicionaisRepo");
 
@@ -185,15 +187,59 @@ export class TransicionaisRepo implements ITransicionaisRepo {
     return GuestAccountResponse.toDomain(raw, user);
   }
 
+  async findUser(externalId: string): Promise<User> {
+    const fetchedAt = new Date().toISOString();
+    const account = await this.findAccount(externalId, OrganizationUserRef.UserId);
+    const profileGuestId = account.profileGuestId;
+
+    if (profileGuestId === null) {
+      return OrganizationUserResponse.toUser(account, fetchedAt);
+    }
+
+    const url = TransicionaisUrlCollection.guestByProfileGuestId(profileGuestId);
+    const response = await this.session.request<unknown>({ url });
+    const raw = this.assertWrite(response, "findGuestValidation");
+    const guest = GuestValidationResponse.toGuest(raw, fetchedAt, account);
+
+    return guest ?? OrganizationUserResponse.toUser(account, fetchedAt);
+  }
+
+  async findAttendance(externalId: string): Promise<User> {
+    const fetchedAt = new Date().toISOString();
+    const url = TransicionaisUrlCollection.guestValidation(externalId);
+    const response = await this.session.request<unknown>({ url });
+    const raw = this.assertWrite(response, "findGuestValidation");
+    const user = GuestValidationResponse.toDomain(raw, fetchedAt);
+
+    if (!user) {
+      throw new NotFoundError("Attendance Not Found");
+    }
+
+    return user;
+  }
+
+  private async findAccount(refId: string, by: OrganizationUserRef): Promise<UserAccount> {
+    const url = TransicionaisUrlCollection.organizationUser(refId, by);
+    const response = await this.session.request<unknown>({ url });
+
+    if (response.status === 404) {
+      throw new NotFoundError("User Not Found");
+    }
+
+    const raw = this.assertWrite(response, "findOrganizationUser");
+
+    return OrganizationUserResponse.toDomain(raw);
+  }
+
   async createAttendance(user: User): Promise<Attendance> {
     const attendance = this.findUserAttendance(user);
     const event = attendance.event as Event;
-    const guestId = user.metadata.integrationId as string;
+    const account = user.metadata.account as UserAccount;
     const dayId = event.metadata.transicionaisDayId as number;
     const response = await this.session.request<unknown>({
       method: HttpMethod.Post,
       url: TransicionaisUrlCollection.validationChange(),
-      body: ValidationChangeRequest.fromDomain(attendance, guestId, dayId),
+      body: ValidationChangeRequest.fromDomain(attendance, account, dayId),
     });
 
     this.assertWrite(response, SEND_OPERATION);

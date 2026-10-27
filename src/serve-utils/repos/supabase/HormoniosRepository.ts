@@ -52,6 +52,18 @@ export class HormoniosRepository implements IHormoniosRepository {
     return response.data ? EventResponse.toDomain(response.data) : null;
   }
 
+  async findEventByTransicionaisDayId(transicionaisDayId: number): Promise<Event | null> {
+    const response = await this.supabaseClient.query<unknown>((sdk) =>
+      sdk.from(TABLE).select("data").eq("transicionaisDayId", transicionaisDayId).maybeSingle(),
+    );
+
+    if (response.error) {
+      throw new DatabaseError("findEventByTransicionaisDayId", response.status, response.error.message);
+    }
+
+    return response.data ? EventResponse.toDomain(response.data) : null;
+  }
+
   // D2
   async findCurrentEvent(): Promise<Event | null> {
     const response = await this.supabaseClient.query<unknown>((sdk) =>
@@ -113,6 +125,19 @@ export class HormoniosRepository implements IHormoniosRepository {
 
     if (response.error) {
       throw new DatabaseError("findUserByEmail", response.status, response.error.message);
+    }
+
+    return response.data ? UserResponse.toDomain(response.data, []) : null;
+  }
+
+  // D7
+  async findUserByIntegrationId(integrationId: string): Promise<User | null> {
+    const response = await this.supabaseClient.query<unknown>((sdk) =>
+      sdk.from(USER_TABLE).select("data").eq("data->metadata->>integrationId", integrationId).maybeSingle(),
+    );
+
+    if (response.error) {
+      throw new DatabaseError("findUserByIntegrationId", response.status, response.error.message);
     }
 
     return response.data ? UserResponse.toDomain(response.data, []) : null;
@@ -199,6 +224,24 @@ export class HormoniosRepository implements IHormoniosRepository {
     }
 
     return response.data.map((row) => AttendanceResponse.toDomain(row, event));
+  }
+
+  // D7
+  async findAttendanceByIntegrationId(integrationId: number, event: Event): Promise<Attendance | null> {
+    const response = await this.supabaseClient.query<unknown>((sdk) =>
+      sdk
+        .from(ATTENDANCE_TABLE)
+        .select("data")
+        .eq("eventId", event.id)
+        .eq("data->metadata->>integrationId", String(integrationId))
+        .maybeSingle(),
+    );
+
+    if (response.error) {
+      throw new DatabaseError("findAttendanceByIntegrationId", response.status, response.error.message);
+    }
+
+    return response.data ? AttendanceResponse.toDomain(response.data, event) : null;
   }
 
   // D8

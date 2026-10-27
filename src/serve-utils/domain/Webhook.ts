@@ -2,6 +2,8 @@ import type { SyncStatus } from "./SyncStatus";
 
 export enum WebhookEntity {
   Event = "event",
+  User = "user",
+  Validation = "validation",
 }
 
 export class Webhook {

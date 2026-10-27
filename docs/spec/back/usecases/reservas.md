@@ -31,8 +31,9 @@ As duas rotas usam o mesmo usecase: `POST /api/reserva` responde 201 e o desfaze
 - Grava a pessoa pelo `CreatingOrUpdateUserUsecase` só depois das validações, e então a presença
   (`createOrUpdateAttendance`), mantendo `id`, `createdAt`, `integrationId`, `syncHash` e
   `syncedAt` da presença anterior, com `sync: PENDING` (F8).
-- Envia a presença: `createAttendance` (`ATTENDANCE`, com o `profileGuestId` da pessoa e o
-  `transicionaisDayId` do evento). Pessoa ou evento ainda sem integração → `PENDING` com backoff.
+- Envia a presença: `createAttendance` (`ATTENDANCE`, com o `profileGuestId` do convidado ou o
+  `profileId` do membro, de `metadata.account`, e o `transicionaisDayId` do evento). Pessoa sem
+  `account` ou evento sem integração → `PENDING` com backoff.
 - Devolve o `User` com a presença gravada; a rota grava o cookie com o `userId` (D3).
 - **Envio ao Transicionais** ([`sincronizacao.md`](sincronizacao.md), "Envio"): depois de gravar, o
   `private sync` tenta enviar. O resultado vai no metadata e na fila `integration_status`, e a
@@ -78,8 +79,8 @@ As duas rotas usam o mesmo usecase: `POST /api/reserva` responde 201 e o desfaze
 **Decisão.**
 - Recebe um `User` e grava sem presenças (`createOrUpdateUser`).
 - Envia quando o `sync` não é `SYNCED` nem `MANUAL_RETRY`: `createUser` (`POST
-  manager-organization/users`, idempotente pelo e-mail). O `metadata.integrationId` passa a ser o
-  `profileGuestId`. Um e-mail de membro (só `profileId`) é recusa → `MANUAL_RETRY`.
+  manager-organization/users`, idempotente pelo e-mail). A resposta é a conta (convidado ou
+  membro): o `metadata.integrationId` passa a ser o `userId` e a conta fica em `metadata.account`.
 
 **Consequências.**
 - Como a reserva grava a pessoa como `PENDING`, toda reserva reenvia o cadastro (que é idempotente).

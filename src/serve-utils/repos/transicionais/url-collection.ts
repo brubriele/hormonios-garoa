@@ -1,3 +1,8 @@
+export enum OrganizationUserRef {
+  UserId = "userId",
+  ProfileGuestId = "profileGuestId",
+}
+
 export class TransicionaisUrlCollection {
   static readonly AUTH_PATH = "auth";
   static readonly COMMUNITY_PATH = "v2/community/organizations";
@@ -91,6 +96,24 @@ export class TransicionaisUrlCollection {
   // cadastro da pessoa como convidado da organização (D41)
   static organizationUsers(): string {
     return `${this.apiUrl}/${this.MANAGER_ORGANIZATION_PATH}/users`;
+  }
+
+  static organizationUser(refId: string, by: OrganizationUserRef): string {
+    const query = new URLSearchParams({ by });
+
+    return `${this.apiUrl}/${this.MANAGER_ORGANIZATION_PATH}/users/${encodeURIComponent(refId)}?${query.toString()}`;
+  }
+
+  static guestValidation(validationId: string): string {
+    const query = new URLSearchParams({ validationId, perPage: "1" });
+
+    return `${this.apiUrl}/${this.VALIDATION_PATH}/guests?${query.toString()}`;
+  }
+
+  static guestByProfileGuestId(profileGuestId: string): string {
+    const query = new URLSearchParams({ profileGuestId, perPage: "1" });
+
+    return `${this.apiUrl}/${this.VALIDATION_PATH}/guests?${query.toString()}`;
   }
 
   // a presença de uma pessoa (pelo e-mail) num dia (D49)

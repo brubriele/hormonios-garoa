@@ -131,7 +131,7 @@ export class CreatingOrUpdatingAttendanceUsecase {
         name: data.name,
         pronoun: data.pronoun,
         email: data.email,
-        metadata: { integrationId: null, sync: SyncStatus.Pending, syncError: null, syncHash: null, syncedAt: null },
+        metadata: { integrationId: null, sync: SyncStatus.Pending, syncError: null, syncHash: null, syncedAt: null, version: null, account: null },
       };
 
       return UserMapper.fromData(userData, []);
@@ -149,6 +149,8 @@ export class CreatingOrUpdatingAttendanceUsecase {
         syncError: null,
         syncHash: metadata.syncHash,
         syncedAt: metadata.syncedAt,
+        version: metadata.version,
+        account: metadata.account ? metadata.account.toJson() : null,
       },
     };
 
@@ -328,6 +330,7 @@ export class CreatingOrUpdatingAttendanceUsecase {
         syncError: null,
         syncHash: currentMetadata ? currentMetadata.syncHash : null,
         syncedAt: currentMetadata ? currentMetadata.syncedAt : null,
+        version: currentMetadata ? currentMetadata.version : null,
       },
     };
 
@@ -347,7 +350,7 @@ export class CreatingOrUpdatingAttendanceUsecase {
 
     const now = new Date();
     const integrationStatus = await this.findIntegrationStatus(attendance, now);
-    const ready = user.metadata.integrationId !== null && event.metadata.transicionaisDayId !== null;
+    const ready = user.metadata.account !== null && event.metadata.transicionaisDayId !== null;
 
     if (!ready) {
       const errorCtx = new ErrorCtx(0, null, null, "User or event is not integrated");
