@@ -1,6 +1,6 @@
 ---
 name: code-pattern
-description: Padrão de código TypeScript das rotas em /api do bff-hormonios e das camadas em src/serve-utils/ (errors, models, interfaces, clients, lib, repos com responses/requests em zod, usecases), com enums, InfraError, logger e o script check.cjs que acha desvios do padrão. Use ao criar, alterar, revisar ou refatorar arquivos em /api ou src/serve-utils/, e para ler o contrato OpenAPI do Transicionais (docs/transicionais-api.json) por script ao integrar com a API dele. Não se aplica ao front (app.js, guias.js etc.).
+description: Padrão de código TypeScript das rotas em /api do bff-hormonios e das camadas em src/serve-utils/ (errors, domains, interfaces, clients, lib, repos com responses/requests em zod, usecases), com enums, InfraError, logger e o script check.cjs que acha desvios do padrão. Use ao criar, alterar, revisar ou refatorar arquivos em /api ou src/serve-utils/, e para ler o contrato OpenAPI do Transicionais (docs/transicionais-api.json) por script ao integrar com a API dele. Não se aplica ao front (app.js, guias.js etc.).
 ---
 
 # Padrão de código do BFF (/api)
@@ -19,17 +19,17 @@ O detalhe está nos docs; isto é o que mais aparece na revisão da Bea:
 
 - **Repo só faz I/O.** Regra de negócio (escolher, decidir pelo estado, orquestrar, plano de falha)
   é do usecase. Só transação e trava ficam no repo ou na função SQL (`repos.md` R12).
-- **Domínio é `models/`.** O formato cru é o schema zod em `repos/<fonte>/responses/` e `requests/`
-  (`toDomain`/`fromDomain`). O schema faz defaults e normalização; o `toDomain` só monta o model
+- **Domínio é `domain/`.** O formato cru é o schema zod em `repos/<fonte>/responses/` e `requests/`
+  (`toDomain`/`fromDomain`). O schema faz defaults e normalização; o `toDomain` só monta o domain
   (`requests-responses.md`).
-- **Regra de um domínio é método do model** (a conta das vagas: `group.available(attendances)`). A
-  saída que junta models de domínios distintos é um **mapper** em `usecases/<contexto>/mappers/`, um por arquivo,
-  que só formata e devolve um **model de saída** de `models/` (`PublicEvent`, `CurrentEventSummary`), nunca
+- **Regra de um domínio é método do domain** (a conta das vagas: `group.available(attendances)`). A
+  saída que junta domains distintos é um **mapper** em `usecases/<contexto>/mappers/`, um por arquivo,
+  que só formata e devolve um **domain de saída** de `domain/` (`PublicEvent`, `CurrentEventSummary`), nunca
   interface solta (`usecases.md` U9).
-- **Um enum por conceito:** o response usa o enum do model (`z.enum(LoanCatalogKind)`), sem duplicar.
+- **Um enum por conceito:** o response usa o enum do domain (`z.enum(LoanCatalogKind)`), sem duplicar.
 - **Enum, não texto** para conjunto fechado; **`InfraError` com key**, não `throw new Error`, para falha
   de fonte; **logger**, não `console.*`; **helper comum em `lib/`**, nunca repetido.
-- se a saida de um mapper foi a mesma saida do usecase, então isso é uma model, um objeto de dominio
+- se a saida de um mapper foi a mesma saida do usecase, então isso é uma domain, um objeto de dominio
 
 
 ## Conferir o padrão (`check.cjs`)
@@ -48,9 +48,9 @@ do piloto ainda tem desvios de legado: não os corrija fora do escopo da tarefa.
 ## Contrato do Transicionais
 
 **É só referência, para a tradução.** O Hormônios tem o seu próprio contrato: as rotas `/api/*` e
-os models de `src/serve-utils/`. O contrato do Transicionais **não** dita nomes, formatos nem rotas
+os domains de `src/serve-utils/`. O contrato do Transicionais **não** dita nomes, formatos nem rotas
 do Hormônios. Ele serve para escrever os schemas de `repos/transicionais/responses/` e `requests/`,
-que traduzem nas duas direções: o cru vira model do Hormônios no `toDomain`, e o model vira o corpo
+que traduzem nas duas direções: o cru vira domain do Hormônios no `toDomain`, e o domain vira o corpo
 da requisição no `fromDomain`.
 
 1. **Nunca leia `docs/transicionais-api.json` com Read, cat ou grep.** Ele é grande demais. Use o
@@ -79,10 +79,18 @@ da requisição no `fromDomain`.
 - **Refatoração não muda comportamento.** Antes de mexer, guarde a resposta das rotas afetadas
   (`curl … | jq -S 'del(.fetchedAt)' > antes.json`); depois, compare com `diff`. Se a rota lê o
   Transicionais, rode também o `yarn cron:event` para a leitura acontecer de verdade.
-- **Spec junto com o código.** Toda entrega que muda `api/`, `src/serve-utils/` ou `supabase/`
-  atualiza `docs/spec/back/fase-<N>.md` (cria a da fase, se não existir, no formato da
-  `fase-1.md`) e a linha do changelog em `docs/spec/back/README.md`. Mudou o front: o mesmo em
-  `docs/spec/front/`.
+- **Plano e spec.** O plano é praticamente o PRD: as histórias ("Como … quero …"), cada uma com
+  as camadas criadas ou alteradas e uma descrição curta, em `docs/plans/back/fase-<N>.md` (e
+  `docs/plans/front/` quando muda o front), com o changelog no README da pasta (adicionadas,
+  alteradas e removidas). A spec (`docs/spec/fase-<N>.md`) é o que foi
+  decidido que muda no técnico: rotas, formatos, banco e regras. Toda entrega que muda `api/`,
+  `src/serve-utils/` ou `supabase/` atualiza os dois (cria a fase, se não existir, no formato da
+  `fase-1.md`).
 - **Doc de usecase.** Usecase criado ou alterado atualiza a seção dele no doc do domínio, em
-  `docs/spec/back/usecases/<dominio>.md`, com a referência ao `.ts` do usecase. É um ADR curto, no
-  modelo de `docs/spec/back/usecases/README.md`. 
+  `docs/usecases/<dominio>.md`, no modelo de `docs/usecases/README.md`. É uma doc para pessoas, do
+  que o sistema faz: título em português com o nome da classe e a rota, as telas que o usam, e na
+  "Decisão" as regras do sistema. Sem termo técnico (`null`, método, campo, link de arquivo) e sem
+  separar o que é do Hormônios e do Transicionais. O detalhe técnico vai na spec da task.
+- **Ao fim da entrega da tarefa, sempre antes do commit:** atualize os docs de usecase e
+  apresente-os à pessoa para revisão. O commit só acontece depois que ela revisou e aprovou os
+  docs. 

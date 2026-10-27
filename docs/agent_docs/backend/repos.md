@@ -1,6 +1,6 @@
 # Repos e UrlCollection (`src/serve-utils/repos/<fonte>/`)
 
-> Índice: [`README.md`](README.md). Usa: [`clients.md`](clients.md), [`interfaces.md`](interfaces.md), [`models.md`](models.md).
+> Índice: [`README.md`](README.md). Usa: [`clients.md`](clients.md), [`interfaces.md`](interfaces.md), [`domain.md`](domain.md).
 > Tradução do formato cru: [`requests-responses.md`](requests-responses.md).
 > Contrato do Transicionais: seção "Contrato do Transicionais" da skill `code-pattern`
 > (`.claude/skills/code-pattern/SKILL.md`). Ele é só referência para a tradução nos responses e
@@ -20,7 +20,7 @@ negócio fica no usecase (R12).
 | R2 | A env (`TRANSICIONAIS_URL`) é lida **na chamada**, não no import, e lança se estiver vazia. |
 | R3 | Parâmetro de caminho passa por `encodeURIComponent`. |
 | R4 | O repo implementa a interface da fonte (`implements ITransicionaisRepo`). |
-| R5 | O repo converte pela classe da finalidade: `XResponse.toDomain(raw)` na volta e `XRequest.fromDomain(model)` na ida ([`requests-responses.md`](requests-responses.md)). **Sem `mapper*` no repo.** O client é chamado com `unknown` (`query<unknown>`, `get<unknown>`): quem dá o tipo é o schema. |
+| R5 | O repo converte pela classe da finalidade: `XResponse.toDomain(raw)` na volta e `XRequest.fromDomain(domain)` na ida ([`requests-responses.md`](requests-responses.md)). **Sem `mapper*` no repo.** O client é chamado com `unknown` (`query<unknown>`, `get<unknown>`): quem dá o tipo é o schema. |
 | R6 | `find<Nome>` devolve `T \| null`. `find<Nome>OrFail` chama o `find` e lança `NotFoundError`. |
 | R7 | Validações vêm primeiro, com retorno antecipado. |
 | R8 | **O repo trata a `IClientResponse`** do client: decide o que cada `status` significa para aquela operação (ex.: `404` vira `null` num `find`). Um `error` sem tratamento vira `InfraError` com o nome da operação e o `status`: `DatabaseError` (Supabase) ou `UpstreamResponseError` (Transicionais). **Nunca `throw new Error`**: ele fica para bug ([`errors.md`](errors.md)). |
@@ -28,6 +28,7 @@ negócio fica no usecase (R12).
 | R11 | **`key` de erro do Transicionais:** o repo lê `error.details.key` e a traduz num `AppError` do Hormônios por um mapa (`TRANSICIONAIS_ERRORS`), como o `SQL_ERRORS` da R9. A mensagem do Transicionais nunca chega à tela (E2.3). Falha de rede, timeout, 429 e 5xx (`isUnavailable`, `lib/upstream.ts`) viram `UpstreamUnavailableError`. **O que fazer com a queda é regra do usecase**: o plano de falha (manter o retrato, deixar `PENDING`) é um `catch` no usecase, e não um resultado especial do repo. |
 | R12 | **Repo sem regra de negócio.** Escolher entre itens (o "primeiro encontro de hoje"), decidir a partir do estado (trocar de dia, abrir/fechar), orquestrar várias chamadas (criar e desfazer) e validar entrada são do usecase. O repo oferece operações simples (`listPublicEventsFrom(date)`, `findPublicEvent(ref)`). **Exceção:** o que precisa de transação ou trava fica no repo ou na função SQL (a última vaga na `reservar`, a trava do `updated_at` no `marcar_sync`, o `skip locked` no `claim_pending`). |
 | R9 | **Supabase:** `repos/supabase/repo.ts`, sem UrlCollection. Toda consulta passa por `supabaseClient.query(...)`. A função SQL sinaliza um erro de negócio com `raise exception '<CODIGO>'`, e o repo traduz o código em `AppError` por um mapa (`SQL_ERRORS`). Um código fora do mapa segue a R8. |
+| R13 | **O repo loga a falha da fonte antes de lançar**, numa linha: um helper privado cria o erro, chama `logger.repositoryError(error, operation)` e o devolve (`throw this.databaseError(...)`, `throw this.logged(error, operation)`). O logger do repo tem `LogContext.HormoniosRepository` ou `LogContext.TransicionaisRepository` ([`lib.md`](lib.md), L8). |
 
 ## Exemplo
 
@@ -62,7 +63,7 @@ import { UpstreamResponseError } from "../../errors/infra-error";
 import { HttpClient } from "../../clients/http-client";
 import type { IEventRef, ITransicionaisRepo } from "../../interfaces/transicionais";
 import { isUnavailable } from "../../lib/upstream";
-import type { CurrentEventSnapshot } from "../../models/event-snapshot";
+import type { CurrentEventSnapshot } from "../../domain/event-snapshot";
 import { PublicEventResponse } from "./responses/public-event.response";
 import { TransicionaisUrlCollection } from "./url-collection";
 
@@ -114,7 +115,7 @@ private async findTransicionaisSnapshot(): Promise<CurrentEventSnapshot | null> 
 
 ## Exemplo: token do Transicionais (`session.ts`)
 
-Até existir a role `SERVICE`, o BFF entra como membro (E2.6 de `bff-fase-2.md`). O token fica na
+Até existir a role `SERVICE`, o BFF entra como membro (`docs/spec/fase-2.md`). O token fica na
 memória da função (uma instância serve vários pedidos) e nunca sai do repo.
 
 ```ts

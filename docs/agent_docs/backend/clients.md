@@ -6,7 +6,7 @@
 
 | # | Regra |
 |---|---|
-| C1 | O client é **compartilhado** e não conhece domínio: não importa models nem interfaces de fonte. |
+| C1 | O client é **compartilhado** e não conhece domínio: não importa domains nem interfaces de fonte. |
 | C2 | Todo client devolve **`IClientResponse<T>`** (`{ status, data?, error? }`). Cada client monta essa resposta do seu jeito, a partir do que a sua fonte devolve. |
 | C3 | O client **não lança** e não decide o que um status significa. Sucesso preenche `data`. Falha preenche `error`. Quem trata é o repo ([`repos.md`](repos.md), R8). |
 | C4 | Falha de rede (sem resposta HTTP) devolve `status: 0` com `error`. |

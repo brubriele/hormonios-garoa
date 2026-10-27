@@ -10,8 +10,10 @@ O front (`app.js`, `guias.js`, `*.html`, `styles.css`) não segue esse padrão.
 
 ## Planos e specs
 
-- **Planos** (`docs/plans/`): só contexto das decisões, não são regra de código. A regra do backend
+- **Planos** (`docs/plans/`): o PRD, as histórias de cada fase e o changelog (`docs/plans/back/README.md` e
+  `docs/plans/front/README.md`); não são regra de código. A regra do backend
   é o `docs/agent_docs/backend/`.
-- **Specs** (o que já está implementado): `docs/spec/back/README.md` e `docs/spec/front/README.md`.
+- **Specs** (`docs/spec/`): o que foi decidido que muda no técnico, uma por fase (`fase-1.md`, `fase-2.md`).
+- **Usecases** (`docs/usecases/`): o que o sistema faz, para pessoas.
 
 REGRA ABSOLUTA USECASE SÓ TEM ENTRADA DE OBJETO DE DOMINIO OU UM COMMAND QUE TBM TEM OBJETO DE DOMINIO

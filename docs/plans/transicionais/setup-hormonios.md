@@ -2,13 +2,13 @@
 
 > Registrado em 2026-10-24. Prompt para rodar no repo do Transicionais (bf-back). O dev do
 > Transicionais é resetado sempre, e o estado volta pelos setups. Este setup deixa a organização do
-> Hormônios pronta para o bff-hormonios da fase 2 ([`../bff-fase-2.md`](../bff-fase-2.md)).
+> Hormônios pronta para o bff-hormonios da fase 2 ([`spec/fase-2.md`](../../spec/fase-2.md)).
 >
 > Os nomes e os limites abaixo são os que a tela do Hormônios já mostra. O BFF liga os dois lados
 > **pelo nome** (grupos) e **pelo título** (assistências). Se um nome mudar aqui, muda também o
 > de-para do BFF.
 
-Cole junto a seção "Webhooks" de [`../bff-fase-2.md`](../bff-fase-2.md).
+Cole junto a seção "Webhook" de [`spec/fase-2.md`](../../spec/fase-2.md).
 
 ```
 Crie o setup "hormonios" no bf-back, no mesmo padrão dos outros setups de dev. O dev é resetado
@@ -82,7 +82,7 @@ e os limites abaixo são os que a tela do Hormônios já mostra, e o BFF liga os
 
 8. Webhooks (T2.1–T2.3), assinante por env (URL, `aud` e chave de assinatura). No dev, a URL é
    http://localhost:5173/api/webhooks/transicionais. Eventos `event.updated` e
-   `validation.changed`, no formato da seção "Webhooks" de bff-hormonios/docs/plans/bff-fase-2.md
+   `validation.changed`, no formato da seção "Webhook" de bff-hormonios/docs/spec/fase-2.md
    (colo abaixo). Imprima a chave para ir no TRANSICIONAIS_JWT_KEY do Hormônios.
 
 9. No fim: `yarn openapi:export` e me mande o JSON novo (vira docs/transicionais-api.json no

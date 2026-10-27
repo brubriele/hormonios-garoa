@@ -1,5 +1,7 @@
 # Dúvidas da integração do front
 
+> **Concluído em 2026-10-27.**
+
 ## Onda 2: ordem da gravação da pessoa
 
 O passo 2 do pedido diz montar a pessoa e gravar com `createOrUpdateUser`, antes das validações do

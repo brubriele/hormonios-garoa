@@ -1,6 +1,8 @@
 # Dúvidas do refactor do domain
 
-> Dúvidas não bloqueantes dos passos de [`create-domain.md`](create-domain.md) (D18): o que estava
+> **Concluído em 2026-10-27.**
+
+> Dúvidas não bloqueantes dos passos de [`fase-1.md`](fase-1.md) (D18): o que estava
 > em dúvida e o que foi feito.
 
 ## Passo 1: response de `createOrUpdateAttendance` com `Attendance.event` em string

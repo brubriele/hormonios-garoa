@@ -11,7 +11,7 @@
 | A3 | Toda rota é envolvida por `handle(...)` ([`http.md`](http.md)), que converte `AppError` em `status` + `key` e qualquer outro erro em `500`. A rota não tem `try/catch`. |
 | A4 | As rotas ficam numa lista fechada (plano da fase). Rota nova entra no plano antes do código. |
 | A5 | Cookies e sessão só pelas peças de `http/` (`getOrCreateDevice`, `requireAdmin`, `createAdminCookie`, `isAdminKey`). Nas rotas da Produção, `requireAdmin` é a primeira linha. |
-| A6 | Nas rotas `api/cron/*`, `requireCron(request)` é a primeira linha. Na rota de webhook, `verifyWebhookJwt(request)` é a primeira linha ([`http.md`](http.md), H9 e H10). |
+| A6 | Nas rotas `api/cron/*`, `requireCron(request)` é a primeira linha. Na rota de webhook, `requireWebhookKey(request)` é a primeira linha ([`http.md`](http.md), H9 e H10). |
 | A7 | A rota **não valida a entrada**: repassa o corpo, o `deviceId` e o `ip` ao usecase, que valida tudo pelo schema zod dele ([`usecases.md`](usecases.md), U10). |
 
 ## Exemplo

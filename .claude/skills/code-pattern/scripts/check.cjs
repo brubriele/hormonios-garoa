@@ -44,14 +44,14 @@ const LINE_RULES = [
     doc: "repos.md R5, requests-responses.md",
     applies: (file) => /^src\/serve-utils\/repos\/[^/]+\/repo\.ts$/.test(file),
     pattern: /\?\?\s*(\[\]|""|''|null|\{\}|0\b|false\b)|\.\.\.\(/,
-    message: "montar corpo ou model é do request/response (fromDomain/toDomain), não do repo",
+    message: "montar corpo ou domain é do request/response (fromDomain/toDomain), não do repo",
   },
   {
-    id: "model-manual-validate",
-    doc: "models.md M3",
-    applies: (file) => file.startsWith("src/serve-utils/models/") && file !== "src/serve-utils/models/model-schema.ts",
+    id: "domain-manual-validate",
+    doc: "domain.md M3",
+    applies: (file) => file.startsWith("src/serve-utils/domain/") && file !== "src/serve-utils/lib/schema.ts",
     pattern: /throw new InvalidParameterError\(/,
-    message: "o model se valida pelo schema zod: validateSchema(<Model>Schema, this, \"<prefixo>\")",
+    message: "o domain se valida pelo schema zod: validateSchema(<Domain>Schema, this, \"<prefixo>\")",
   },
   {
     id: "usecase-manual-validate",
@@ -69,7 +69,7 @@ const LINE_RULES = [
   },
   {
     id: "string-union",
-    doc: "models.md M6, interfaces.md I6",
+    doc: "domain.md M6, interfaces.md I6",
     applies: () => true,
     pattern: /["'][\w-]+["']\s*\|\s*["'][\w-]+["']/,
     message: "conjunto fechado de valores é enum de string, não união de textos",
@@ -97,7 +97,7 @@ const LINE_RULES = [
   },
   {
     id: "const-enum",
-    doc: "models.md M6",
+    doc: "domain.md M6",
     applies: () => true,
     pattern: /\bconst\s+enum\b/,
     message: "sem const enum (o esbuild não o compila entre arquivos)",

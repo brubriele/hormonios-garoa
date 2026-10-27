@@ -10,11 +10,14 @@ procure aqui: helper repetido em dois arquivos é erro de revisão.
 | # | Regra |
 |---|---|
 | L1 | Um arquivo por assunto (`date.ts`, `upstream.ts`, `logger.ts`), com funções exportadas e sem estado. |
-| L2 | Nada de lib externa (zod, supabase-js). O helper que usa o zod fica junto de quem o usa (ex.: `repos/parse-response.ts`, `models/model-schema.ts`). |
+| L2 | Nada de lib externa (zod, supabase-js). O helper que usa o zod fica junto de quem o usa (ex.: `repos/parse-response.ts`, `lib/schema.ts`). |
 | L3 | Não existe pasta de validações. A validação é do zod, no schema de quem a usa ([`requests-responses.md`](requests-responses.md)). |
-| L4 | **Log só pelo logger:** `const logger = createLogger("<Escopo>")` no topo do arquivo. Nada de `console.*` fora de `lib/logger.ts`. |
-| L5 | `logger.warn(campos, msg)` para dado ignorado ou situação esperada (instrumento sem grupo, encontro não achado). `logger.error({ err }, msg)` para falha. O erro vai sempre no campo `err`. |
+| L4 | **Log só pelo logger:** `const logger = createLogger("<Escopo>", LogContext.<Contexto>)` no topo do arquivo. Nada de `console.*` fora de `lib/logger.ts`. |
+| L5 | `logger.error({ err }, msg)` para falha que não é `AppError`; o erro vai sempre no campo `err`. `warn` fica só no `handle`, que registra a `key` de toda resposta de erro. |
 | L6 | Os dados variáveis vão nos campos, não na mensagem: `logger.warn({ supportId }, "instrument support has no group of the event (D21)")`, e não `` `support ${id} has no group` ``. A mensagem é fixa e cita a decisão (D#, E#) quando houver. |
+| L7 | **Contexto:** `LogContext.Event`, `User`, `Attendance`, `Job` ou `Sync` nos usecases (o domínio do usecase; `sync/` é `Sync`, `job/` é `Job`); `HormoniosRepository` ou `TransicionaisRepository` nos repos. Quem não é usecase nem repo (ex.: `handle`) fica sem contexto. |
+| L8 | **Log é para erro.** Cada `AppError` é logado uma vez, no catch do `execute` do usecase: `logger.appError(error, { hormoniosEventId \| hormoniosUserId \| hormoniosAttendanceId })`, com o id do Hormônios que a entrada traz. O repo loga a falha da fonte antes de lançar: `logger.repositoryError(error, operation)`. |
+| L9 | **Tracking só estratégico:** `logger.track("<o que o usecase faz>", ids?)` na primeira linha do `_execute`. Nada de `info`/`warn` espalhado pelo fluxo, nem log quebrado em várias linhas: cada log cabe numa linha. |
 
 ## O que existe
 
@@ -22,23 +25,35 @@ procure aqui: helper repetido em dois arquivos é erro de revisão.
 |---|---|
 | `date.ts` | `SAO_PAULO_TIME_ZONE`, `today(timeZone?)` (YYYY-MM-DD), `addDays(date, days)` |
 | `upstream.ts` | `isUnavailable(status)`: 0, 429 ou 5xx = fora do ar |
-| `logger.ts` | `createLogger(scope)`, `Logger` (abstrata, API do pino: `debug/info/warn/error(campos?, msg)`, `child`), `LogLevel` |
+| `logger.ts` | `createLogger(scope, context?)`, `LogContext`, `ILogIds`, `Logger` (abstrata, API do pino: `debug/info/warn/error(campos?, msg)`, `child`, e os atalhos `appError`, `repositoryError` e `track`), `LogLevel` |
 
 ## Logger
 
-Uma linha JSON por registro, com `level`, `time`, `scope`, os campos e `msg`. O `err` sai com
+Uma linha JSON por registro, com `level`, `time`, `context`, `scope`, os campos e `msg`. O `err` sai com
 `name`, `message`, `stack` e, num `InfraError`, `key` e `source`. Para trocar pelo pino, basta escrever
 outra implementação de `Logger`.
 
 ```ts
-import { createLogger } from "../lib/logger";
+import { createLogger, LogContext } from "../../lib/logger";
 
-const logger = createLogger("ReceivingCurrentEventUsecase");
+const logger = createLogger("UpdatingInternalEventUsecase", LogContext.Event);
 
-logger.warn({ externalId: ref.externalId, dayId: ref.dayId }, "public Transicionais event not found");
-logger.error({ err: error }, "unexpected error");
+logger.track("updating internal event", { hormoniosEventId: data.id }); // primeira linha do _execute
+logger.appError(error, { hormoniosEventId: data.id });                // no catch do execute, antes do throw
+logger.error({ err: error }, "unexpected error");                     // erro que não é AppError
+```
+
+```ts
+// repo: loga e devolve o erro, numa linha
+private databaseError(operation: string, status: number, message?: string): DatabaseError {
+  const error = new DatabaseError(operation, status, message);
+
+  logger.repositoryError(error, operation);
+
+  return error;
+}
 ```
 
 ```json
-{"level":"warn","time":"…","scope":"PublicEventResponse","supportId":"213","msg":"instrument support has no group of the event (D21)"}
+{"level":"error","time":"…","context":"Event","scope":"UpdatingInternalEventUsecase","hormoniosEventId":"f2c8…","err":{…},"key":"NOT_FOUND_ERROR","msg":"app error"}
 ```
