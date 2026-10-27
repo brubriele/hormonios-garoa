@@ -259,16 +259,20 @@ function confirmPresence(e){
   if(!isBookingOpen()){showToast("As reservas ainda não estão abertas.");navigate("home");return;}
 
   const email=document.querySelector("#presence-email").value.trim();
+  const name=document.querySelector("#presence-name").value.trim();
+  const pronoun=document.querySelector("#presence-pronoun").value.trim();
   const sameUser=email===state.user?.email;
-  if(sameUser && goingAttendance(state.user)){ showStatus("Sua presença já está confirmada."); return; }
+  const current=sameUser ? goingAttendance(state.user) : null;
+  const unchanged=sameUser && name===state.user?.name && pronoun===state.user?.pronoun;
+  if(unchanged && current){ showStatus("Sua presença já está confirmada."); return; }
 
   const body={
     email,
-    name:document.querySelector("#presence-name").value.trim(),
-    pronoun:document.querySelector("#presence-pronoun").value.trim(),
+    name,
+    pronoun,
     answer:"vou",
-    groupId:null,
-    supportIds:[],
+    groupId:current?.groupId ?? null,
+    supportIds:current?.supportIds ?? [],
     emailHash:document.querySelector("#presence-email-hash").value||null
   };
 

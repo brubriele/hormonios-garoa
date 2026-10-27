@@ -142,10 +142,9 @@ export class CreatingOrUpdatingAttendanceUsecase {
     }
 
     const metadata = found.metadata;
-    const name = data.name === found.anonymizedName ? found.name : data.name;
     const userData: IUserData = {
       id: found.id,
-      name,
+      name: data.name,
       pronoun: data.pronoun,
       email: found.email,
       metadata: {

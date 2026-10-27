@@ -3,7 +3,6 @@ import type { SyncStatus } from "./SyncStatus";
 
 // o contrato geral da pessoa que o Hormônios precisa. Na raiz, o que a tela usa
 export class User {
-  readonly anonymizedName: string;
   readonly anonymizedEmail: string;
   readonly account: UserAccount | null;
 
@@ -15,16 +14,8 @@ export class User {
     readonly attendances: Attendance[], // D4, D16
     readonly metadata: UserMetadata,
   ) {
-    this.anonymizedName = this.anonymizeName();
     this.anonymizedEmail = this.anonymizeEmail();
     this.account = metadata.account;
-  }
-
-  private anonymizeName(): string {
-    const [first = "", ...rest] = this.name.trim().split(/\s+/);
-    const others = rest.map((word) => (word.length <= 3 ? word : `${word[0]}*****${word.slice(-2)}`));
-
-    return [first, ...others].join(" ");
   }
 
   private anonymizeEmail(): string {

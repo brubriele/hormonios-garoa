@@ -59,11 +59,10 @@ As duas rotas usam o mesmo usecase: `POST /api/reserva` responde 201 e o desfaze
 
 **Consequências.**
 - Nome, pronome e presenças vêm sempre da base; o cookie não guarda nada além do id (D3).
-- A rota responde `UserBookingResponse`: nome e e-mail anonimizados (`User.anonymizedName`,
-  `anonymizedEmail`, em memória: primeira palavra inteira e as outras como `r*****do`; e-mail como
-  `be***iz@gmail.com`), o `emailHash`, o pronome, o `account` e as presenças. O front preenche a presença com eles
-  e mostra o `id` como identificador técnico; reserva e desfazer reconhecem a pessoa pelo cookie, e
-  o nome anonimizado mantém o gravado.
+- A rota responde `UserBookingResponse`: o e-mail anonimizado (`User.anonymizedEmail`, em memória,
+  como `be***iz@gmail.com`), o `emailHash`, o nome, o pronome, o `account` e as presenças. O front
+  preenche a presença com eles e mostra o `id` como identificador técnico; reserva e desfazer
+  reconhecem a pessoa pelo cookie.
 
 ## FindingUserUsecase — sem rota (usado pela reserva)
 

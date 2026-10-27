@@ -6,7 +6,7 @@ export class UserBookingResponse {
   static fromDomain(user: User) {
     return {
       id: user.id,
-      name: user.anonymizedName,
+      name: user.name,
       pronoun: user.pronoun,
       email: user.anonymizedEmail,
       emailHash: emailHash(user.email),
