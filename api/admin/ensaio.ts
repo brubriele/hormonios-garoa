@@ -1,21 +1,28 @@
-import { HttpClient } from "../../src/serve-utils/clients/http-client";
 import { SupabaseClient } from "../../src/serve-utils/clients/supabase-client";
 import { requireAdmin } from "../../src/serve-utils/http/admin-session";
 import { handle, readJson } from "../../src/serve-utils/http/handle";
-import { HormoniosRepo } from "../../src/serve-utils/repos/supabase/repo";
-import { TransicionaisRepo } from "../../src/serve-utils/repos/transicionais/repo";
-import { TransicionaisSession } from "../../src/serve-utils/repos/transicionais/session";
-import { UpdatingCurrentEventUsecase, type IUpdatingCurrentEventInput } from "../../src/serve-utils/usecases/event/updating-current-event";
+import { HormoniosRepository } from "../../src/serve-utils/repos/supabase/HormoniosRepository";
+import { FindingInternalEventUsecase } from "../../src/serve-utils/usecases/event/FindingInternalEventUsecase";
+import { UpdatingInternalEventUsecase } from "../../src/serve-utils/usecases/event/UpdatingInternalEventUsecase";
+import { EventRequest, type IEventRequest } from "./_requests/EventRequest";
 
+export const GET = handle(async (request) => {
+  await requireAdmin(request);
+
+  const usecase = new FindingInternalEventUsecase(new HormoniosRepository(new SupabaseClient()));
+  const managerEvent = await usecase.execute();
+
+  return { body: managerEvent.toJson() };
+});
+
+// D13
 export const PUT = handle(async (request) => {
   await requireAdmin(request);
 
-  const body = await readJson<IUpdatingCurrentEventInput>(request);
-  const httpClient = new HttpClient();
-  const usecase = new UpdatingCurrentEventUsecase(
-    new HormoniosRepo(new SupabaseClient()),
-    new TransicionaisRepo(httpClient, new TransicionaisSession(httpClient)),
-  );
+  const body = await readJson<IEventRequest>(request);
+  const event = EventRequest.toDomain(body);
+  const usecase = new UpdatingInternalEventUsecase(new HormoniosRepository(new SupabaseClient()));
+  const managerEvent = await usecase.execute(event);
 
-  return { body: await usecase.execute({ ...body }) };
+  return { body: managerEvent.toJson() };
 });

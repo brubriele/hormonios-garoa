@@ -1,17 +1,11 @@
-import { HttpClient } from "../src/serve-utils/clients/http-client";
 import { SupabaseClient } from "../src/serve-utils/clients/supabase-client";
 import { handle } from "../src/serve-utils/http/handle";
-import { HormoniosRepo } from "../src/serve-utils/repos/supabase/repo";
-import { TransicionaisRepo } from "../src/serve-utils/repos/transicionais/repo";
-import { TransicionaisSession } from "../src/serve-utils/repos/transicionais/session";
-import { FindingCurrentEventUsecase } from "../src/serve-utils/usecases/event/finding-current-event";
+import { HormoniosRepository } from "../src/serve-utils/repos/supabase/HormoniosRepository";
+import { FindingPublicEventUsecase } from "../src/serve-utils/usecases/event/FindingPublicEventUsecase";
 
 export const GET = handle(async () => {
-  const httpClient = new HttpClient();
-  const usecase = new FindingCurrentEventUsecase(
-    new HormoniosRepo(new SupabaseClient()),
-    new TransicionaisRepo(httpClient, new TransicionaisSession(httpClient)),
-  );
+  const usecase = new FindingPublicEventUsecase(new HormoniosRepository(new SupabaseClient()));
+  const event = await usecase.execute();
 
-  return { body: await usecase.execute() };
+  return { body: event.toJson() };
 });

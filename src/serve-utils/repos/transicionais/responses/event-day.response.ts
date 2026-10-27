@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { InfraSource, InvalidResponseError } from "../../../errors/infra-error";
-import { EventDay } from "../../../models/event-day";
 import { parseResponse } from "../../parse-response";
 import { TransicionaisIdSchema } from "../transicionais-id";
 
@@ -25,26 +24,14 @@ const EventDaysSchema = z.array(EventDaySchema);
 export type ITransicionaisDay = z.infer<typeof EventDaySchema>;
 
 export class EventDayResponse {
-  static toDomain(raw: unknown, operation: string): EventDay[] {
+  static toDomain(raw: unknown, operation: string): any[] {
     const days = parseResponse(EventDaysSchema, raw, InfraSource.Transicionais, operation);
 
     return InvalidResponseError.guard(InfraSource.Transicionais, operation, () => days.map(EventDayResponse.fromRaw));
   }
 
   // dia já validado (ex.: os configDays do completo do encontro)
-  static fromRaw(day: ITransicionaisDay): EventDay {
-    return new EventDay(
-      day.id,
-      day.current,
-      day.isActive,
-      day.startTime,
-      day.endTime,
-      day.eventId,
-      day.type,
-      day.weekOfYear,
-      day.dayOfWeek,
-      day.utcDayOfWeek,
-      day.inMemory,
-    );
+  static fromRaw(day: ITransicionaisDay): any {
+    return day;
   }
 }

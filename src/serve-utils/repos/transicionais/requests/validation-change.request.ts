@@ -1,5 +1,5 @@
 import type { ISendBookingData } from "../../../interfaces/transicionais";
-import { BookingAnswer } from "../../../models/booking";
+import { AttendanceAnswer } from "../../../domain/Attendance";
 import { numericId } from "../transicionais-id";
 
 // tipo da validação: o Hormônios só envia presença
@@ -29,7 +29,7 @@ export interface IValidationChangeBody {
 export class ValidationChangeRequest {
   // só presença ou "não vou": sem groupId e com supportTypeIds vazio
   static fromDomain(data: ISendBookingData): IValidationChangeBody {
-    const attending = data.answer === BookingAnswer.Going;
+    const attending = data.answer === AttendanceAnswer.Going;
     const groupId = attending && data.groupId !== null ? numericId(data.groupId, "groupId") : undefined;
     const { guestId, memberId } = data.account;
 
@@ -41,7 +41,7 @@ export class ValidationChangeRequest {
       status: attending ? ValidationAnswer.Attending : ValidationAnswer.Declined,
       ...(groupId === undefined ? {} : { groupId }),
       supportTypeIds:
-        groupId === undefined ? [] : [...new Set(data.supportTypeIds)].map((id) => numericId(id, "supportTypeId")),
+        groupId === undefined ? [] : [...new Set<string>(data.supportTypeIds)].map((id) => numericId(id, "supportTypeId")),
     };
   }
 }

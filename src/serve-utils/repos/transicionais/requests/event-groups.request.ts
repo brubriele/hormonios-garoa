@@ -11,7 +11,7 @@ export interface IEventGroupsBody {
 export class EventGroupsRequest {
   static fromDomain(data: IAddGroupsData): IEventGroupsBody {
     return {
-      groupId: data.groupIds.map((id) => numericId(id, "groupId")),
+      groupId: data.groupIds.map((id: string) => numericId(id, "groupId")),
       createdAt: data.createdAt.slice(0, 10),
     };
   }

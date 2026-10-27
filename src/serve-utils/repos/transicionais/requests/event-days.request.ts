@@ -1,4 +1,3 @@
-import type { EventDay } from "../../../models/event-day";
 import { numericId } from "../transicionais-id";
 
 // um dia no PUT v2/manager-events/details/{id}/config-day: o dia inteiro, como veio do GET, com o
@@ -24,11 +23,11 @@ export interface IEventDaysBody {
 }
 
 export class EventDaysRequest {
-  static fromDomain(version: number, days: EventDay[]): IEventDaysBody {
+  static fromDomain(version: number, days: any[]): IEventDaysBody {
     return { version, days: days.map(EventDaysRequest.toDay) };
   }
 
-  private static toDay(day: EventDay): IEventDayBody {
+  private static toDay(day: any): IEventDayBody {
     const body: IEventDayBody = {
       id: day.id === null ? null : numericId(day.id, "configDayId"),
       current: day.date,

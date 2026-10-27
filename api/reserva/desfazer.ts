@@ -1,26 +1,22 @@
-import { HttpClient } from "../../src/serve-utils/clients/http-client";
 import { SupabaseClient } from "../../src/serve-utils/clients/supabase-client";
-import { clientIp } from "../../src/serve-utils/http/client-ip";
 import { getOrCreateDevice } from "../../src/serve-utils/http/device";
 import { handle, readJson } from "../../src/serve-utils/http/handle";
-import { HormoniosRepo } from "../../src/serve-utils/repos/supabase/repo";
-import { TransicionaisRepo } from "../../src/serve-utils/repos/transicionais/repo";
-import { TransicionaisSession } from "../../src/serve-utils/repos/transicionais/session";
+import { createUserCookie } from "../../src/serve-utils/http/user-cookie";
+import { HormoniosRepository } from "../../src/serve-utils/repos/supabase/HormoniosRepository";
 import {
-  CancelingUserBookingUsecase,
-  type ICancelingUserBookingBody,
-} from "../../src/serve-utils/usecases/booking/canceling-user-booking";
+  CreatingOrUpdatingAttendanceUsecase,
+  type ICreatingOrUpdatingAttendanceBody,
+} from "../../src/serve-utils/usecases/booking/CreatingOrUpdatingAttendanceUsecase";
 
+// D15, F7, F8
 export const POST = handle(async (request) => {
   const { deviceId, cookie } = getOrCreateDevice(request);
-  const body = await readJson<ICancelingUserBookingBody>(request);
+  const body = await readJson<ICreatingOrUpdatingAttendanceBody>(request);
+  const usecase = new CreatingOrUpdatingAttendanceUsecase(new HormoniosRepository(new SupabaseClient()));
+  const user = await usecase.execute({ ...body, deviceId });
+  const attendances = user.attendances.map((attendance) => attendance.toJson());
+  const userCookie = createUserCookie(user.id);
+  const cookies = cookie ? [userCookie, cookie] : [userCookie];
 
-  const httpClient = new HttpClient();
-  const usecase = new CancelingUserBookingUsecase(
-    new HormoniosRepo(new SupabaseClient()),
-    new TransicionaisRepo(httpClient, new TransicionaisSession(httpClient)),
-  );
-  await usecase.execute({ ...body, deviceId, ip: clientIp(request) });
-
-  return { cookies: cookie ? [cookie] : [] };
+  return { status: 200, body: { ...user.toJson(), attendances }, cookies };
 });

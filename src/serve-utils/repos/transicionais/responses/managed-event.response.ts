@@ -1,8 +1,6 @@
 import { z } from "zod";
 import { InfraSource, InvalidResponseError } from "../../../errors/infra-error";
-import { PublicationSettings, EventVisibility } from "../../../models/publication-settings";
-import { GroupCapacity } from "../../../models/group-capacity";
-import { ManagedEvent } from "../../../models/managed-event";
+import { EventVisibility } from "../../../domain/Event";
 import { parseResponse } from "../../parse-response";
 import { EventDayResponse, EventDaySchema } from "./event-day.response";
 import { TransicionaisIdSchema } from "../transicionais-id";
@@ -53,41 +51,21 @@ const ManagedEventSchema = z.object({
 });
 
 type IManagedEvent = z.infer<typeof ManagedEventSchema>;
-type IPublication = z.infer<typeof PublicationSchema>;
 
 export class ManagedEventResponse {
-  static toDomain(raw: unknown): ManagedEvent {
+  static toDomain(raw: unknown): any {
     const event = parseResponse(ManagedEventSchema, raw, InfraSource.Transicionais, OPERATION);
 
     return InvalidResponseError.guard(InfraSource.Transicionais, OPERATION, () => ManagedEventResponse.toEvent(event));
   }
 
-  private static toEvent(event: IManagedEvent): ManagedEvent {
-    return new ManagedEvent(
-      event.id,
-      event.name,
-      event.startAt,
-      event.endAt,
-      event.categoryId,
-      event.createdAt,
-      event.version,
-      event.groups.map((group) => group.id),
-      event.configDays.map(EventDayResponse.fromRaw),
-      event.public ? ManagedEventResponse.toPublication(event.public) : null,
-    );
+  static toExternalId(raw: unknown): string | null {
+    const event = parseResponse(ManagedEventSchema, raw, InfraSource.Transicionais, OPERATION);
+
+    return event.public ? event.public.id : null;
   }
 
-  private static toPublication(publication: IPublication): PublicationSettings {
-    return new PublicationSettings(
-      publication.id,
-      publication.visibility,
-      publication.publicDescription,
-      publication.releaseAt,
-      publication.membersEarlyAt,
-      publication.guestDeadlineMinutes,
-      publication.supports.map((support) => support.id),
-      publication.vacancies.total,
-      publication.vacancies.groups.map((group) => new GroupCapacity(group.groupId, group.total)),
-    );
+  private static toEvent(event: IManagedEvent): any {
+    return { ...event, configDays: event.configDays.map(EventDayResponse.fromRaw) };
   }
 }

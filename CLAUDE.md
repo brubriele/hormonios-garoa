@@ -10,5 +10,8 @@ O front (`app.js`, `guias.js`, `*.html`, `styles.css`) não segue esse padrão.
 
 ## Planos e specs
 
-- **Planos** (decisões e fases, antes de implementar): `docs/plans/README.md`.
+- **Planos** (`docs/plans/`): só contexto das decisões, não são regra de código. A regra do backend
+  é o `docs/agent_docs/backend/`.
 - **Specs** (o que já está implementado): `docs/spec/back/README.md` e `docs/spec/front/README.md`.
+
+REGRA ABSOLUTA USECASE SÓ TEM ENTRADA DE OBJETO DE DOMINIO OU UM COMMAND QUE TBM TEM OBJETO DE DOMINIO

@@ -1,10 +1,14 @@
 import { z } from "zod";
 import { InfraSource, InvalidResponseError } from "../../../errors/infra-error";
-import { LoanCatalog, LoanCatalogKind } from "../../../models/loan-catalog";
 import { parseResponse } from "../../parse-response";
 import { TransicionaisIdSchema } from "../transicionais-id";
 
 const OPERATION = "findLoanCatalog";
+
+export enum LoanCatalogKind {
+  Instrument = "instrumento",
+  Accessory = "acessorio",
+}
 
 // GET v2/manager-support-types/{id}: o catálogo da assistência (D26)
 const LoanCatalogSchema = z.object({
@@ -20,24 +24,9 @@ const LoanCatalogSchema = z.object({
 });
 
 export class LoanCatalogResponse {
-  static toDomain(raw: unknown): LoanCatalog {
+  static toDomain(raw: unknown): any {
     const support = parseResponse(LoanCatalogSchema, raw, InfraSource.Transicionais, OPERATION);
 
-    return InvalidResponseError.guard(
-      InfraSource.Transicionais,
-      OPERATION,
-      () =>
-        new LoanCatalog(
-          support.id,
-          support.title,
-          support.description,
-          support.isActive,
-          support.capacity,
-          support.groupIds,
-          support.rotativo,
-          support.requiredForActivity,
-          support.type,
-        ),
-    );
+    return InvalidResponseError.guard(InfraSource.Transicionais, OPERATION, () => support);
   }
 }

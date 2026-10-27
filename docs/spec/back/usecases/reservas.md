@@ -1,78 +1,53 @@
 # Reservas
 
-> Atualizado em 2026-10-25 (fase 2).
+> Atualizado em 2026-10-26 (refactor do domain, [`create-domain.md`](../../../plans/create-domain.md)).
+> A reserva é a `Attendance` do evento atual; a pessoa é o `User`. As presenças do `User` são só as
+> do evento atual (D16).
 
-## CreatingUserBooking — `POST /api/reserva`
+## CreatingOrUpdatingAttendanceUsecase — `POST /api/reserva` e `POST /api/reserva/desfazer`
 
-> [`usecases/booking/creating-user-booking.ts`](../../../../src/serve-utils/usecases/booking/creating-user-booking.ts)
+> [`usecases/booking/CreatingOrUpdatingAttendanceUsecase.ts`](../../../../src/serve-utils/usecases/booking/CreatingOrUpdatingAttendanceUsecase.ts)
 
-**Contexto.** A pessoa reserva presença ou instrumento pelo e-mail, sem login. A reserva precisa
-valer mesmo com o Transicionais fora.
-
-**Decisão.**
-- Valida o corpo, recusa com as reservas fechadas (antes do upsert, RR2) e confere que cada
-  acessório vale para o instrumento (E2.9).
-- Upsert da pessoa por e-mail e função `reservar` (trava, vagas e acessórios, `PENDING`).
-- Envia na hora pelo `SyncingUserBookingUsecase` e responde `sync` (`SYNCED` ou `PENDING`). A recusa do
-  Transicionais não chega à rota (D44).
-
-**Consequências.**
-- Com o Transicionais fora, a resposta é 201 `PENDING`, e o cron envia depois.
-- A recusa do Transicionais deixa a linha `PENDING` (D44): a reserva local vale, e o cron reenvia.
-
-## CancelingUserBooking — `POST /api/reserva/desfazer`
-
-> [`usecases/booking/canceling-user-booking.ts`](../../../../src/serve-utils/usecases/booking/canceling-user-booking.ts)
-
-**Contexto.** O "Não vou" de uma reserva deste aparelho, que também precisa chegar ao Transicionais.
+**Contexto.** A pessoa diz se vai ao ensaio (com ou sem instrumento e acessórios) ou que não vai.
+As duas rotas usam o mesmo usecase: `POST /api/reserva` responde 201 e o desfazer, 200 (D15).
 
 **Decisão.**
-- A linha do aparelho no dia atual vira `nao-vou`, `PENDING`, com `updated_at` novo. De outro
-  aparelho ou dia: 404.
-- Envia `DECLINED` na hora pelo `SyncingUserBookingUsecase`. Qualquer falha deixa a linha `PENDING` (D44).
+- Entrada: `email` (normalizado em minúsculas), `name`, `pronoun`, `answer` (`vou` | `nao-vou`),
+  `groupId`, `supportIds` e o `deviceId` do `hg_device`. Sem `groupId`, `supportIds` vazio; com
+  `nao-vou`, `groupId` `null`.
+- Acha o evento atual (D2) e a pessoa pelo e-mail (D16). Monta o `User`: novo (`sync: PENDING`) ou
+  o existente com o nome e o pronome novos, voltando para `PENDING`.
+- Para `vou`, antes de gravar:
+  - reserva aberta (`BookingClosedError`);
+  - as contas são feitas com as presenças das **outras** pessoas (`withAttendances`, F4);
+  - quem ainda não estava `vou` (ou estava `REJECTED`) precisa de vaga no `totalVacancies`
+    (`SoldOutError`);
+  - com grupo: o grupo existe e está ativo; os `supportIds` (sem repetidos) são acessórios do
+    evento que valem para o grupo (lista vazia = todos); quem já reservou outro grupo recebe
+    `AlreadyReservedError`; instrumento do grupo esgotado → `SoldOutError`; acessório esgotado →
+    `AccessorySoldOutError`; `capacity` do grupo zerado → `SoldOutError`.
+- Grava a pessoa (`createOrUpdateUser`) só depois das validações, e então a presença
+  (`createOrUpdateAttendance`), mantendo `id`, `createdAt`, `integrationId`, `syncHash` e
+  `syncedAt` da presença anterior, com `sync: PENDING` (F8).
+- Devolve o `User` com a presença gravada; a rota grava o cookie com o `userId` (D3).
 
 **Consequências.**
-- Funciona com as reservas fechadas (RT8). Se o Transicionais recusar pelo prazo, a linha fica
-  `nao-vou` e `PENDING`, e o cron reenvia (D44).
+- "Não vou" é uma presença gravada com `nao-vou`; "nem vi" é não ter presença (D15). Dizer que não
+  vai vale com a reserva fechada.
+- Reserva recusada não deixa a pessoa criada nem com o nome trocado.
+- O cookie só com o `userId` deixa quem usa o e-mail de outra pessoa ver e desfazer a reserva dela
+  (D26a), até o login por e-mail.
 
-## FindingUserBookings — `GET /api/minhas-reservas`
+## FindingUserBookingUsecase — `GET /api/minhas-reservas`
 
-> [`usecases/booking/finding-user-bookings.ts`](../../../../src/serve-utils/usecases/booking/finding-user-bookings.ts)
+> [`usecases/booking/FindingUserBookingUsecase.ts`](../../../../src/serve-utils/usecases/booking/FindingUserBookingUsecase.ts)
 
-**Contexto.** "Minhas reservas" mostra o que este aparelho reservou no ensaio atual.
+**Contexto.** A pessoa vê a própria reserva do ensaio atual.
 
 **Decisão.**
-- Linhas `vou` do aparelho no dia atual, **inclusive as `REJECTED`**, com `sync` e `syncError`.
-- `groupName` e `accessories` vêm do retrato. Um acessório que saiu do retrato fica de fora (D30).
-- Responde uma lista do model `UserBooking`, montado pelo `UserBookingMapper`
-  (`usecases/booking/mappers/user-booking.mapper.ts`): junta a reserva e o ensaio, só formatando (U9).
+- Entrada: o `userId` do cookie (D3). Sem cookie → `NotFoundError`.
+- Acha o evento atual (D2) e a pessoa pelo id, com as presenças dela nesse evento
+  (`findUserById`, D16). Não achou → `NotFoundError`.
 
 **Consequências.**
-- O BFF já dá o status do envio. O front ainda não o mostra (onda 4).
-
-## SyncingUserBooking — sem rota
-
-> [`usecases/sync/syncing-user-booking.ts`](../../../../src/serve-utils/usecases/sync/syncing-user-booking.ts)
-
-**Contexto.** O envio é o mesmo na reserva, no "Não vou" e no cron (D32). Criado no construtor de
-`CreatingUserBooking`, `CancelingUserBooking` e `SyncingBookingPending`.
-
-**Decisão.**
-- Só envia linha `PENDING` de dia do Transicionais (`day_key` numérico, de qualquer encontro, D45),
-  com retrato do Transicionais. O instrumento e os acessórios oferecidos vêm do encontro atual.
-- Antes, `findPresence` (D49): se a presença de lá já é a da linha (resposta, grupo e assistências),
-  `SYNCED` sem reenviar. Senão, dois passos (D41): `registerGuest` (a conta da pessoa na organização, idempotente pelo e-mail) e
-  `sendBooking` em nome dela, com o estado atual da linha (R8): a assistência do instrumento + os
-  acessórios. Qualquer falha no cadastro segue a mesma tabela, e a resposta não é enviada.
-- Só vão os acessórios que o encontro oferece para o grupo. O id que não existe no encontro (linha
-  migrada da fase 1, `talabarte`/`baqueta`) fica fora do envio, com `warn` (D42).
-- O repo devolve o aceito ou lança; **a decisão é do usecase** (R12), pelo tipo do erro:
-  aceito → `SYNCED` com o `guest_id` da conta (`order_id` e `changed_at` ficam como estavam); `AnswerChangedError` (`InfraError`) → `RETRY`; `UpstreamUnavailableError` →
-  `BACKOFF`; recusa (`AppError`) → `BACKOFF` e log de erro com a `key` (D44); qualquer outro erro
-  (inclui `UpstreamResponseError` do 401/403 depois de renovar) → `BACKOFF` e log de erro.
-- Grava o resultado com `marcar_sync`, só se o `updated_at` não mudou. Devolve só o `sync`.
-
-**Consequências.**
-- **Não relança** (foge da U5): qualquer erro vira `PENDING` e um log de erro (`logger.error`). A
-  falha do envio nunca derruba a reserva local.
-- O envio pelas rotas de manager não foi conferido numa chamada real (D41).
+- Nome, pronome e presenças vêm sempre da base; o cookie não guarda nada além do id (D3).

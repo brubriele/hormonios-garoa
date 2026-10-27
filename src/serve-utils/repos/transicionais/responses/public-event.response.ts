@@ -1,144 +1,174 @@
 import { z } from "zod";
+import {
+  Event,
+  EventCatalog,
+  EventCatalogMetadata,
+  EventCatalogStock,
+  EventCatalogType,
+  EventDescription,
+  EventGroup,
+  EventGroupMetadata,
+  EventMetadata,
+  EventVisibility,
+} from "../../../domain/Event";
+import { SyncStatus } from "../../../domain/SyncStatus";
 import { InfraSource, InvalidResponseError } from "../../../errors/infra-error";
-import { createLogger } from "../../../lib/logger";
-import type { IEventRef } from "../../../interfaces/transicionais";
-import { CurrentEvent, Instrument, Accessory } from "../../../models/current-event";
-import { CurrentEventSnapshot } from "../../../models/current-event-snapshot";
-import { LoanCatalogKind } from "../../../models/loan-catalog";
 import { parseResponse } from "../../parse-response";
 import { TransicionaisIdSchema } from "../transicionais-id";
+import { LoanCatalogKind } from "./loan-catalog.response";
 
-const logger = createLogger("PublicEventResponse");
+const OPERATION = "publicEvent";
 
-// configDays[].summary.supports: a assistência com a capacidade e quem a pediu no dia
+const TimeSchema = z
+  .string()
+  .nullable()
+  .transform((time) => (time ? time.slice(0, 5) : null));
+
 const DaySupportSchema = z.object({
   id: TransicionaisIdSchema,
   title: z.string(),
-  type: z.enum(LoanCatalogKind).optional().catch(undefined), // desconhecido ou ausente: fica de fora (D24)
+  type: z.enum(LoanCatalogKind).optional().catch(undefined),
   isActive: z.boolean(),
-  capacity: z.number().int().nullable(), // null = sem limite
-  rotativo: z.boolean(), // a capacidade conta, mas não bloqueia
-  // quem disse "vou" no dia pedindo a assistência (membros + convidados): a ocupação do ensaio. O
-  // occupied é outra conta (empréstimos ativos agora) e não serve para o estoque do dia (D47)
-  confirmed: z.number().int(),
-  groupIds: z.array(TransicionaisIdSchema), // vazio = vale para todos os grupos
+  capacity: z.number().int().nullable(),
+  rotativo: z.boolean(),
+  confirmed: z.number().int().transform((confirmed) => Math.max(0, confirmed)),
+  groupIds: z.array(TransicionaisIdSchema).default([]),
 });
 
 const ConfigDaySchema = z.object({
-  id: TransicionaisIdSchema.nullable(), // null = dia ainda não salvo
-  current: z.string(), // YYYY-MM-DD
-  startTime: z.string().nullable().transform((time) => (time ?? "").slice(0, 5)), // HH:mm; null = a definir
-  summary: z.object({ supports: z.array(DaySupportSchema) }).default({ supports: [] }), // só no GET público
-});
-
-const AnswerWindowSchema = z.object({
-  open: z.boolean(),
-  closed: z.boolean(),
+  id: z.number().int().nullable(),
+  current: z.string().transform((date) => date.slice(0, 10)),
+  startTime: TimeSchema,
+  endTime: TimeSchema.optional().transform((time) => time ?? null),
+  summary: z.object({ supports: z.array(DaySupportSchema) }).default({ supports: [] }),
 });
 
 const EventGroupSchema = z.object({
   id: TransicionaisIdSchema,
+  name: z.string(),
 });
 
-// GET v2/community/organizations/{customId}/events/{externalId}?dayId= (contrato:
-// docs/plans/transicionais/public-event-exemplo.json). Também o retrato do webhook event.updated
+const VacancySchema = z.object({ total: z.number().int().nullable() });
+
+const GroupVacancySchema = z.object({
+  groupId: TransicionaisIdSchema,
+  total: z.number().int().nullable(),
+});
+
+const PublicationSchema = z.object({
+  id: z.string().min(1),
+  visibility: z.enum(EventVisibility),
+  publicDescription: z.string().nullable(),
+  releaseAt: z.string().nullable(),
+  membersEarlyAt: z.string().nullable(),
+  vacancies: z.object({
+    configDayId: z.number().int().nullable().default(null),
+    total: VacancySchema.nullable().transform((vacancy) => (vacancy ? vacancy.total : null)),
+    groups: z.array(GroupVacancySchema).default([]),
+  }),
+  updatedAt: z.string().nullable().default(null),
+});
+
+// GET v2/community/organizations/{customId}/events/{externalId}
 const PublicEventSchema = z.object({
-  version: z.number().int(),
-  // md5 do encontro: muda quando algum campo muda; é ele que diz se o retrato precisa ser gravado
-  // (D48). O retrato do webhook não traz: null
-  hash: z.string().min(1).nullable().catch(null),
+  id: z.number().int(),
+  name: z.string(),
   location: z.string().nullable().transform((location) => location ?? ""),
+  categoryId: TransicionaisIdSchema.nullable(),
+  version: z.number().int(),
+  hash: z.string().min(1).nullable().default(null),
   groups: z.array(EventGroupSchema),
   configDays: z.array(ConfigDaySchema).nonempty(),
-  public: z.object({ answerWindow: AnswerWindowSchema.optional() }), // só encontro Público
+  public: PublicationSchema,
 });
 
 type IPublicEvent = z.infer<typeof PublicEventSchema>;
+type IConfigDay = z.infer<typeof ConfigDaySchema>;
 type IDaySupport = z.infer<typeof DaySupportSchema>;
 
+const CATALOG_TYPES: Record<LoanCatalogKind, EventCatalogType> = {
+  [LoanCatalogKind.Instrument]: EventCatalogType.Instrument,
+  [LoanCatalogKind.Accessory]: EventCatalogType.Accessory,
+};
+
 export class PublicEventResponse {
-  // vacanciesAt: quando as vagas foram lidas (D5: a hora da leitura)
-  static toDomain(raw: unknown, ref: IEventRef, vacanciesAt: string, operation = "publicEvent"): CurrentEventSnapshot {
-    const event = parseResponse(PublicEventSchema, raw, InfraSource.Transicionais, operation);
+  static toDomain(raw: unknown, fetchedAt: string): Event {
+    const event = parseResponse(PublicEventSchema, raw, InfraSource.Transicionais, OPERATION);
 
-    return InvalidResponseError.guard(InfraSource.Transicionais, operation, () =>
-      PublicEventResponse.toSnapshot(event, ref, vacanciesAt),
+    return InvalidResponseError.guard(InfraSource.Transicionais, OPERATION, () =>
+      PublicEventResponse.toEvent(event, fetchedAt),
     );
   }
 
-  private static toSnapshot(event: IPublicEvent, ref: IEventRef, vacanciesAt: string): CurrentEventSnapshot {
-    // o dia do retrato; sem ele, o primeiro do encontro
-    const day = event.configDays.find((item) => item.id === ref.dayId) ?? event.configDays[0];
-    // inativa saiu das novas associações (D24)
-    const daySupports = day.summary.supports.filter((support) => support.isActive);
-    const answerWindow = event.public.answerWindow;
+  private static toEvent(event: IPublicEvent, fetchedAt: string): Event {
+    const day = PublicEventResponse.findDay(event);
+    const groups = event.groups.map((group) => PublicEventResponse.toGroup(group, event));
+    const groupIds = groups.map((group) => group.id);
+    const supports = day.summary.supports.filter((support) => support.isActive && support.type !== undefined);
+    const catalog = supports.map((support) => PublicEventResponse.toCatalog(support, groupIds));
+    const metadata = PublicEventResponse.toMetadata(event, day, fetchedAt);
 
-    const current = new CurrentEvent(
-      ref.dayId,
-      day.current.slice(0, 10),
-      day.startTime,
+    return new Event(
+      "",
       event.location,
-      Boolean(answerWindow?.open) && !answerWindow?.closed,
-      "", // whatsappUrl é só do Hormônios: fica o gravado
-      PublicEventResponse.toInstruments(event, daySupports),
-      PublicEventResponse.toAccessories(daySupports),
-      ref.externalId,
-      vacanciesAt,
+      null,
+      day.current,
+      day.startTime,
+      null,
+      groups,
+      catalog,
+      metadata,
+    );
+  }
+
+  private static findDay(event: IPublicEvent): IConfigDay {
+    const configDayId = event.public.vacancies.configDayId;
+    const day = event.configDays.find((item) => item.id === configDayId);
+
+    return day ?? event.configDays[0];
+  }
+
+  private static toGroup(group: z.infer<typeof EventGroupSchema>, event: IPublicEvent): EventGroup {
+    const vacancy = event.public.vacancies.groups.find((item) => item.groupId === group.id);
+    const exclusiveCapacity = vacancy ? vacancy.total : null;
+    const metadata = new EventGroupMetadata(true, exclusiveCapacity);
+
+    return new EventGroup(group.id, group.name, metadata);
+  }
+
+  private static toCatalog(support: IDaySupport, eventGroupIds: string[]): EventCatalog {
+    const stock = new EventCatalogStock(support.capacity, support.rotativo, support.confirmed);
+    const groupIds = support.groupIds.filter((id) => eventGroupIds.includes(id));
+    const type = CATALOG_TYPES[support.type as LoanCatalogKind];
+    const metadata = new EventCatalogMetadata(groupIds, type);
+
+    return new EventCatalog(support.id, support.title, stock, metadata);
+  }
+
+  private static toMetadata(event: IPublicEvent, day: IConfigDay, fetchedAt: string): EventMetadata {
+    const publication = event.public;
+    const description = new EventDescription(
+      publication.visibility,
+      publication.publicDescription,
+      publication.releaseAt,
+      publication.membersEarlyAt,
+      publication.vacancies.total,
     );
 
-    return new CurrentEventSnapshot(ref.externalId, event.version, event.hash, vacanciesAt, current);
-  }
-
-  // um grupo por assistência type='instrumento', na ordem do Transicionais. O grupo é o primeiro de
-  // groupIds que é grupo do encontro; sem nenhum, o instrumento fica de fora (D21). Todos ativos
-  private static toInstruments(event: IPublicEvent, daySupports: IDaySupport[]): Instrument[] {
-    const eventGroupIds = new Set(event.groups.map((group) => group.id));
-    const instruments: Instrument[] = [];
-
-    for (const support of daySupports.filter((item) => item.type === LoanCatalogKind.Instrument)) {
-      const groupId = support.groupIds.find((id) => eventGroupIds.has(id));
-
-      if (groupId === undefined) {
-        logger.warn({ supportId: support.id }, "instrument support has no group of the event (D21)");
-        continue;
-      }
-
-      // dois instrumentos no mesmo grupo: vale o primeiro (D25)
-      if (instruments.some((instrument) => instrument.id === groupId)) {
-        logger.warn({ supportId: support.id, groupId }, "instrument support repeats a group (D25)");
-        continue;
-      }
-
-      instruments.push(
-        new Instrument(
-          groupId,
-          support.title,
-          support.capacity,
-          true,
-          Math.max(0, support.confirmed),
-          support.id,
-          support.rotativo,
-        ),
-      );
-    }
-
-    return instruments;
-  }
-
-  // os acessórios: assistências type='acessorio', com o grupo a que valem (groupIds vazio = todos)
-  private static toAccessories(daySupports: IDaySupport[]): Accessory[] {
-    return daySupports
-      .filter((support) => support.type === LoanCatalogKind.Accessory)
-      .map(
-        (support) =>
-          new Accessory(
-            support.id,
-            support.title,
-            support.capacity,
-            Math.max(0, support.confirmed),
-            support.rotativo,
-            support.groupIds,
-          ),
-      );
+    return new EventMetadata(
+      publication.id,
+      event.id,
+      day.id,
+      event.name,
+      event.categoryId,
+      day.endTime,
+      description,
+      event.version,
+      fetchedAt,
+      SyncStatus.Synced,
+      null,
+      event.hash,
+      publication.updatedAt,
+    );
   }
 }

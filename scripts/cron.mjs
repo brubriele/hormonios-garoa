@@ -1,5 +1,7 @@
 // Chama uma rota /api/cron/* como o Worker faz (Authorization: Bearer <CRON_SECRET>).
 // Uso: node scripts/cron.mjs <event|sync> [--type=<tipo>] [BFF_URL]
+//      node scripts/cron.mjs --type=webhook --entity=event --id=<1|uuid> [BFF_URL]
+//      yarn cron:webhook --entity=event --id=1 [BFF_URL] → POST /api/webhooks/transicionais (atualiza a base interna)
 //      yarn cron:event [BFF_URL]                → GET /api/cron/event
 //      yarn cron:sync --type=nextEvent [BFF_URL] → GET /api/cron/sync?type=nextEvent
 //      tipos do sync: nextEvent, stock, booking
@@ -8,9 +10,17 @@ import { existsSync } from 'node:fs'
 
 const ROUTES = ['event', 'sync']
 const SYNC_TYPES = ['nextEvent', 'stock', 'booking']
+const WEBHOOK_ENTITIES = ['event']
 
 for (const file of ['.env.local', '.env']) {
   if (existsSync(file)) process.loadEnvFile(file) // não sobrescreve o que já está no ambiente
+}
+
+const readArg = (args, name) => args.find((arg) => arg.startsWith(`--${name}=`))?.slice(`--${name}=`.length)
+
+if (readArg(process.argv.slice(2), 'type') === 'webhook') {
+  await callWebhook(process.argv.slice(2))
+  process.exit(0)
 }
 
 const route = process.argv[2]
@@ -48,3 +58,46 @@ try {
 }
 
 if (!response.ok) process.exit(1)
+
+async function callWebhook(args) {
+  const entity = readArg(args, 'entity')
+  const rawId = readArg(args, 'id')
+  const baseUrl = (args.find((arg) => !arg.startsWith('--')) ?? process.env.BFF_URL ?? 'http://localhost:5173').replace(/\/$/, '')
+
+  if (!WEBHOOK_ENTITIES.includes(entity)) {
+    console.error(`--entity inválido: ${entity ?? '(vazio)'}. Use um de: ${WEBHOOK_ENTITIES.join(', ')}`)
+    process.exit(1)
+  }
+
+  if (!rawId) {
+    console.error('--id é obrigatório (número do Transicionais ou uuid do link público)')
+    process.exit(1)
+  }
+
+  const apiKey = process.env.WEBHOOK_API_KEY
+
+  if (!apiKey) {
+    console.error('WEBHOOK_API_KEY não está definido (.env.local)')
+    process.exit(1)
+  }
+
+  const eventId = /^\d+$/.test(rawId) ? Number(rawId) : rawId
+  const url = `${baseUrl}/api/webhooks/transicionais`
+  const body = { entity, sendAt: new Date().toISOString(), body: { eventId } }
+  const startedAt = Date.now()
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'user-agent': 'cron.mjs', 'api-key': apiKey, 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const text = await response.text()
+
+  console.log(`POST ${url} → ${response.status} (${Date.now() - startedAt} ms)`)
+  try {
+    console.log(JSON.stringify(JSON.parse(text), null, 2))
+  } catch {
+    console.log(text)
+  }
+
+  if (!response.ok) process.exit(1)
+}

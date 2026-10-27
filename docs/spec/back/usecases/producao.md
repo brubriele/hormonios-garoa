@@ -1,80 +1,75 @@
 # Produção
 
-> Atualizado em 2026-10-25 (fase 2).
+> Atualizado em 2026-10-26 (refactor do domain, [`create-domain.md`](../../../plans/create-domain.md)).
+> O login (`POST /api/admin/entrar`) não tem usecase. As rotas da Produção têm `requireAdmin` na
+> primeira linha.
 
-O login (`POST /api/admin/entrar`) não tem usecase: a rota usa `isAdminKey` e `createAdminCookie`
-de [`http/admin-session.ts`](../../../../src/serve-utils/http/admin-session.ts). As outras rotas
-chamam `requireAdmin` antes do usecase.
+## FindingInternalEventUsecase — `GET /api/admin/ensaio`
 
-## FindingCurrentEventSummary — `GET /api/admin/resumo`
+> [`usecases/event/FindingInternalEventUsecase.ts`](../../../../src/serve-utils/usecases/event/FindingInternalEventUsecase.ts)
 
-> [`usecases/event/finding-current-event-summary.ts`](../../../../src/serve-utils/usecases/event/finding-current-event-summary.ts)
-
-**Contexto.** A tela da Produção: ensaio, estoque e presenças.
-
-**Decisão.**
-- Lê o retrato e as linhas do dia no Supabase e responde o model `CurrentEventSummary`, montado pelo
-  `CurrentEventSummaryMapper` (`usecases/event/mappers/current-event-summary.mapper.ts`: `stock[]`, E2.9; as vagas vêm dos
-  models).
-- Não chama o Transicionais.
-
-**Consequências.**
-- O estoque é o do último retrato. `reservations` e `attendances` só trazem quem reservou pelo
-  Hormônios e não está `REJECTED` (D30).
-
-## UpdatingCurrentEvent — `PUT /api/admin/ensaio`
-
-> [`usecases/event/updating-current-event.ts`](../../../../src/serve-utils/usecases/event/updating-current-event.ts)
-
-**Contexto.** "Salvar ensaio", link, abrir/fechar e estoque, com a mesma tela da fase 1, repassados
-ao Transicionais (E2.5).
+**Contexto.** A Produção vê o ensaio atual com as pessoas e as presenças. Substitui o antigo
+`GET /api/admin/resumo` (D14).
 
 **Decisão.**
-- Valida o parcial. Com retrato local da fase 1, lê o Transicionais antes (senão 503).
-- `stocks`: cada id é achado por `CurrentEvent.findStock` (desconhecido ou sem limite: 400). Só os
-  que mudaram vão adiante, conferidos por `isBelowBookings(capacity, attendances)` do model
-  (rotativo pula; abaixo do ocupado: 409, D29) e gravados com `PUT manager-support-types/{id}`
-  (objeto inteiro, `LoanCatalog.withCapacity`, E2.9, D26).
-- Local, data, hora e abertura: só a diferença vai ao Transicionais (D1, D7). O encontro de manager
-  sai de `findManagedEvent(ref, today())`: a data de busca é do usecase (R12). Data nova move as
-  linhas para o dia novo como `PENDING`.
-- `EVENT_VERSION_CONFLICT` chega como `VersionConflictError` (`InfraError`): o usecase relê a
-  `version` e tenta uma vez mais; repetiu, 500.
-- Estoque com o Transicionais fora, ou com uma `PENDING` da mesma assistência (para valer a ordem):
-  `savePendingCapacity` (`estoque_pendente`) enfileira e grava o retrato com o valor novo
-  (`CurrentEvent.withStock`). Sem releitura, porque ele está fora (D53).
-- Encerramento pendente (`findOpenNextEvent`, D51): o retrato local é a verdade; só estoque e
-  `whatsappUrl` mudam. Data, hora, local ou abertura: 503.
-- `whatsappUrl` grava local (`gravar_whatsapp`). Por fim, relê o retrato e responde o resumo pelo
-  `CurrentEventSummaryMapper`.
+- Acha o evento atual (D2). Sem evento (base vazia, primeira vez que o projeto roda), cria o
+  primeiro pelo `createMockEvent()`: o `emptyState()`
+  ([`repos/supabase/mock/emptyState.ts`](../../../../src/serve-utils/repos/supabase/mock/emptyState.ts),
+  a linha de `emptyState.json` lida pelo `EventResponse`) passa pelo `CreatingInternalEventUsecase`,
+  que gera um `id` novo e grava. Se a criação falhar, loga e responde `NotFoundError`.
+- Lê as presenças e as pessoas do evento (`findEventUsers`, D5, D16).
+- Devolve um `ManagerEvent`: o `Event` com `withAttendances(attendances, true)` (com o `capacity`
+  dos grupos) e as `users` com as presenças delas.
 
 **Consequências.**
-- Não é atômico: um estoque pode ser gravado e a edição do encontro falhar. Repetir é seguro (D12).
-- Fora do ar: o estoque vai para a fila; data, hora, local e abertura dão 503 `UPSTREAM_UNAVAILABLE_ERROR`.
+- A presença não repete o evento no JSON: liga pelo `eventId` (D5).
 
-## CreatingNextEvent — `POST /api/admin/novo-ensaio`
+## CreatingInternalEventUsecase — `POST /api/admin/novo-ensaio`
 
-> [`usecases/event/creating-next-event.ts`](../../../../src/serve-utils/usecases/event/creating-next-event.ts)
+> [`usecases/event/CreatingInternalEventUsecase.ts`](../../../../src/serve-utils/usecases/event/CreatingInternalEventUsecase.ts)
 
-**Contexto.** "Encerrar ensaio" cria o próximo encontro no Transicionais (E2.5, E2.7).
+**Contexto.** Cria um evento na base. Quem chama: a Produção (novo ensaio) e o
+`EventWebhookUsecase`, quando o evento do Transicionais ainda não existe aqui.
 
 **Decisão.**
-- Encerramento anterior ainda aberto (`findOpenNextEvent`): `EVENT_CREATION_PENDING_ERROR` (409, D51).
-- A data do próximo é a do retrato + 7 dias. Acha o encontro com `findManagedEvent(ref, <data do
-  retrato>)`, cria (mesmo horário, grupos, assistências e limites, fechado; falhou depois do POST,
-  apaga o recém-criado, D16) e lê o retrato do novo. A criação também existe no
-  `SyncingNextEventPending` (cron): cada contexto tem a sua cópia (U11). Grava com
-  `saveSnapshot`, com o estoque pendente por cima (`withPendingCapacities`, D53). O antigo fica no
-  Transicionais, sem mudança: o `ReceivingCurrentEvent` segue o encontro do retrato enquanto ele
-  estiver na listagem.
-- Transicionais fora (`UpstreamUnavailableError`, mesmo no meio da criação): `closeEventLocally`
-  (`encerrar_local`) troca o retrato pelo próximo só no local (`CurrentEvent.next`: dia local UUID,
-  sem `externalId`, fechado) e enfileira o `EVENT_CREATION`. O cron o cria lá (D51).
-- Responde o resumo pelo `CurrentEventSummaryMapper`, sem presenças.
+- **Recebe um `Event`.** Quem chama monta o domain: a rota pelo
+  [`api/admin/_requests/EventRequest.ts`](../../../../api/admin/_requests/EventRequest.ts)
+  (`stock.used` 0, metadata de integração `null`, `sync: PENDING`); o webhook pelo `Event` que o
+  repo do Transicionais devolve.
+- Valida que é um `Event` e o `toJson()` dele pelo `EventBodySchema`: local não vazio, data
+  `YYYY-MM-DD` ou vazia, horário `HH:mm`, `catalog.metadata.groupIds` só com grupos do evento e no
+  máximo um `INSTRUMENT` por grupo.
+- Gera o `id` (`crypto.randomUUID()`): o `Event` chega sem ele.
+- Grava com `createEvent`. O evento criado vira o atual (D2). A rota responde 201.
 
 **Consequências.**
-- O resumo volta sem presenças. As linhas antigas ficam no `dayKey` anterior (histórico).
-- O antigo continua Público no Transicionais (as presenças ficam nele). Se só o `saveSnapshot`
-  falhar, o novo fica criado lá e o retrato continua no antigo: um novo "Encerrar" cria outro.
-- Se o POST chegou a criar o encontro antes da queda e o delete (D16) não passou, ele fica Interno lá
-  (não aparece na listagem de Públicos) e o cron cria outro.
+- O usecase grava o metadata como veio: para a Produção, `PENDING` e sem integração; para o
+  webhook, `SYNCED` com `integrationId`, `version`, `syncHash` e `syncedAt` do Transicionais.
+- Corpo da Produção sem os campos que o `EventRequest` lê quebra antes da validação (500, não 400).
+
+## UpdatingInternalEventUsecase — `PUT /api/admin/ensaio`
+
+> [`usecases/event/UpdatingInternalEventUsecase.ts`](../../../../src/serve-utils/usecases/event/UpdatingInternalEventUsecase.ts)
+
+**Contexto.** Edita um evento da base (D13). Quem chama: a Produção e o `EventWebhookUsecase`,
+quando o evento do Transicionais já existe aqui e mudou.
+
+**Decisão.**
+- **Recebe um `Event`**, validado como no create (`EventBodySchema` sobre o `toJson()`).
+- Acha o evento gravado pelo `id` (Produção) ou, sem `id`, pelo `metadata.integrationId`
+  (webhook). Não achou → `NotFoundError`. Não exige que seja o atual.
+- Faz o de-para do `Event` recebido com o gravado. O metadata é o dado do Transicionais que o
+  Hormônios também usa; a raiz tem o que o Transicionais desconhece (ex.: `whatsappUrl` e `bookingOpen`). Campo
+  `null` é "não enviou" e fica o gravado; vazio é alteração e é aplicado. O `id` é sempre o do
+  gravado, e o `stock.used` de cada item também (0 para item novo).
+- Recusa tirar um grupo ou um item do catálogo que alguma presença do evento usa
+  (`InvalidParameterError`) e um `total` abaixo das presenças `vou` do item, menos rotativo
+  (`StockBelowReservationsError`, F4).
+- Grava com `updateEvent` e devolve o `ManagerEvent` atualizado.
+
+**Consequências.**
+- O webhook não mexe no `whatsappUrl` nem no `bookingOpen`: o `Event` do Transicionais vem com os
+  dois `null`. A Produção apaga o link mandando vazio. Evento criado pelo webhook fica com os dois
+  `null` (reserva fechada) até a Produção definir.
+- As regras do `EventBodySchema` também valem para o evento do Transicionais: local em branco ou
+  dois instrumentos no mesmo grupo fazem o webhook responder 400.

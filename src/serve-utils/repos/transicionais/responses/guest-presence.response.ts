@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { InfraSource } from "../../../errors/infra-error";
 import type { ITransicionaisPresence } from "../../../interfaces/transicionais";
-import { BookingAnswer } from "../../../models/booking";
+import { AttendanceAnswer } from "../../../domain/Attendance";
 import { parseResponse } from "../../parse-response";
 import { ValidationAnswer } from "../requests/validation-change.request";
 import { TransicionaisIdSchema } from "../transicionais-id";
@@ -38,7 +38,7 @@ export class GuestPresenceResponse {
     return {
       hash: item.hash,
       orderId: item.orderId,
-      answer: attending ? BookingAnswer.Going : BookingAnswer.NotGoing,
+      answer: attending ? AttendanceAnswer.Going : AttendanceAnswer.NotGoing,
       groupId: attending ? item.groupId : null,
       supportTypeIds: attending ? item.supportTypeIds : [],
     };

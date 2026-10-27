@@ -1,4 +1,4 @@
-import type { PublicationSettings, EventVisibility } from "../../../models/publication-settings";
+import type { EventVisibility } from "../../../domain/Event";
 import { numericId } from "../transicionais-id";
 
 export interface IGroupCapacityBody {
@@ -23,17 +23,17 @@ export interface IEventPublicationBody {
 }
 
 export class PublicationSettingsRequest {
-  static fromDomain(publication: PublicationSettings): IEventPublicationBody {
+  static fromDomain(publication: any): IEventPublicationBody {
     return {
       visibility: publication.visibility,
       publicDescription: publication.description,
       releaseAt: publication.releaseAt,
       membersEarlyAt: publication.membersEarlyAt,
       guestDeadlineMinutes: publication.guestDeadlineMinutes,
-      supportTypeIds: publication.supportIds.map((id) => numericId(id, "supportTypeId")),
+      supportTypeIds: publication.supportIds.map((id: string) => numericId(id, "supportTypeId")),
       vacancies: {
         total: publication.totalVacancies,
-        groups: publication.groupVacancies.map((vacancy) => ({
+        groups: publication.groupVacancies.map((vacancy: any) => ({
           groupId: numericId(vacancy.groupId, "groupId"),
           total: vacancy.total,
         })),

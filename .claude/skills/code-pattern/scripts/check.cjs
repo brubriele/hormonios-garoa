@@ -27,7 +27,7 @@ const LINE_RULES = [
     id: "safe-parse",
     doc: "requests-responses.md RR7",
     applies: (file) =>
-      file !== "src/serve-utils/repos/parse-response.ts" && file !== "src/serve-utils/models/model-schema.ts",
+      file !== "src/serve-utils/repos/parse-response.ts" && file !== "src/serve-utils/lib/schema.ts",
     pattern: /\.safeParse\(/,
     message: "valide com parseResponse(schema, raw, source, operation)",
   },
@@ -191,6 +191,7 @@ function checkDuplicateHelpers(sources) {
 
 // mapper (*Mapper, to*View) só em usecases/<contexto>/mappers/, um por arquivo <nome>.mapper.ts (usecases.md U9)
 const MAPPERS_DIR = /^src\/serve-utils\/usecases\/[^/]+\/mappers\//;
+const DOMAIN_MAPPERS_DIR = /^src\/serve-utils\/domain\/mappers\//;
 const MAPPER_DOC = "usecases.md U9";
 const MAPPER_DECLARATION =
   /^\s*(?:export\s+)?(?:(?:private|public|protected|static|async|abstract)\s+)*(?:class\s+\w*Mapper\b|(?:function\s+)?to[A-Z]\w*View\s*[(<])/;
@@ -206,6 +207,10 @@ function checkMappers(sources) {
       message,
       code: (lines[line - 1] ?? "").trim(),
     });
+
+    if (DOMAIN_MAPPERS_DIR.test(file)) {
+      return /\/[A-Z]\w*Mapper\.ts$/.test(file) ? [] : [finding(1, "arquivo de domain/mappers/ se chama <Nome>Mapper.ts (F11)")];
+    }
 
     if (!MAPPERS_DIR.test(file)) {
       return lines.flatMap((line, index) =>

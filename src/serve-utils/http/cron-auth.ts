@@ -2,7 +2,7 @@ import { UnauthorizedError } from "../errors/app-error";
 
 const encoder = new TextEncoder();
 
-async function digest(value: string): Promise<Uint8Array> {
+export async function digest(value: string): Promise<Uint8Array> {
   return new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", encoder.encode(value)));
 }
 

@@ -2,10 +2,10 @@
 const state = {
   event: null,        // GET /api/ensaio
   eventError: false,
-  mine: [],           // GET /api/minhas-reservas
+  user: null,         // GET /api/minhas-reservas
   mineLoading: true,
   mineError: false,
-  admin: null,        // GET /api/admin/resumo
+  admin: null,        // GET /api/admin/ensaio
   adminLocked: false, // 401 na Produção
   email: ""           // último e-mail usado nesta aba (não é salvo)
 };
@@ -92,6 +92,21 @@ function enforceBookingRoute(){
 
 function isBookingOpen(){ return state.event?.bookingOpen === true; }
 
+function instrumentsOf(event){
+  return event.groups.filter(g=>g.metadata.active).map(group=>({
+    group,
+    item:event.catalog.find(c=>c.metadata.type==="INSTRUMENT" && c.metadata.groupIds.includes(group.id)) || null
+  }));
+}
+
+function accessoriesOf(event,groupId){
+  return event.catalog.filter(c=>c.metadata.type==="ACCESSORY" && (!c.metadata.groupIds.length || c.metadata.groupIds.includes(groupId)));
+}
+
+function goingAttendance(user){
+  return user?.attendances.find(a=>a.metadata.answer==="vou" && a.metadata.sync!=="REJECTED") || null;
+}
+
 async function loadEvent(){
   try{
     state.event=await api("/api/ensaio");
@@ -106,11 +121,11 @@ async function loadMine(){
   state.mineLoading=true;
   renderMyReservations();
   try{
-    state.mine=await api("/api/minhas-reservas");
+    state.user=await api("/api/minhas-reservas");
     state.mineError=false;
-  }catch{
-    state.mine=[];
-    state.mineError=true;
+  }catch(err){
+    state.user=null;
+    state.mineError=err.key!=="NOT_FOUND_ERROR";
   }
   state.mineLoading=false;
 }
@@ -145,7 +160,7 @@ function bindRetry(el){
 function renderAll(){
   const r=state.event || {};
   const date=formatDate(r.date);
-  const time=r.time || "A definir";
+  const time=r.startTime || "A definir";
   const location=r.location || "A definir";
 
   document.querySelector("#home-date").textContent=date;
@@ -195,9 +210,9 @@ function renderInstruments(){
   if(!state.event){ el.innerHTML=state.eventError?retryHtml("Não foi possível carregar os instrumentos."):loadingHtml(); bindRetry(el); return; }
   if(!isBookingOpen()){ el.innerHTML=closedHtml(); return; }
 
-  el.innerHTML=state.event.instruments.map((g,n)=>{
+  el.innerHTML=instrumentsOf(state.event).map(({group:g,item},n)=>{
     // available null = sem limite: só o rótulo, sem número
-    const avail=g.available, sold=g.soldOut;
+    const avail=item?.stock.free ?? null, sold=avail===0;
     const count=avail===null?"":`<strong>${escapeHtml(avail)}</strong>`;
     return `<div class="instrument-row">
       <div class="instrument-code">I / ${String(n+1).padStart(2,"0")}</div>
@@ -214,12 +229,13 @@ function confirmPresence(e){
   e.preventDefault();
   if(!isBookingOpen()){showToast("As reservas ainda não estão abertas.");navigate("home");return;}
 
-  if(state.mine.length){ showStatus("Sua presença já está confirmada."); return; }
+  if(goingAttendance(state.user)){ showStatus("Sua presença já está confirmada."); return; }
 
   const body={
     email:document.querySelector("#presence-email").value.trim(),
     name:document.querySelector("#presence-name").value.trim(),
     pronoun:document.querySelector("#presence-pronoun").value.trim(),
+    answer:"vou",
     groupId:null,
     supportIds:[]
   };
@@ -241,21 +257,22 @@ function showStatus(msg){
 function openReserve(id){
   if(!isBookingOpen()){showToast("As reservas estão fechadas no momento.");navigate("home");return;}
 
-  const i=state.event.instruments.find(x=>x.id===id);
+  const i=instrumentsOf(state.event).find(x=>x.group.id===id)?.group;
   if(!i)return;
 
   document.querySelector("#reserve-instrument-id").value=id;
   document.querySelector("#reserve-instrument-label").textContent=i.name;
-  document.querySelector("#reserve-accessories").innerHTML=(i.accessories||[]).map(a=>
-    `<label class="toggle-row"><input type="checkbox" value="${escapeHtml(a.id)}" ${a.soldOut?"disabled":""}><span>Preciso de ${escapeHtml(a.name)}${a.soldOut?" (esgotado)":""}</span></label>`
-  ).join("");
+  document.querySelector("#reserve-accessories").innerHTML=accessoriesOf(state.event,id).map(a=>{
+    const sold=a.stock.free===0;
+    return `<label class="toggle-row"><input type="checkbox" value="${escapeHtml(a.id)}" ${sold?"disabled":""}><span>Preciso de ${escapeHtml(a.name)}${sold?" (esgotado)":""}</span></label>`;
+  }).join("");
 
-  const mine=state.mine[0];
+  const user=state.user;
   const email=document.querySelector("#reserve-email");
-  if(!email.value) email.value=mine?.email||state.email;
-  if(mine){
-    document.querySelector("#reserve-name").value=mine.name;
-    document.querySelector("#reserve-pronoun").value=mine.pronoun;
+  if(!email.value) email.value=user?.email||state.email;
+  if(user){
+    document.querySelector("#reserve-name").value=user.name;
+    document.querySelector("#reserve-pronoun").value=user.pronoun;
   }
 
   document.querySelector("#reserve-dialog").showModal();
@@ -274,8 +291,9 @@ function reserveInstrument(e){
   }
 
   const id=document.querySelector("#reserve-instrument-id").value;
-  if(state.mine.some(x=>x.groupId===id)){showToast("Você já reservou este instrumento.");return}
-  if(state.event.instruments.find(x=>x.id===id)?.soldOut ?? true){showToast("Este instrumento acabou de ficar esgotado.");return}
+  if(goingAttendance(state.user)?.groupId===id){showToast("Você já reservou este instrumento.");return}
+  const inst=instrumentsOf(state.event).find(x=>x.group.id===id);
+  if(!inst || inst.item?.stock.free===0){showToast("Este instrumento acabou de ficar esgotado.");return}
 
   const supportIds=[...document.querySelectorAll("#reserve-accessories input:checked")].map(x=>x.value);
 
@@ -283,6 +301,7 @@ function reserveInstrument(e){
     email:document.querySelector("#reserve-email").value.trim(),
     name:document.querySelector("#reserve-name").value.trim(),
     pronoun:document.querySelector("#reserve-pronoun").value.trim(),
+    answer:"vou",
     groupId:id,
     supportIds
   };
@@ -305,32 +324,38 @@ function renderMyReservations(){
   if(state.mineLoading){ el.innerHTML=loadingHtml(); return; }
   if(state.mineError){ el.innerHTML=retryHtml("Não foi possível carregar suas reservas."); bindRetry(el); return; }
 
-  if(!state.mine.length){
+  const x=goingAttendance(state.user);
+  if(!x){
     el.innerHTML=`<div class="empty-state">Você ainda não tem reservas ativas para este ensaio.<br><br><button class="text-btn" onclick="navigate('instruments')">Escolher instrumento →</button></div>`;
     return;
   }
 
-  el.innerHTML=state.mine.map(x=>{
-    // groupId null = só presença: a linha mostra "Presença confirmada" (dúvida 18)
-    const title=x.groupId ? (x.groupName || "Instrumento") : "Presença confirmada";
-    const names=(x.accessories||[]).map(a=>a.name).join(" · ");
-    const meta=x.groupId ? escapeHtml(names || "Sem acessórios") : "";
-    return `<div class="reservation-row">
-      <div><strong>${escapeHtml(title)}</strong><small>${escapeHtml(x.name)} · ${escapeHtml(x.pronoun)}</small></div>
+  // groupId null = só presença: a linha mostra "Presença confirmada" (dúvida 18)
+  const title=x.groupId ? (state.event.groups.find(g=>g.id===x.groupId)?.name || "Instrumento") : "Presença confirmada";
+  const names=catalogNames(state.event,x.supportIds).join(" · ");
+  const meta=x.groupId ? escapeHtml(names || "Sem acessórios") : "";
+  el.innerHTML=`<div class="reservation-row">
+      <div><strong>${escapeHtml(title)}</strong><small>${escapeHtml(state.user.name)} · ${escapeHtml(state.user.pronoun)}</small></div>
       <div class="meta"><small>${meta}</small></div>
       <button class="cancel-btn" data-cancel="${escapeHtml(x.id)}">Desfazer</button>
     </div>`;
-  }).join("");
 
-  el.querySelectorAll("[data-cancel]").forEach(b=>b.addEventListener("click",()=>cancelReservation(b,b.dataset.cancel)));
+  el.querySelectorAll("[data-cancel]").forEach(b=>b.addEventListener("click",()=>cancelReservation(b)));
 }
 
-function cancelReservation(button,id){
-  const item=state.mine.find(x=>x.id===id);
+function catalogNames(event,ids){
+  return (ids||[]).map(id=>event.catalog.find(c=>c.id===id)?.name).filter(Boolean);
+}
+
+function cancelReservation(button){
+  const item=goingAttendance(state.user);
+  if(!item)return;
+  const {email,name,pronoun}=state.user;
+  const body={ email, name, pronoun, answer:item.groupId?"vou":"nao-vou", groupId:null, supportIds:[] };
   run(button,async()=>{
-    await api("/api/reserva/desfazer",{method:"POST",body:{id}});
+    await api("/api/reserva/desfazer",{method:"POST",body});
     await loadPublic();
-    showToast(item?.groupId?"Reserva desfeita. O instrumento voltou ao estoque.":"Reserva desfeita.");
+    showToast(item.groupId?"Reserva desfeita. O instrumento voltou ao estoque.":"Reserva desfeita.");
   });
 }
 
@@ -369,7 +394,7 @@ async function loadAdmin(){
   const el=document.querySelector("#admin-content"); if(!el)return;
   if(!state.admin) el.innerHTML=loadingHtml();
   try{
-    state.admin=await api("/api/admin/resumo");
+    state.admin=await api("/api/admin/ensaio");
     state.adminLocked=false;
   }catch(err){
     if(err.key==="UNAUTHORIZED_ERROR"){
@@ -395,8 +420,21 @@ function renderAdmin(){
   }
 
   const r=state.admin.event;
-  const att=state.admin.attendances;
+  const att=state.admin.users.map(u=>{
+    const a=goingAttendance(u);
+    return a && { name:u.name, pronoun:u.pronoun, groupId:a.groupId, supportIds:a.supportIds, createdAt:a.createdAt };
+  }).filter(Boolean);
   const res=att.filter(a=>a.groupId);
+  const stock=[...r.catalog.filter(c=>c.metadata.type==="INSTRUMENT"),...r.catalog.filter(c=>c.metadata.type==="ACCESSORY")].map(c=>({
+    id:c.id,
+    name:c.name,
+    stockTotal:c.stock.total,
+    available:c.stock.free,
+    rotativo:c.stock.rotative,
+    reservations:c.metadata.type==="INSTRUMENT"
+      ? res.filter(a=>c.metadata.groupIds.includes(a.groupId)).map(a=>({ name:a.name, pronoun:a.pronoun, detail:catalogNames(r,a.supportIds).join(" · ") || "Sem acessórios" }))
+      : res.filter(a=>a.supportIds.includes(c.id)).map(a=>({ name:a.name, pronoun:a.pronoun, detail:r.groups.find(g=>g.id===a.groupId)?.name || "" }))
+  }));
   const bookingOpen=r.bookingOpen === true;
 
   el.innerHTML=`
@@ -432,7 +470,7 @@ function renderAdmin(){
       <h3>PRÓXIMO ENSAIO</h3>
       <form id="rehearsal-form" class="admin-form">
         <label>Data<input id="admin-date" type="date" value="${escapeHtml(r.date||"")}"></label>
-        <label>Horário<input id="admin-time" type="time" value="${escapeHtml(r.time||"")}"></label>
+        <label>Horário<input id="admin-time" type="time" value="${escapeHtml(r.startTime||"")}"></label>
         <label>Local<input id="admin-location" value="${escapeHtml(r.location||"")}"></label>
         <button class="primary-btn" type="submit">Salvar ensaio →</button>
       </form>
@@ -449,7 +487,7 @@ function renderAdmin(){
       <p class="form-hint">Se preenchido, o botão “Abrir grupo HG · Ensaios” aparece automaticamente na tela de reservas fechadas.</p>
     </div>
 
-    <div class="admin-subsection"><h3>ESTOQUE</h3><div class="admin-table">${(r.stock||[]).map(g=>{
+    <div class="admin-subsection"><h3>ESTOQUE</h3><div class="admin-table">${stock.map(g=>{
       // stockTotal null = sem limite: sem ajuste de estoque
       const list=g.reservations||[];
       const unlimited=g.stockTotal===null;
@@ -475,9 +513,17 @@ function renderAdmin(){
   document.querySelector("#reset-rehearsal").addEventListener("click",e=>resetRehearsal(e.currentTarget));
 }
 
-// PUT parcial: só os campos enviados mudam. A resposta já é o resumo novo.
-async function updateEvent(body){
-  state.admin=await api("/api/admin/ensaio",{method:"PUT",body});
+function eventBody(event){
+  const { id, location, whatsappUrl, date, startTime, bookingOpen, groups, catalog, metadata }=event;
+  return {
+    id, location, whatsappUrl, date, startTime, bookingOpen, groups,
+    catalog:catalog.map(c=>({ id:c.id, name:c.name, stock:{ total:c.stock.total, rotative:c.stock.rotative }, metadata:{ groupIds:c.metadata.groupIds, type:c.metadata.type } })),
+    metadata:{ name:metadata.name, categoryId:metadata.categoryId, endTime:metadata.endTime, description:metadata.description }
+  };
+}
+
+async function updateEvent(change){
+  state.admin=await api("/api/admin/ensaio",{method:"PUT",body:{...eventBody(state.admin.event),...change}});
   renderAdmin();
   await loadPublic();
 }
@@ -486,7 +532,7 @@ function saveRehearsal(e){
   e.preventDefault();
   const body={
     date:document.querySelector("#admin-date").value,
-    time:document.querySelector("#admin-time").value,
+    startTime:document.querySelector("#admin-time").value || null,
     location:document.querySelector("#admin-location").value.trim()
   };
   run(e.submitter,async()=>{ await updateEvent(body); showToast("Dados do ensaio atualizados."); });
@@ -508,25 +554,27 @@ function toggleBooking(button){
 }
 
 function adjustStock(button,id,delta){
-  const g=state.admin.event.stock.find(x=>x.id===id);
-  if(!g || g.stockTotal===null)return;
-  const stockTotal=Math.max(0,g.stockTotal+delta);
+  const g=state.admin.event.catalog.find(x=>x.id===id);
+  if(!g || g.stock.total===null)return;
+  const total=Math.max(0,g.stock.total+delta);
   // rotativo: as reservas não ocupam o estoque, então o BFF decide
-  if(!g.rotativo && stockTotal<g.reservations.length){
+  if(!g.stock.rotative && total<g.stock.used){
     showToast("O estoque total não pode ficar abaixo das reservas atuais.");
     return;
   }
-  if(stockTotal===g.stockTotal)return;
-  run(button,()=>updateEvent({stocks:[{id,stockTotal}]}));
+  if(total===g.stock.total)return;
+  const catalog=eventBody(state.admin.event).catalog.map(c=>c.id===id?{...c,stock:{...c.stock,total}}:c);
+  run(button,()=>updateEvent({catalog}));
 }
 
 function resetRehearsal(button){
   if(!confirm("Encerrar o ensaio atual e criar um novo? Presença e reservas do ensaio atual serão arquivadas e o novo ensaio começará fechado para reservas."))return;
 
   run(button,async()=>{
-    state.admin=await api("/api/admin/novo-ensaio",{method:"POST"});
-    renderAdmin();
-    await loadPublic();
+    const { id, ...body }=eventBody(state.admin.event);
+    await api("/api/admin/novo-ensaio",{method:"POST",body:{...body,bookingOpen:false,date:"",startTime:null}});
+    await loadAdmin();
+    loadPublic();
     navigate("home");
     showToast("Novo ensaio criado. Reservas estão fechadas.");
   });

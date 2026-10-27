@@ -1,4 +1,4 @@
-import type { LoanCatalog, LoanCatalogKind } from "../../../models/loan-catalog";
+import type { LoanCatalogKind } from "../responses/loan-catalog.response";
 import { numericId } from "../transicionais-id";
 
 // corpo do PUT v2/manager-support-types/{id} (LoanCatalogUpdateRequest): sempre inteiro, porque
@@ -15,13 +15,13 @@ export interface ILoanCatalogUpdateBody {
 }
 
 export class LoanCatalogUpdateRequest {
-  static fromDomain(loanCatalog: LoanCatalog): ILoanCatalogUpdateBody {
+  static fromDomain(loanCatalog: any): ILoanCatalogUpdateBody {
     const body: ILoanCatalogUpdateBody = {
       title: loanCatalog.title,
       description: loanCatalog.description,
       isActive: loanCatalog.active,
       capacity: loanCatalog.capacity,
-      groupIds: loanCatalog.groupIds.map((id) => numericId(id, "groupId")),
+      groupIds: loanCatalog.groupIds.map((id: string) => numericId(id, "groupId")),
       rotativo: loanCatalog.rotativo,
       requiredForActivity: loanCatalog.requiredForActivity,
     };

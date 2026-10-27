@@ -21,13 +21,8 @@ import type {
   ITransicionaisErrorCause,
   ITransicionaisPresence,
   ITransicionaisRepo,
-  ITransicionaisWebhook,
 } from "../../interfaces/transicionais";
-import type { EventDay } from "../../models/event-day";
-import type { CurrentEventSnapshot } from "../../models/current-event-snapshot";
-import type { ManagedEvent } from "../../models/managed-event";
-import type { LoanCatalog } from "../../models/loan-catalog";
-import { WebhookType } from "../../models/transicionais-webhook";
+import type { Event } from "../../domain/Event";
 import {
   AnswerChangedError,
   UpstreamBadContractError,
@@ -50,15 +45,12 @@ import { ErrorBodyResponse } from "./responses/error-body.response";
 import { EventDayResponse } from "./responses/event-day.response";
 import { EventListResponse } from "./responses/event-list.response";
 import { EventSummaryResponse } from "./responses/event-summary.response";
-import { EventUpdatedResponse } from "./responses/event-updated.response";
 import { GuestAccountResponse } from "./responses/guest-account.response";
 import { GuestPresenceResponse } from "./responses/guest-presence.response";
 import { ManagedEventResponse } from "./responses/managed-event.response";
 import { PublicEventResponse } from "./responses/public-event.response";
 import { LoanCatalogResponse } from "./responses/loan-catalog.response";
-import { ValidationChangedResponse } from "./responses/validation-changed.response";
 import { VersionResponse } from "./responses/version.response";
-import { WebhookEnvelopeResponse } from "./responses/webhook-envelope.response";
 import { TransicionaisSession } from "./session";
 import { TransicionaisUrlCollection } from "./url-collection";
 
@@ -118,20 +110,43 @@ export class TransicionaisRepo implements ITransicionaisRepo {
     private readonly session: TransicionaisSession,
   ) {}
 
-  // GET v2/manager-events/details?visibility=PUBLIC&startAt=<date>: os encontros Públicos de date em
-  // diante, na ordem de startAt. Qual deles é o atual é regra do usecase (E2.7)
-  async listPublicEventsFrom(date: string): Promise<IEventRef[]> {
-    return EventSummaryResponse.toDomain(await this.requestPublicEvents(date));
+  async findEvent(externalId: string): Promise<Event> {
+    const publicId = await this.findPublicId(externalId);
+
+    return this.findPublicEvent(publicId);
   }
 
-  // GET público do encontro: grupos, local, horário, janela, assistências com o estoque do dia e
-  // version (E2.9). 404 -> null; fora do ar -> UpstreamUnavailableError
-  async findPublicEvent(ref: IEventRef): Promise<CurrentEventSnapshot | null> {
-    const vacanciesAt = new Date().toISOString(); // a hora da leitura (D5)
-    const response = await this.httpClient.get<unknown>(TransicionaisUrlCollection.publicEvent(ref.externalId, ref.dayId));
+  private async findPublicId(externalId: string): Promise<string> {
+    const isIntegrationId = /^\d+$/.test(externalId);
+
+    if (!isIntegrationId) {
+      return externalId;
+    }
+
+    const url = TransicionaisUrlCollection.eventById(externalId);
+    const response = await this.session.request<unknown>({ url });
 
     if (response.status === 404) {
-      return null;
+      throw new NotFoundError("Event Not Found");
+    }
+
+    const raw = this.assertWrite(response, "findEventDetails");
+    const publicId = ManagedEventResponse.toExternalId(raw);
+
+    if (!publicId) {
+      throw new NotFoundError("Event Not Found");
+    }
+
+    return publicId;
+  }
+
+  private async findPublicEvent(publicId: string): Promise<Event> {
+    const fetchedAt = new Date().toISOString();
+    const url = TransicionaisUrlCollection.publicEvent(publicId, "");
+    const response = await this.httpClient.get<unknown>(url);
+
+    if (response.status === 404) {
+      throw new NotFoundError("Event Not Found");
     }
 
     if (isUnavailable(response.status)) {
@@ -142,162 +157,189 @@ export class TransicionaisRepo implements ITransicionaisRepo {
       throw this.readError(response, "publicEvent", errorKey(response));
     }
 
-    return PublicEventResponse.toDomain(response.data, ref, vacanciesAt);
+    return PublicEventResponse.toDomain(response.data, fetchedAt);
   }
 
-  private async requestPublicEvents(date: string): Promise<unknown> {
-    return this.assertWrite(
-      await this.session.request<unknown>({ url: TransicionaisUrlCollection.publicEventsFrom(date) }),
-      "listEvents",
-    );
-  }
-
-  // ------------ escritas da Produção (E2.5): operações simples; a regra é do usecase (R12) ---------
-
-  // o id interno sai da listagem dos Públicos de from em diante (pelo externalId); o resto, do completo
-  async findManagedEvent(ref: IEventRef, from: string): Promise<ManagedEvent | null> {
-    const summary = EventSummaryResponse.parse(await this.requestPublicEvents(from)).find(
-      (item) => item.externalId === ref.externalId,
-    );
-
-    return summary ? this.findManagedEventById(String(summary.id)) : null;
-  }
-
-  async findManagedEventById(eventId: string): Promise<ManagedEvent> {
-    return ManagedEventResponse.toDomain(
-      this.assertWrite(
-        await this.session.request<unknown>({ url: TransicionaisUrlCollection.eventById(eventId) }),
-        "findEventDetails",
-      ),
-    );
-  }
-
-  async listEventsFrom(date: string): Promise<IManagedEventItem[]> {
-    return EventListResponse.toDomain(
-      this.assertWrite(
-        await this.session.request<unknown>({ url: TransicionaisUrlCollection.eventsFrom(date) }),
-        "listEvents",
-      ),
-    );
-  }
-
-  async listDays(eventId: string): Promise<EventDay[]> {
-    return EventDayResponse.toDomain(
-      this.assertWrite(
-        await this.session.request<unknown>({ url: TransicionaisUrlCollection.eventDays(eventId) }),
-        "listDays",
-      ),
-      "listDays",
-    );
-  }
-
-  async createEvent(data: INewEventData): Promise<string | null> {
-    return CreatedEventResponse.toDomain(
-      this.assertWrite(
-        await this.session.request<unknown>({
-          method: HttpMethod.Post,
-          url: TransicionaisUrlCollection.events(),
-          body: EventCreateRequest.fromDomain(data),
-        }),
-        "createEvent",
-      ),
-    );
-  }
-
-  async setCategory(eventId: string, categoryId: string): Promise<void> {
-    this.assertWrite(
-      await this.session.request<unknown>({
-        method: HttpMethod.Put,
-        url: TransicionaisUrlCollection.eventCategory(eventId),
-        body: EventCategoryRequest.fromDomain(categoryId),
-      }),
-      "updateCategory",
-    );
-  }
-
-  async addGroups(eventId: string, data: IAddGroupsData): Promise<number> {
-    return VersionResponse.toDomain(
-      this.assertWrite(
-        await this.session.request<unknown>({
-          method: HttpMethod.Put,
-          url: TransicionaisUrlCollection.eventGroups(eventId),
-          body: EventGroupsRequest.fromDomain(data),
-        }),
-        "addGroups",
-      ),
-      "addGroups",
-    );
-  }
-
-  async saveEvent(eventId: string, version: number, changes: IEventChanges): Promise<number> {
-    return VersionResponse.toDomain(
-      this.assertWrite(
-        await this.session.request<unknown>({
-          method: HttpMethod.Put,
-          url: TransicionaisUrlCollection.eventById(eventId),
-          body: EventUpdateRequest.fromDomain(version, changes),
-        }),
-        "updateEvent",
-      ),
-      "updateEvent",
-    );
-  }
-
-  async saveDays(eventId: string, version: number, days: EventDay[]): Promise<number> {
-    return VersionResponse.toDomain(
-      this.assertWrite(
-        await this.session.request<unknown>({
-          method: HttpMethod.Put,
-          url: TransicionaisUrlCollection.eventDays(eventId),
-          body: EventDaysRequest.fromDomain(version, days),
-        }),
-        "saveDays",
-      ),
-      "saveDays",
-    );
-  }
-
-  async deleteEvent(eventId: string): Promise<void> {
-    this.assertWrite(
-      await this.session.request<unknown>({
-        method: HttpMethod.Post,
-        url: TransicionaisUrlCollection.deleteEvents(),
-        body: DeleteEventsRequest.fromDomain(eventId),
-      }),
-      "deleteEvent",
-    );
-  }
-
-  // GET v2/manager-support-types/{id}: 404 -> null
-  async findLoanCatalog(supportId: string): Promise<LoanCatalog | null> {
-    const response = await this.session.request<unknown>({ url: TransicionaisUrlCollection.loanCatalog(supportId) });
-
-    if (response.status === 404) {
-      return null;
-    }
-
-    return LoanCatalogResponse.toDomain(this.assertWrite(response, "findLoanCatalog"));
-  }
-
-  // PUT inteiro (D26). O corpo da resposta não importa (pode vir vazio): qualquer 2xx vale
-  async saveLoanCatalog(loanCatalog: LoanCatalog): Promise<void> {
-    const response = await this.session.request<unknown>({
-      method: HttpMethod.Put,
-      url: TransicionaisUrlCollection.loanCatalog(loanCatalog.id),
-      body: LoanCatalogUpdateRequest.fromDomain(loanCatalog),
-    });
-
-    if (response.status === 404) {
-      throw new NotFoundError("Support Not Found");
-    }
-
-    if (!response.error && response.status >= 200 && response.status < 300) {
-      return;
-    }
-
-    this.assertWrite(response, "saveLoanCatalog");
-  }
-
+  // // GET v2/manager-events/details?visibility=PUBLIC&startAt=<date>: os encontros Públicos de date em
+  // // diante, na ordem de startAt. Qual deles é o atual é regra do usecase (E2.7)
+  // async listPublicEventsFrom(date: string): Promise<IEventRef[]> {
+  //   return EventSummaryResponse.toDomain(await this.requestPublicEvents(date));
+  // }
+  //
+  // // GET público do encontro: grupos, local, horário, janela, assistências com o estoque do dia e
+  // // version (E2.9). 404 -> null; fora do ar -> UpstreamUnavailableError
+  // async findPublicEvent(ref: IEventRef): Promise<CurrentEventSnapshot | null> {
+  //   const vacanciesAt = new Date().toISOString(); // a hora da leitura (D5)
+  //   const response = await this.httpClient.get<unknown>(TransicionaisUrlCollection.publicEvent(ref.externalId, ref.dayId));
+  //
+  //   if (response.status === 404) {
+  //     return null;
+  //   }
+  //
+  //   if (isUnavailable(response.status)) {
+  //     throw new UpstreamUnavailableError("Transicionais is unavailable");
+  //   }
+  //
+  //   if (response.error || response.data === undefined) {
+  //     throw this.readError(response, "publicEvent", errorKey(response));
+  //   }
+  //
+  //   return PublicEventResponse.toDomain(response.data, ref, vacanciesAt);
+  // }
+  //
+  // private async requestPublicEvents(date: string): Promise<unknown> {
+  //   return this.assertWrite(
+  //     await this.session.request<unknown>({ url: TransicionaisUrlCollection.publicEventsFrom(date) }),
+  //     "listEvents",
+  //   );
+  // }
+  //
+  // // ------------ escritas da Produção (E2.5): operações simples; a regra é do usecase (R12) ---------
+  //
+  // // o id interno sai da listagem dos Públicos de from em diante (pelo externalId); o resto, do completo
+  // async findManagedEvent(ref: IEventRef, from: string): Promise<ManagedEvent | null> {
+  //   const summary = EventSummaryResponse.parse(await this.requestPublicEvents(from)).find(
+  //     (item) => item.externalId === ref.externalId,
+  //   );
+  //
+  //   return summary ? this.findManagedEventById(String(summary.id)) : null;
+  // }
+  //
+  // async findManagedEventById(eventId: string): Promise<ManagedEvent> {
+  //   return ManagedEventResponse.toDomain(
+  //     this.assertWrite(
+  //       await this.session.request<unknown>({ url: TransicionaisUrlCollection.eventById(eventId) }),
+  //       "findEventDetails",
+  //     ),
+  //   );
+  // }
+  //
+  // async listEventsFrom(date: string): Promise<IManagedEventItem[]> {
+  //   return EventListResponse.toDomain(
+  //     this.assertWrite(
+  //       await this.session.request<unknown>({ url: TransicionaisUrlCollection.eventsFrom(date) }),
+  //       "listEvents",
+  //     ),
+  //   );
+  // }
+  //
+  // async listDays(eventId: string): Promise<EventDay[]> {
+  //   return EventDayResponse.toDomain(
+  //     this.assertWrite(
+  //       await this.session.request<unknown>({ url: TransicionaisUrlCollection.eventDays(eventId) }),
+  //       "listDays",
+  //     ),
+  //     "listDays",
+  //   );
+  // }
+  //
+  // async createEvent(data: INewEventData): Promise<string | null> {
+  //   return CreatedEventResponse.toDomain(
+  //     this.assertWrite(
+  //       await this.session.request<unknown>({
+  //         method: HttpMethod.Post,
+  //         url: TransicionaisUrlCollection.events(),
+  //         body: EventCreateRequest.fromDomain(data),
+  //       }),
+  //       "createEvent",
+  //     ),
+  //   );
+  // }
+  //
+  // async setCategory(eventId: string, categoryId: string): Promise<void> {
+  //   this.assertWrite(
+  //     await this.session.request<unknown>({
+  //       method: HttpMethod.Put,
+  //       url: TransicionaisUrlCollection.eventCategory(eventId),
+  //       body: EventCategoryRequest.fromDomain(categoryId),
+  //     }),
+  //     "updateCategory",
+  //   );
+  // }
+  //
+  // async addGroups(eventId: string, data: IAddGroupsData): Promise<number> {
+  //   return VersionResponse.toDomain(
+  //     this.assertWrite(
+  //       await this.session.request<unknown>({
+  //         method: HttpMethod.Put,
+  //         url: TransicionaisUrlCollection.eventGroups(eventId),
+  //         body: EventGroupsRequest.fromDomain(data),
+  //       }),
+  //       "addGroups",
+  //     ),
+  //     "addGroups",
+  //   );
+  // }
+  //
+  // async saveEvent(eventId: string, version: number, changes: IEventChanges): Promise<number> {
+  //   return VersionResponse.toDomain(
+  //     this.assertWrite(
+  //       await this.session.request<unknown>({
+  //         method: HttpMethod.Put,
+  //         url: TransicionaisUrlCollection.eventById(eventId),
+  //         body: EventUpdateRequest.fromDomain(version, changes),
+  //       }),
+  //       "updateEvent",
+  //     ),
+  //     "updateEvent",
+  //   );
+  // }
+  //
+  // async saveDays(eventId: string, version: number, days: EventDay[]): Promise<number> {
+  //   return VersionResponse.toDomain(
+  //     this.assertWrite(
+  //       await this.session.request<unknown>({
+  //         method: HttpMethod.Put,
+  //         url: TransicionaisUrlCollection.eventDays(eventId),
+  //         body: EventDaysRequest.fromDomain(version, days),
+  //       }),
+  //       "saveDays",
+  //     ),
+  //     "saveDays",
+  //   );
+  // }
+  //
+  // async deleteEvent(eventId: string): Promise<void> {
+  //   this.assertWrite(
+  //     await this.session.request<unknown>({
+  //       method: HttpMethod.Post,
+  //       url: TransicionaisUrlCollection.deleteEvents(),
+  //       body: DeleteEventsRequest.fromDomain(eventId),
+  //     }),
+  //     "deleteEvent",
+  //   );
+  // }
+  //
+  // // GET v2/manager-support-types/{id}: 404 -> null
+  // async findLoanCatalog(supportId: string): Promise<LoanCatalog | null> {
+  //   const response = await this.session.request<unknown>({ url: TransicionaisUrlCollection.loanCatalog(supportId) });
+  //
+  //   if (response.status === 404) {
+  //     return null;
+  //   }
+  //
+  //   return LoanCatalogResponse.toDomain(this.assertWrite(response, "findLoanCatalog"));
+  // }
+  //
+  // // PUT inteiro (D26). O corpo da resposta não importa (pode vir vazio): qualquer 2xx vale
+  // async saveLoanCatalog(loanCatalog: LoanCatalog): Promise<void> {
+  //   const response = await this.session.request<unknown>({
+  //     method: HttpMethod.Put,
+  //     url: TransicionaisUrlCollection.loanCatalog(loanCatalog.id),
+  //     body: LoanCatalogUpdateRequest.fromDomain(loanCatalog),
+  //   });
+  //
+  //   if (response.status === 404) {
+  //     throw new NotFoundError("Support Not Found");
+  //   }
+  //
+  //   if (!response.error && response.status >= 200 && response.status < 300) {
+  //     return;
+  //   }
+  //
+  //   this.assertWrite(response, "saveLoanCatalog");
+  // }
+  //
   // ações da Produção: fora do ar -> 503; key conhecida -> AppError; conflito de versão ->
   // VersionConflictError (o usecase tenta de novo); o resto -> UpstreamResponseError (R8, R11)
   private assertWrite(response: IClientResponse<unknown>, operation: string): unknown {
@@ -337,129 +379,103 @@ export class TransicionaisRepo implements ITransicionaisRepo {
       : new UpstreamResponseError(operation, response.status, detail, cause);
   }
 
-  // ------------ envio da reserva (E2.8) ---------
-
-  // POST v2/manager-organization/users com o token de membro (D41): idempotente pelo e-mail, devolve a
-  // conta que já existe (convidado ou membro). Falhas como no sendBooking
-  async registerGuest(person: ISendBookingPerson): Promise<ITransicionaisAccount> {
-    const response = await this.session.request<unknown>(
-      {
-        method: HttpMethod.Post,
-        url: TransicionaisUrlCollection.organizationUsers(),
-        body: GuestAccountRequest.fromDomain(person),
-      },
-      SEND_RENEW_ON,
-    );
-
-    if (isUnavailable(response.status)) {
-      throw new UpstreamUnavailableError("Transicionais is unavailable");
-    }
-
-    if (response.error || response.status < 200 || response.status >= 300) {
-      throw this.sendError(response, REGISTER_OPERATION);
-    }
-
-    return GuestAccountResponse.toDomain(response.data);
-  }
-
-  // GET v2/manager-validations/guests?configDayIds=&search=<email> com o token de membro (D49): a
-  // presença da pessoa no dia, com o hash. null = ainda não respondeu. Falhas como no sendBooking
-  async findPresence(dayKey: string, email: string): Promise<ITransicionaisPresence | null> {
-    const response = await this.session.request<unknown>(
-      { method: HttpMethod.Get, url: TransicionaisUrlCollection.guestPresence(dayKey, email) },
-      SEND_RENEW_ON,
-    );
-
-    if (isUnavailable(response.status)) {
-      throw new UpstreamUnavailableError("Transicionais is unavailable");
-    }
-
-    if (response.error || response.status < 200 || response.status >= 300) {
-      throw this.sendError(response, PRESENCE_OPERATION);
-    }
-
-    return GuestPresenceResponse.toDomain(response.data, email);
-  }
-
-  // POST v2/manager-validations/change com o token de membro, em nome da conta da pessoa (D41).
-  // 401/403: a sessão renova o token uma vez e reenvia (D40). Qualquer 2xx é aceito (APPROVED ou
-  // ALREADY). O que fazer com cada falha é do usecase
-  async sendBooking(data: ISendBookingData): Promise<void> {
-    const response = await this.session.request<unknown>(
-      {
-        method: HttpMethod.Post,
-        url: TransicionaisUrlCollection.validationChange(),
-        body: ValidationChangeRequest.fromDomain(data),
-        headers: data.ip ? { "x-forwarded-for": data.ip } : undefined,
-      },
-      SEND_RENEW_ON,
-    );
-
-    if (isUnavailable(response.status)) {
-      throw new UpstreamUnavailableError("Transicionais is unavailable");
-    }
-
-    if (response.error || response.status < 200 || response.status >= 300) {
-      throw this.sendError(response, SEND_OPERATION, data.bookingId);
-    }
-  }
-
-  // tabela "Tradução das keys do Transicionais" (envio da reserva, R11)
-  private sendError(response: IClientResponse<unknown>, operation: string, bookingId?: string): Error {
-    const key = errorKey(response);
-
-    // continuou 401/403 depois de renovar, ou a rota escondida: é configuração, não culpa da pessoa
-    if (SEND_RENEW_ON.includes(response.status) || key === SEND_HIDDEN_ROUTE_KEY) {
-      return new UpstreamResponseError(operation, response.status, key, errorCause(response, operation));
-    }
-
-    if (key === SEND_ANSWER_CHANGED_KEY) {
-      return new AnswerChangedError(operation);
-    }
-
-    // 400, 409 ou 422: o contrato foi recusado; o usecase grava o erro e MANUAL_RETRY (D50)
-    if (isBadContract(response.status)) {
-      return new UpstreamBadContractError(errorCause(response, operation));
-    }
-
-    const knownError = key ? SEND_REJECTIONS[key] : undefined;
-
-    if (knownError) {
-      return knownError();
-    }
-
-    if (SEND_REJECTED_STATUSES.includes(response.status)) {
-      logger.error({ operation, bookingId, status: response.status, key }, "booking rejected by an unknown rule");
-      return new ReservationRejectedError("Reservation was rejected");
-    }
-
-    return new UpstreamResponseError(operation, response.status, key, errorCause(response, operation));
-  }
-
-  // ------------ webhooks ---------
-
-  // envelope { deliveryId, type, occurredAt, organizationId, data } (bff-fase-2.md, "Webhooks")
-  // em rascunho: webhook do Transicionais, ainda não revisado pela Bea. Não usar até a revisão.
-  /** @deprecated Em rascunho, aguardando revisão (webhook do Transicionais). */
-  parseWebhook(body: unknown, current: IEventRef | null): ITransicionaisWebhook {
-    const envelope = WebhookEnvelopeResponse.toDomain(body);
-
-    if (envelope.type === WebhookType.EventUpdated) {
-      return {
-        type: WebhookType.EventUpdated,
-        deliveryId: envelope.deliveryId,
-        result: EventUpdatedResponse.toDomain(body, current),
-      };
-    }
-
-    if (envelope.type === WebhookType.ValidationChanged) {
-      return {
-        type: WebhookType.ValidationChanged,
-        deliveryId: envelope.deliveryId,
-        validation: ValidationChangedResponse.toDomain(body),
-      };
-    }
-
-    return { type: WebhookType.Other, deliveryId: envelope.deliveryId, rawType: envelope.rawType };
-  }
+  // // ------------ envio da reserva (E2.8) ---------
+  //
+  // // POST v2/manager-organization/users com o token de membro (D41): idempotente pelo e-mail, devolve a
+  // // conta que já existe (convidado ou membro). Falhas como no sendBooking
+  // async registerGuest(person: ISendBookingPerson): Promise<ITransicionaisAccount> {
+  //   const response = await this.session.request<unknown>(
+  //     {
+  //       method: HttpMethod.Post,
+  //       url: TransicionaisUrlCollection.organizationUsers(),
+  //       body: GuestAccountRequest.fromDomain(person),
+  //     },
+  //     SEND_RENEW_ON,
+  //   );
+  //
+  //   if (isUnavailable(response.status)) {
+  //     throw new UpstreamUnavailableError("Transicionais is unavailable");
+  //   }
+  //
+  //   if (response.error || response.status < 200 || response.status >= 300) {
+  //     throw this.sendError(response, REGISTER_OPERATION);
+  //   }
+  //
+  //   return GuestAccountResponse.toDomain(response.data);
+  // }
+  //
+  // // GET v2/manager-validations/guests?configDayIds=&search=<email> com o token de membro (D49): a
+  // // presença da pessoa no dia, com o hash. null = ainda não respondeu. Falhas como no sendBooking
+  // async findPresence(dayKey: string, email: string): Promise<ITransicionaisPresence | null> {
+  //   const response = await this.session.request<unknown>(
+  //     { method: HttpMethod.Get, url: TransicionaisUrlCollection.guestPresence(dayKey, email) },
+  //     SEND_RENEW_ON,
+  //   );
+  //
+  //   if (isUnavailable(response.status)) {
+  //     throw new UpstreamUnavailableError("Transicionais is unavailable");
+  //   }
+  //
+  //   if (response.error || response.status < 200 || response.status >= 300) {
+  //     throw this.sendError(response, PRESENCE_OPERATION);
+  //   }
+  //
+  //   return GuestPresenceResponse.toDomain(response.data, email);
+  // }
+  //
+  // // POST v2/manager-validations/change com o token de membro, em nome da conta da pessoa (D41).
+  // // 401/403: a sessão renova o token uma vez e reenvia (D40). Qualquer 2xx é aceito (APPROVED ou
+  // // ALREADY). O que fazer com cada falha é do usecase
+  // async sendBooking(data: ISendBookingData): Promise<void> {
+  //   const response = await this.session.request<unknown>(
+  //     {
+  //       method: HttpMethod.Post,
+  //       url: TransicionaisUrlCollection.validationChange(),
+  //       body: ValidationChangeRequest.fromDomain(data),
+  //       headers: data.ip ? { "x-forwarded-for": data.ip } : undefined,
+  //     },
+  //     SEND_RENEW_ON,
+  //   );
+  //
+  //   if (isUnavailable(response.status)) {
+  //     throw new UpstreamUnavailableError("Transicionais is unavailable");
+  //   }
+  //
+  //   if (response.error || response.status < 200 || response.status >= 300) {
+  //     throw this.sendError(response, SEND_OPERATION, data.bookingId);
+  //   }
+  // }
+  //
+  // // tabela "Tradução das keys do Transicionais" (envio da reserva, R11)
+  // private sendError(response: IClientResponse<unknown>, operation: string, bookingId?: string): Error {
+  //   const key = errorKey(response);
+  //
+  //   // continuou 401/403 depois de renovar, ou a rota escondida: é configuração, não culpa da pessoa
+  //   if (SEND_RENEW_ON.includes(response.status) || key === SEND_HIDDEN_ROUTE_KEY) {
+  //     return new UpstreamResponseError(operation, response.status, key, errorCause(response, operation));
+  //   }
+  //
+  //   if (key === SEND_ANSWER_CHANGED_KEY) {
+  //     return new AnswerChangedError(operation);
+  //   }
+  //
+  //   // 400, 409 ou 422: o contrato foi recusado; o usecase grava o erro e MANUAL_RETRY (D50)
+  //   if (isBadContract(response.status)) {
+  //     return new UpstreamBadContractError(errorCause(response, operation));
+  //   }
+  //
+  //   const knownError = key ? SEND_REJECTIONS[key] : undefined;
+  //
+  //   if (knownError) {
+  //     return knownError();
+  //   }
+  //
+  //   if (SEND_REJECTED_STATUSES.includes(response.status)) {
+  //     logger.error({ operation, bookingId, status: response.status, key }, "booking rejected by an unknown rule");
+  //     return new ReservationRejectedError("Reservation was rejected");
+  //   }
+  //
+  //   return new UpstreamResponseError(operation, response.status, key, errorCause(response, operation));
+  // }
+  //
 }

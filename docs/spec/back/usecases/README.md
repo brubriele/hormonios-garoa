@@ -29,7 +29,7 @@
 
 | Doc | Usecases |
 |---|---|
-| [`ensaio.md`](ensaio.md) | `FindingCurrentEvent`, `ReceivingCurrentEvent` e a conta das vagas e os formatos de resposta (models + mappers) |
-| [`reservas.md`](reservas.md) | `CreatingUserBooking`, `CancelingUserBooking`, `FindingUserBookings`, `SyncingUserBooking` |
-| [`producao.md`](producao.md) | `FindingCurrentEventSummary`, `UpdatingCurrentEvent`, `CreatingNextEvent` (o login não tem usecase) |
-| [`sincronizacao.md`](sincronizacao.md) | `SyncingNextEventPending`, `SyncingStockPending`, `SyncingBookingPending`, `ReceivingTransicionaisWebhook` |
+| [`ensaio.md`](ensaio.md) | `FindingPublicEvent` |
+| [`producao.md`](producao.md) | `FindingInternalEvent`, `CreatingInternalEvent`, `UpdatingInternalEvent` (o login não tem usecase) |
+| [`reservas.md`](reservas.md) | `CreatingOrUpdatingAttendance`, `FindingUserBooking` |
+| [`sincronizacao.md`](sincronizacao.md) | `Webhook`, `EventWebhook` |

@@ -1,0 +1,425 @@
+[
+  {
+    "id": "f2c8b703-cda9-40a0-ac95-8ae965c4a42e",
+    "integrationId": null,
+    "transicionaisDayId": null,
+    "syncHash": null,
+    "syncedAt": null,
+    "data": {
+      "id": "f2c8b703-cda9-40a0-ac95-8ae965c4a42e",
+      "date": "2026-11-10",
+      "groups": [
+        {
+          "id": "201",
+          "name": "Caixa",
+          "capacity": null,
+          "metadata": {
+            "active": true,
+            "exclusiveCapacity": null
+          }
+        },
+        {
+          "id": "202",
+          "name": "Tamborim",
+          "capacity": null,
+          "metadata": {
+            "active": true,
+            "exclusiveCapacity": null
+          }
+        },
+        {
+          "id": "203",
+          "name": "Surdo 1",
+          "capacity": null,
+          "metadata": {
+            "active": true,
+            "exclusiveCapacity": null
+          }
+        },
+        {
+          "id": "204",
+          "name": "Surdo 2",
+          "capacity": null,
+          "metadata": {
+            "active": true,
+            "exclusiveCapacity": null
+          }
+        },
+        {
+          "id": "205",
+          "name": "Surdo 3",
+          "capacity": null,
+          "metadata": {
+            "active": true,
+            "exclusiveCapacity": null
+          }
+        },
+        {
+          "id": "206",
+          "name": "Agogô",
+          "capacity": null,
+          "metadata": {
+            "active": true,
+            "exclusiveCapacity": null
+          }
+        },
+        {
+          "id": "207",
+          "name": "Repinique",
+          "capacity": null,
+          "metadata": {
+            "active": true,
+            "exclusiveCapacity": null
+          }
+        },
+        {
+          "id": "208",
+          "name": "Timbal",
+          "capacity": null,
+          "metadata": {
+            "active": true,
+            "exclusiveCapacity": null
+          }
+        },
+        {
+          "id": "209",
+          "name": "Alfaia",
+          "capacity": null,
+          "metadata": {
+            "active": true,
+            "exclusiveCapacity": null
+          }
+        },
+        {
+          "id": "210",
+          "name": "Ganzá",
+          "capacity": null,
+          "metadata": {
+            "active": true,
+            "exclusiveCapacity": null
+          }
+        }
+      ],
+      "catalog": [
+        {
+          "id": "213",
+          "name": "Agogô",
+          "stock": {
+            "free": 1,
+            "used": 0,
+            "total": 1,
+            "rotative": false
+          },
+          "metadata": {
+            "type": "INSTRUMENT",
+            "groupIds": [
+              "206"
+            ]
+          }
+        },
+        {
+          "id": "216",
+          "name": "Alfaia",
+          "stock": {
+            "free": 2,
+            "used": 0,
+            "total": 2,
+            "rotative": false
+          },
+          "metadata": {
+            "type": "INSTRUMENT",
+            "groupIds": [
+              "209"
+            ]
+          }
+        },
+        {
+          "id": "207",
+          "name": "Baqueta madeira",
+          "stock": {
+            "free": 15,
+            "used": 0,
+            "total": 15,
+            "rotative": false
+          },
+          "metadata": {
+            "type": "ACCESSORY",
+            "groupIds": []
+          }
+        },
+        {
+          "id": "205",
+          "name": "Baqueta Nylon",
+          "stock": {
+            "free": 2,
+            "used": 0,
+            "total": 2,
+            "rotative": false
+          },
+          "metadata": {
+            "type": "ACCESSORY",
+            "groupIds": [
+              "202"
+            ]
+          }
+        },
+        {
+          "id": "206",
+          "name": "Baqueta Nylon Repique",
+          "stock": {
+            "free": 2,
+            "used": 0,
+            "total": 2,
+            "rotative": false
+          },
+          "metadata": {
+            "type": "ACCESSORY",
+            "groupIds": [
+              "207"
+            ]
+          }
+        },
+        {
+          "id": "208",
+          "name": "Caixa",
+          "stock": {
+            "free": 5,
+            "used": 0,
+            "total": 5,
+            "rotative": false
+          },
+          "metadata": {
+            "type": "INSTRUMENT",
+            "groupIds": [
+              "201"
+            ]
+          }
+        },
+        {
+          "id": "217",
+          "name": "Ganzá",
+          "stock": {
+            "free": 5,
+            "used": 0,
+            "total": 5,
+            "rotative": false
+          },
+          "metadata": {
+            "type": "INSTRUMENT",
+            "groupIds": [
+              "210"
+            ]
+          }
+        },
+        {
+          "id": "202",
+          "name": "Maçaneta",
+          "stock": {
+            "free": null,
+            "used": 0,
+            "total": null,
+            "rotative": false
+          },
+          "metadata": {
+            "type": "ACCESSORY",
+            "groupIds": [
+              "203",
+              "204",
+              "205",
+              "209"
+            ]
+          }
+        },
+        {
+          "id": "214",
+          "name": "Repinique",
+          "stock": {
+            "free": 2,
+            "used": 0,
+            "total": 2,
+            "rotative": false
+          },
+          "metadata": {
+            "type": "INSTRUMENT",
+            "groupIds": [
+              "207"
+            ]
+          }
+        },
+        {
+          "id": "210",
+          "name": "Surdo 1",
+          "stock": {
+            "free": 1,
+            "used": 0,
+            "total": 1,
+            "rotative": false
+          },
+          "metadata": {
+            "type": "INSTRUMENT",
+            "groupIds": [
+              "203"
+            ]
+          }
+        },
+        {
+          "id": "211",
+          "name": "Surdo 2",
+          "stock": {
+            "free": 1,
+            "used": 0,
+            "total": 1,
+            "rotative": false
+          },
+          "metadata": {
+            "type": "INSTRUMENT",
+            "groupIds": [
+              "204"
+            ]
+          }
+        },
+        {
+          "id": "212",
+          "name": "Surdo 3",
+          "stock": {
+            "free": 2,
+            "used": 0,
+            "total": 2,
+            "rotative": false
+          },
+          "metadata": {
+            "type": "INSTRUMENT",
+            "groupIds": [
+              "205"
+            ]
+          }
+        },
+        {
+          "id": "204",
+          "name": "Talabarte Cintura",
+          "stock": {
+            "free": 10,
+            "used": 0,
+            "total": 10,
+            "rotative": false
+          },
+          "metadata": {
+            "type": "ACCESSORY",
+            "groupIds": [
+              "201",
+              "203",
+              "204",
+              "205",
+              "207",
+              "208"
+            ]
+          }
+        },
+        {
+          "id": "203",
+          "name": "Talabarte em X",
+          "stock": {
+            "free": 5,
+            "used": 0,
+            "total": 5,
+            "rotative": false
+          },
+          "metadata": {
+            "type": "ACCESSORY",
+            "groupIds": [
+              "201",
+              "203",
+              "204",
+              "205",
+              "207",
+              "208",
+              "209"
+            ]
+          }
+        },
+        {
+          "id": "201",
+          "name": "Talabarte Ombro",
+          "stock": {
+            "free": 5,
+            "used": 0,
+            "total": 5,
+            "rotative": false
+          },
+          "metadata": {
+            "type": "ACCESSORY",
+            "groupIds": [
+              "201",
+              "203",
+              "204",
+              "205",
+              "207",
+              "208",
+              "209"
+            ]
+          }
+        },
+        {
+          "id": "209",
+          "name": "Tamborim",
+          "stock": {
+            "free": 6,
+            "used": 0,
+            "total": 6,
+            "rotative": false
+          },
+          "metadata": {
+            "type": "INSTRUMENT",
+            "groupIds": [
+              "202"
+            ]
+          }
+        },
+        {
+          "id": "215",
+          "name": "Timbal",
+          "stock": {
+            "free": 1,
+            "used": 0,
+            "total": 1,
+            "rotative": false
+          },
+          "metadata": {
+            "type": "INSTRUMENT",
+            "groupIds": [
+              "208"
+            ]
+          }
+        }
+      ],
+      "location": "A definir",
+      "metadata": {
+        "name": "Ensaio",
+        "sync": "PENDING",
+        "endTime": null,
+        "version": 5,
+        "syncHash": "a9fe7f8513b07de6c64124fc06d4cd3f",
+        "syncedAt": "2026-10-26T22:22:28.000Z",
+        "fetchedAt": "2026-10-27T02:16:23.336Z",
+        "syncError": null,
+        "categoryId": "201",
+        "description": {
+          "releaseAt": null,
+          "visibility": "PUBLIC",
+          "description": null,
+          "membersEarlyAt": null,
+          "totalVacancies": null
+        },
+        "integrationId": 207,
+        "externalPublicId": "b29be3b5-8511-41ce-9c7b-18f1249b0582",
+        "transicionaisDayId": 20008
+      },
+      "startTime": "12:00",
+      "goingCount": 0,
+      "bookingOpen": true,
+      "whatsappUrl": ""
+    },
+    "created_at": "2026-10-27 02:16:25.777717+00",
+    "updated_at": "2026-10-27 02:17:35.65+00"
+  }
+]
