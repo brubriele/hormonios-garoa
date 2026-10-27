@@ -3,6 +3,10 @@ import type { SyncStatus } from "./SyncStatus";
 
 // o contrato geral da pessoa que o Hormônios precisa. Na raiz, o que a tela usa
 export class User {
+  readonly anonymizedName: string;
+  readonly anonymizedEmail: string;
+  readonly account: UserAccount | null;
+
   constructor(
     readonly id: string, // uuid do Supabase
     readonly name: string,
@@ -10,7 +14,32 @@ export class User {
     readonly email: string, // único: liga a pessoa ao Transicionais
     readonly attendances: Attendance[], // D4, D16
     readonly metadata: UserMetadata,
-  ) {}
+  ) {
+    this.anonymizedName = this.anonymizeName();
+    this.anonymizedEmail = this.anonymizeEmail();
+    this.account = metadata.account;
+  }
+
+  private anonymizeName(): string {
+    const [first = "", ...rest] = this.name.trim().split(/\s+/);
+    const others = rest.map((word) => (word.length <= 3 ? word : `${word[0]}*****${word.slice(-2)}`));
+
+    return [first, ...others].join(" ");
+  }
+
+  private anonymizeEmail(): string {
+    const at = this.email.lastIndexOf("@");
+
+    if (at <= 0) {
+      return this.email;
+    }
+
+    const local = this.email.slice(0, at);
+    const domain = this.email.slice(at);
+    const masked = local.length <= 4 ? `${local[0]}***` : `${local.slice(0, 2)}***${local.slice(-2)}`;
+
+    return `${masked}${domain}`;
+  }
 
   // a ligação com a presença fica na Attendance (metadata.userId)
   toJson() {

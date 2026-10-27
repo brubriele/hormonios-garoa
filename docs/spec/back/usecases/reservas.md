@@ -59,6 +59,11 @@ As duas rotas usam o mesmo usecase: `POST /api/reserva` responde 201 e o desfaze
 
 **Consequências.**
 - Nome, pronome e presenças vêm sempre da base; o cookie não guarda nada além do id (D3).
+- A rota responde `UserBookingResponse`: nome e e-mail anonimizados (`User.anonymizedName`,
+  `anonymizedEmail`, em memória: primeira palavra inteira e as outras como `r*****do`; e-mail como
+  `be***iz@gmail.com`), o `emailHash`, o pronome, o `account` e as presenças. O front preenche a presença com eles
+  e mostra o `id` como identificador técnico; reserva e desfazer reconhecem a pessoa pelo cookie, e
+  o nome anonimizado mantém o gravado.
 
 ## FindingUserUsecase — sem rota (usado pela reserva)
 
@@ -67,8 +72,13 @@ As duas rotas usam o mesmo usecase: `POST /api/reserva` responde 201 e o desfaze
 **Contexto.** Acha a pessoa pelo e-mail, sem as presenças.
 
 **Decisão.**
-- Entrada `{ email }`, normalizado em minúsculas. Saída `User | null` (`findUserByEmail`), com
-  `attendances: []`.
+- Entrada `{ email, userId, emailHash, event }`: o `userId` é o do cookie `hg_user` (D3); o
+  `emailHash` é o que o `/api/minhas-reservas` mandou (`md5(e-mail real + TRANSICIONAIS_ORG_ID)`,
+  `lib/hash.ts`), guardado num input hidden. Saída `User | null`, com `attendances: []`.
+- Com cookie, devolve a pessoa do cookie se o e-mail for o real dela, ou o anonimizado com o
+  `emailHash` batendo. Senão, o e-mail precisa ser válido (anonimizado sem hash certo →
+  `InvalidParameterError`) e a busca é por ele (`findUserByEmail`): e-mail novo vira outra pessoa,
+  e a rota grava o cookie com ela.
 
 ## CreatingOrUpdateUserUsecase — sem rota (usado pela reserva)
 

@@ -16,7 +16,12 @@ ainda está livre. Quem chama é o front, sem sessão.
   `goingCount`, o `stock.used`/`stock.free` do catálogo e, por ser a visão do público, sem o
   `capacity` dos grupos.
 - Conta só as presenças `vou` que não estão `REJECTED`.
-- A rota responde o `Event.toJson()` (D19).
+- A rota responde o `EventResponse.fromDomain(event)` ([`api/_responses/`](../../../../api/_responses/)):
+  o model sem nenhum `metadata`, que é dado do Transicionais e pode ser sensível. O que a tela usa
+  fica na raiz do domain, preenchido em memória a partir do metadata (`Event.name`, `categoryId`,
+  `endTime`, `description`, `integrationId`; `EventGroup.active`; `EventCatalog.type`, `groupIds`;
+  `Attendance.answer`, `sync`). O banco continua com o `toJson()` inteiro. O mesmo vale para todas
+  as rotas (`UserResponse`, `AttendanceResponse`, `ManagerEventResponse`).
 
 **Consequências.**
 - A conta das vagas é do domain (`Event`, `EventCatalog`, `EventGroup`), não do usecase: o mesmo

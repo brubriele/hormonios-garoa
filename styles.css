@@ -223,6 +223,12 @@ h3 em{
   word-break:break-all;
 }
 
+.technical-id{
+  font:600 11px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace !important;
+  color:#777;
+  word-break:break-all;
+}
+
 .dev-not-integrated{
   color:#d32f2f;
   font-weight:800;

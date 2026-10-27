@@ -1,8 +1,8 @@
 import { z } from "zod";
 import type { Attendance } from "../../domain/Attendance";
-import { Event, type EventCatalog, type EventMetadata } from "../../domain/Event";
+import { Event, type EventCatalog, type EventGroup, type EventMetadata } from "../../domain/Event";
 import { ManagerEvent } from "../../domain/ManagerEvent";
-import { EventMapper, type IEventCatalogData, type IEventMetadataData } from "../../domain/mappers/EventMapper";
+import { EventMapper, type IEventCatalogData, type IEventGroupData, type IEventMetadataData } from "../../domain/mappers/EventMapper";
 import type { User } from "../../domain/User";
 import { AppError, InvalidParameterError, NotFoundError, StockBelowReservationsError } from "../../errors/app-error";
 import type { IHormoniosRepository } from "../../interfaces/IHormoniosRepository";
@@ -89,10 +89,20 @@ export class UpdatingInternalEventUsecase {
     const json = data.toJson();
     const whatsappUrl = data.whatsappUrl ?? current.whatsappUrl;
     const bookingOpen = data.bookingOpen ?? current.bookingOpen;
+    const groups = data.groups.map((group) => this.mergeGroup(group, current));
     const catalog = data.catalog.map((item) => this.mergeCatalog(item, current));
     const metadata = this.mergeMetadata(data.metadata, current);
 
-    return EventMapper.fromData({ ...json, id: current.id, whatsappUrl, bookingOpen, catalog, metadata });
+    return EventMapper.fromData({ ...json, id: current.id, whatsappUrl, bookingOpen, groups, catalog, metadata });
+  }
+
+  private mergeGroup(group: EventGroup, current: Event): IEventGroupData {
+    const currentGroup = current.groups.find((entry) => entry.id === group.id);
+    const currentCapacity = currentGroup ? currentGroup.metadata.exclusiveCapacity : null;
+    const exclusiveCapacity = group.metadata.exclusiveCapacity ?? currentCapacity;
+    const metadata = { active: group.metadata.active, exclusiveCapacity };
+
+    return { id: group.id, name: group.name, metadata };
   }
 
   private mergeCatalog(item: EventCatalog, current: Event): IEventCatalogData {

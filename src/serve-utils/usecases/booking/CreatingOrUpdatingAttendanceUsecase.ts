@@ -28,13 +28,15 @@ const logger = createLogger("CreatingOrUpdatingAttendanceUsecase");
 
 const CreatingOrUpdatingAttendanceInputSchema = z
   .object({
-    email: z.string().trim().toLowerCase().pipe(z.email()),
+    email: z.string().trim().toLowerCase(),
     name: NonBlankSchema,
     pronoun: NonBlankSchema,
     answer: z.enum(AttendanceAnswer),
     groupId: NonBlankSchema.nullable(),
     supportIds: z.array(NonBlankSchema),
     deviceId: UuidSchema,
+    userId: UuidSchema.nullable(),
+    emailHash: z.string().nullable().default(null),
   })
   .refine((input) => input.groupId !== null || input.supportIds.length === 0, {
     path: ["supportIds"],
@@ -54,10 +56,12 @@ export interface ICreatingOrUpdatingAttendanceBody {
   answer: AttendanceAnswer;
   groupId: string | null;
   supportIds: string[];
+  emailHash: string | null;
 }
 
 export interface ICreatingOrUpdatingAttendanceInput extends ICreatingOrUpdatingAttendanceBody {
   deviceId: string;
+  userId: string | null; // D3
 }
 
 export class CreatingOrUpdatingAttendanceUsecase {
@@ -85,7 +89,7 @@ export class CreatingOrUpdatingAttendanceUsecase {
   private async _execute(input: ICreatingOrUpdatingAttendanceInput): Promise<User> {
     const data = this.validateInput(input);
     const event = await this.findCurrentEvent();
-    const found = await this.findUser(data.email);
+    const found = await this.findUser(data, event);
     const user = this.toUser(found, data);
     const attendances = await this.findEventAttendance(event);
     const current = this.findUserAttendance(attendances, user);
@@ -119,8 +123,8 @@ export class CreatingOrUpdatingAttendanceUsecase {
     return event;
   }
 
-  private async findUser(email: string): Promise<User | null> {
-    return this.findingUserUsecase.execute({ email });
+  private async findUser(data: ICreatingOrUpdatingAttendanceData, event: Event): Promise<User | null> {
+    return this.findingUserUsecase.execute({ email: data.email, userId: data.userId, emailHash: data.emailHash, event });
   }
 
   private toUser(found: User | null, data: ICreatingOrUpdatingAttendanceData): User {
@@ -138,9 +142,10 @@ export class CreatingOrUpdatingAttendanceUsecase {
     }
 
     const metadata = found.metadata;
+    const name = data.name === found.anonymizedName ? found.name : data.name;
     const userData: IUserData = {
       id: found.id,
-      name: data.name,
+      name,
       pronoun: data.pronoun,
       email: found.email,
       metadata: {

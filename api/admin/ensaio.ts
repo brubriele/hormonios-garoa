@@ -8,6 +8,7 @@ import { TransicionaisSession } from "../../src/serve-utils/repos/transicionais/
 import { FindingInternalEventUsecase } from "../../src/serve-utils/usecases/event/FindingInternalEventUsecase";
 import { UpdatingInternalEventUsecase } from "../../src/serve-utils/usecases/event/UpdatingInternalEventUsecase";
 import { EventRequest, type IEventRequest } from "./_requests/EventRequest";
+import { ManagerEventResponse } from "../_responses/ManagerEventResponse";
 
 export const GET = handle(async (request) => {
   await requireAdmin(request);
@@ -17,7 +18,7 @@ export const GET = handle(async (request) => {
   const usecase = new FindingInternalEventUsecase(new HormoniosRepository(new SupabaseClient()), transicionaisRepo);
   const managerEvent = await usecase.execute();
 
-  return { body: managerEvent.toJson() };
+  return { body: ManagerEventResponse.fromDomain(managerEvent) };
 });
 
 // D13
@@ -29,5 +30,5 @@ export const PUT = handle(async (request) => {
   const usecase = new UpdatingInternalEventUsecase(new HormoniosRepository(new SupabaseClient()));
   const managerEvent = await usecase.execute(event);
 
-  return { body: managerEvent.toJson() };
+  return { body: ManagerEventResponse.fromDomain(managerEvent) };
 });

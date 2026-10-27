@@ -93,18 +93,18 @@ function enforceBookingRoute(){
 function isBookingOpen(){ return state.event?.bookingOpen === true; }
 
 function instrumentsOf(event){
-  return event.groups.filter(g=>g.metadata.active).map(group=>({
+  return event.groups.filter(g=>g.active).map(group=>({
     group,
-    item:event.catalog.find(c=>c.metadata.type==="INSTRUMENT" && c.metadata.groupIds.includes(group.id)) || null
+    item:event.catalog.find(c=>c.type==="INSTRUMENT" && c.groupIds.includes(group.id)) || null
   })).filter(x=>x.item);
 }
 
 function accessoriesOf(event,groupId){
-  return event.catalog.filter(c=>c.metadata.type==="ACCESSORY" && (!c.metadata.groupIds.length || c.metadata.groupIds.includes(groupId)));
+  return event.catalog.filter(c=>c.type==="ACCESSORY" && (!c.groupIds.length || c.groupIds.includes(groupId)));
 }
 
 function goingAttendance(user){
-  return user?.attendances.find(a=>a.metadata.answer==="vou" && a.metadata.sync!=="REJECTED") || null;
+  return user?.attendances.find(a=>a.answer==="vou" && a.sync!=="REJECTED") || null;
 }
 
 async function loadEvent(){
@@ -163,7 +163,7 @@ function isDebug(){
 
 function devEventCode(event){
   if(!isDebug() || !event?.id) return "";
-  const integrationId=event.metadata?.integrationId;
+  const integrationId=event.integrationId;
   const integration=integrationId == null
     ? `<span class="dev-not-integrated">NÃO_INTEGRADO</span>`
     : escapeHtml(String(integrationId));
@@ -186,6 +186,7 @@ function renderAll(){
   const eventCode=devEventCode(state.event);
   document.querySelectorAll("[data-dev-event-code]").forEach(el=>{ el.innerHTML=eventCode; el.hidden=!eventCode; });
 
+  renderUserIdentity();
   renderInstruments();
   renderMyReservations();
   updatePublicMode();
@@ -219,6 +220,19 @@ function updatePublicMode(){
   }
 }
 
+function renderUserIdentity(){
+  const user=state.user;
+  const idEl=document.querySelector("#presence-user-id");
+  idEl.textContent=user ? user.id : "";
+  idEl.hidden=!user;
+  if(!user) return;
+  document.querySelector("#presence-email-hash").value=user.emailHash||"";
+  [["#presence-email",user.email],["#presence-name",user.name],["#presence-pronoun",user.pronoun]].forEach(([selector,value])=>{
+    const input=document.querySelector(selector);
+    if(!input.value) input.value=value||"";
+  });
+}
+
 function renderInstruments(){
   const el=document.querySelector("#instrument-list"); if(!el)return;
 
@@ -244,15 +258,18 @@ function confirmPresence(e){
   e.preventDefault();
   if(!isBookingOpen()){showToast("As reservas ainda não estão abertas.");navigate("home");return;}
 
-  if(goingAttendance(state.user)){ showStatus("Sua presença já está confirmada."); return; }
+  const email=document.querySelector("#presence-email").value.trim();
+  const sameUser=email===state.user?.email;
+  if(sameUser && goingAttendance(state.user)){ showStatus("Sua presença já está confirmada."); return; }
 
   const body={
-    email:document.querySelector("#presence-email").value.trim(),
+    email,
     name:document.querySelector("#presence-name").value.trim(),
     pronoun:document.querySelector("#presence-pronoun").value.trim(),
     answer:"vou",
     groupId:null,
-    supportIds:[]
+    supportIds:[],
+    emailHash:document.querySelector("#presence-email-hash").value||null
   };
 
   run(document.querySelector("#presence-submit"),async()=>{
@@ -318,7 +335,8 @@ function reserveInstrument(e){
     pronoun:document.querySelector("#reserve-pronoun").value.trim(),
     answer:"vou",
     groupId:id,
-    supportIds
+    supportIds,
+    emailHash:state.user?.emailHash||null
   };
 
   run(document.querySelector("#reserve-submit"),async()=>{
@@ -366,7 +384,7 @@ function cancelReservation(button){
   const item=goingAttendance(state.user);
   if(!item)return;
   const {email,name,pronoun}=state.user;
-  const body={ email, name, pronoun, answer:item.groupId?"vou":"nao-vou", groupId:null, supportIds:[] };
+  const body={ email, name, pronoun, answer:item.groupId?"vou":"nao-vou", groupId:null, supportIds:[], emailHash:state.user.emailHash||null };
   run(button,async()=>{
     await api("/api/reserva/desfazer",{method:"POST",body});
     await loadPublic();
@@ -440,14 +458,14 @@ function renderAdmin(){
     return a && { name:u.name, pronoun:u.pronoun, groupId:a.groupId, supportIds:a.supportIds, createdAt:a.createdAt };
   }).filter(Boolean);
   const res=att.filter(a=>a.groupId);
-  const stock=[...r.catalog.filter(c=>c.metadata.type==="INSTRUMENT"),...r.catalog.filter(c=>c.metadata.type==="ACCESSORY")].map(c=>({
+  const stock=[...r.catalog.filter(c=>c.type==="INSTRUMENT"),...r.catalog.filter(c=>c.type==="ACCESSORY")].map(c=>({
     id:c.id,
     name:c.name,
     stockTotal:c.stock.total,
     available:c.stock.free,
     rotativo:c.stock.rotative,
-    reservations:c.metadata.type==="INSTRUMENT"
-      ? res.filter(a=>c.metadata.groupIds.includes(a.groupId)).map(a=>({ name:a.name, pronoun:a.pronoun, detail:catalogNames(r,a.supportIds).join(" · ") || "Sem acessórios" }))
+    reservations:c.type==="INSTRUMENT"
+      ? res.filter(a=>c.groupIds.includes(a.groupId)).map(a=>({ name:a.name, pronoun:a.pronoun, detail:catalogNames(r,a.supportIds).join(" · ") || "Sem acessórios" }))
       : res.filter(a=>a.supportIds.includes(c.id)).map(a=>({ name:a.name, pronoun:a.pronoun, detail:r.groups.find(g=>g.id===a.groupId)?.name || "" }))
   }));
   const bookingOpen=r.bookingOpen === true;
@@ -529,11 +547,11 @@ function renderAdmin(){
 }
 
 function eventBody(event){
-  const { id, location, whatsappUrl, date, startTime, bookingOpen, groups, catalog, metadata }=event;
+  const { id, name, location, whatsappUrl, date, startTime, endTime, bookingOpen, categoryId, description, groups, catalog }=event;
   return {
-    id, location, whatsappUrl, date, startTime, bookingOpen, groups,
-    catalog:catalog.map(c=>({ id:c.id, name:c.name, stock:{ total:c.stock.total, rotative:c.stock.rotative }, metadata:{ groupIds:c.metadata.groupIds, type:c.metadata.type } })),
-    metadata:{ name:metadata.name, categoryId:metadata.categoryId, endTime:metadata.endTime, description:metadata.description }
+    id, name, location, whatsappUrl, date, startTime, endTime, bookingOpen, categoryId, description,
+    groups:groups.map(g=>({ id:g.id, name:g.name, active:g.active })),
+    catalog:catalog.map(c=>({ id:c.id, name:c.name, type:c.type, groupIds:c.groupIds, stock:{ total:c.stock.total, rotative:c.stock.rotative } }))
   };
 }
 

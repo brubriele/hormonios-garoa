@@ -10,6 +10,9 @@ export enum AttendanceAnswer {
 // o contrato geral da Presença que o Hormônios precisa: o que fica no Supabase e o que o repo traduz
 // para o Transicionais. Na raiz, o que a tela usa; em metadata, o resto
 export class Attendance {
+  readonly answer: AttendanceAnswer;
+  readonly sync: SyncStatus;
+
   constructor(
     readonly event: Event | string,
     readonly id: string, // uuid do Supabase
@@ -17,7 +20,10 @@ export class Attendance {
     readonly catalog: EventCatalog[],
     readonly createdAt: string,
     readonly metadata: AttendanceMetadata,
-  ) {}
+  ) {
+    this.answer = metadata.answer;
+    this.sync = metadata.sync;
+  }
 
   toJson() {
     return {

@@ -65,6 +65,8 @@ quando o evento do Transicionais já existe aqui e mudou.
 - **Recebe um `Event`**, validado como no create (`EventBodySchema` sobre o `toJson()`).
 - Acha o evento gravado pelo `id` (Produção) ou, sem `id`, pelo `metadata.integrationId`
   (webhook). Não achou → `NotFoundError`. Não exige que seja o atual.
+- O corpo do `PUT` vem no formato da resposta (sem `metadata`): o `EventRequest` monta o `Event`
+  com o `exclusiveCapacity` dos grupos `null`, que no de-para fica o gravado.
 - Faz o de-para do `Event` recebido com o gravado. O metadata é o dado do Transicionais que o
   Hormônios também usa; a raiz tem o que o Transicionais desconhece (ex.: `whatsappUrl` e `bookingOpen`). Campo
   `null` é "não enviou" e fica o gravado; vazio é alteração e é aplicado. O `id` é sempre o do

@@ -120,8 +120,10 @@
         <div class="form-layout">
           <div class="form-intro">
             <p>Preencha uma vez para confirmar sua presença. Seu nome não é usado como identificador técnico.</p>
+            <p id="presence-user-id" class="technical-id" hidden></p>
           </div>
           <form id="presence-form" class="line-form">
+            <input id="presence-email-hash" type="hidden">
             <label>E-mail <input id="presence-email" type="email" required autocomplete="email" placeholder="voce@exemplo.com"></label>
             <label>Nome / Nome Social <input id="presence-name" required autocomplete="name" placeholder="Como você quer ser chamado?"></label>
             <label>Pronome <input id="presence-pronoun" required placeholder="ex.: ela/dela, ele/dele, elu/delu"></label>

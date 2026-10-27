@@ -16,6 +16,12 @@ export enum EventCatalogType {
 // o contrato geral do Evento que o Hormônios precisa: o que fica no Supabase e o que o repo traduz
 // para o Transicionais. Na raiz, o que a tela usa; em metadata, o resto
 export class Event {
+  readonly name: string;
+  readonly categoryId: string | null;
+  readonly endTime: string | null;
+  readonly description: EventDescription;
+  readonly integrationId: number | null;
+
   constructor(
     readonly id: string, // uuid  // supabraseid,
     readonly location: string,
@@ -27,7 +33,13 @@ export class Event {
     readonly catalog: EventCatalog[], // o que é oferecido
     readonly metadata: EventMetadata,
     readonly goingCount: number = 0, // F5
-  ) {}
+  ) {
+    this.name = metadata.name;
+    this.categoryId = metadata.categoryId;
+    this.endTime = metadata.endTime;
+    this.description = metadata.description;
+    this.integrationId = metadata.integrationId;
+  }
 
   // F4
   withAttendances(attendances: Attendance[], withCapacity: boolean): Event {
@@ -70,12 +82,18 @@ export class Event {
 
 // um item do catálogo: o que é oferecido no encontro (instrumento ou acessório)
 export class EventCatalog {
+  readonly type: EventCatalogType;
+  readonly groupIds: string[];
+
   constructor(
     readonly id: string,
     readonly name: string,
     readonly stock: EventCatalogStock,
     readonly metadata: EventCatalogMetadata,
-  ) {}
+  ) {
+    this.type = metadata.type;
+    this.groupIds = metadata.groupIds;
+  }
 
   // F4
   withAttendances(going: Attendance[]): EventCatalog {
@@ -147,12 +165,16 @@ export class EventCatalogMetadata {
 
 // o grupo em si (ex.: Tamborim)
 export class EventGroup {
+  readonly active: boolean;
+
   constructor(
     readonly id: string, // grupo do Transicionais (o groupId da reserva)
     readonly name: string,
     readonly metadata: EventGroupMetadata,
     readonly capacity: number | null = null, // vazio quando não ouver ou na visão do membro
-  ) {}
+  ) {
+    this.active = metadata.active;
+  }
 
   // F4
   withAttendances(going: Attendance[], withCapacity: boolean): EventGroup {

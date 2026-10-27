@@ -7,6 +7,7 @@ import { TransicionaisRepo } from "../../src/serve-utils/repos/transicionais/rep
 import { TransicionaisSession } from "../../src/serve-utils/repos/transicionais/session";
 import { CreatingInternalEventUsecase } from "../../src/serve-utils/usecases/event/CreatingInternalEventUsecase";
 import { EventRequest, type IEventRequest } from "./_requests/EventRequest";
+import { EventResponse } from "../_responses/EventResponse";
 
 export const POST = handle(async (request) => {
   await requireAdmin(request);
@@ -18,5 +19,5 @@ export const POST = handle(async (request) => {
   const usecase = new CreatingInternalEventUsecase(new HormoniosRepository(new SupabaseClient()), transicionaisRepo);
   const created = await usecase.execute(event);
 
-  return { status: 201, body: created.toJson() };
+  return { status: 201, body: EventResponse.fromDomain(created) };
 });
