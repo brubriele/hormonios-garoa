@@ -41,6 +41,13 @@
   máximo um `INSTRUMENT` por grupo.
 - Gera o `id` (`crypto.randomUUID()`): o `Event` chega sem ele.
 - Grava com `createEvent`. O evento criado vira o atual (D2). A rota responde 201.
+- Envia quando o `integrationId` é `null` e o `sync` não é `SYNCED` nem `MANUAL_RETRY` (o webhook e
+  o `emptyState` já trazem o `integrationId`): `createEvent` no Transicionais (encontro, ciclo,
+  grupos, `public`, dia e o catálogo de cada assistência) e grava o metadata do `Event` devolvido,
+  com `SYNCED`. Evento sem data (`date` vazia) → `PENDING` com backoff.
+- **Envio ao Transicionais** ([`sincronizacao.md`](sincronizacao.md), "Envio"): depois de gravar, o
+  `private sync` tenta enviar. O resultado vai no metadata e na fila `integration_status`, e a
+  resposta da rota não muda.
 
 **Consequências.**
 - O usecase grava o metadata como veio: para a Produção, `PENDING` e sem integração; para o

@@ -1,4 +1,4 @@
-import type { IAddGroupsData } from "../../../interfaces/transicionais";
+import type { Event } from "../../../domain/Event";
 import { numericId } from "../transicionais-id";
 
 // corpo do PUT v2/manager-events/details/{id}/groups: os grupos esperados a partir do dia em que o
@@ -9,10 +9,10 @@ export interface IEventGroupsBody {
 }
 
 export class EventGroupsRequest {
-  static fromDomain(data: IAddGroupsData): IEventGroupsBody {
+  static fromDomain(event: Event, createdAt: string): IEventGroupsBody {
     return {
-      groupId: data.groupIds.map((id: string) => numericId(id, "groupId")),
-      createdAt: data.createdAt.slice(0, 10),
+      groupId: event.groups.map((group) => numericId(group.id, "groupId")),
+      createdAt: createdAt.slice(0, 10),
     };
   }
 }

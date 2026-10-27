@@ -23,8 +23,10 @@ const LoanCatalogSchema = z.object({
   type: z.enum(LoanCatalogKind).nullable().default(null), // ainda fora do contrato local (D23)
 });
 
+export type ILoanCatalog = z.infer<typeof LoanCatalogSchema>;
+
 export class LoanCatalogResponse {
-  static toDomain(raw: unknown): any {
+  static toDomain(raw: unknown): ILoanCatalog {
     const support = parseResponse(LoanCatalogSchema, raw, InfraSource.Transicionais, OPERATION);
 
     return InvalidResponseError.guard(InfraSource.Transicionais, OPERATION, () => support);

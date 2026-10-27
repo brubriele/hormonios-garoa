@@ -9,7 +9,7 @@ import { parseResponse } from "../../parse-response";
 const OPERATION = "findUser";
 
 const UserMetadataSchema = z.object({
-  integrationId: z.number().int().nullable(),
+  integrationId: z.union([z.string(), z.number().int().transform(String)]).nullable(),
   sync: z.enum(SyncStatus),
   syncError: z.string().nullable(),
   syncHash: z.string().nullable(),

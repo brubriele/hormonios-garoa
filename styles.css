@@ -215,6 +215,24 @@ h3 em{
   line-height:1.05;
 }
 
+.dev-event-code{
+  margin:-16px 0 18px;
+  font:600 11px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;
+  color:#999;
+  letter-spacing:0;
+  word-break:break-all;
+}
+
+.dev-not-integrated{
+  color:#d32f2f;
+  font-weight:800;
+}
+
+h3 .dev-event-code{
+  display:block;
+  margin:4px 0 0;
+}
+
 .spec-rule{
   border-top:1px dashed #777;
   margin-bottom:22px;

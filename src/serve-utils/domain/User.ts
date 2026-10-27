@@ -27,7 +27,7 @@ export class User {
 // D6, D7
 export class UserMetadata {
   constructor(
-    readonly integrationId: number | null,
+    readonly integrationId: string | null, // profileGuestId do Transicionais
     readonly sync: SyncStatus,
     readonly syncError: string | null,
     readonly syncHash: string | null,

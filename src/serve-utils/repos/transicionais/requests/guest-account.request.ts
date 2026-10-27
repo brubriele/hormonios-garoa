@@ -1,4 +1,4 @@
-import type { ISendBookingPerson } from "../../../interfaces/transicionais";
+import type { User } from "../../../domain/User";
 
 // tipo de cadastro: por enquanto o Transicionais só cadastra convidado
 export enum AccountType {
@@ -14,12 +14,13 @@ export interface IGuestAccountBody {
 }
 
 export class GuestAccountRequest {
-  static fromDomain(person: ISendBookingPerson): IGuestAccountBody {
-    return {
-      type: AccountType.Guest,
-      name: person.name,
-      email: person.email,
-      ...(person.pronoun === "" ? {} : { pronouns: person.pronoun }),
-    };
+  static fromDomain(user: User): IGuestAccountBody {
+    const body: IGuestAccountBody = { type: AccountType.Guest, name: user.name, email: user.email };
+
+    if (user.pronoun !== "") {
+      body.pronouns = user.pronoun;
+    }
+
+    return body;
   }
 }

@@ -1,4 +1,4 @@
-import type { INewEventData } from "../../../interfaces/transicionais";
+import type { Event } from "../../../domain/Event";
 
 // corpo do POST v2/manager-events/details: o encontro de um dia só (startAt = endAt, D2)
 export interface IEventCreateBody {
@@ -9,7 +9,7 @@ export interface IEventCreateBody {
 }
 
 export class EventCreateRequest {
-  static fromDomain(data: INewEventData): IEventCreateBody {
-    return { name: data.name, location: data.location, startAt: data.date, endAt: data.date };
+  static fromDomain(event: Event): IEventCreateBody {
+    return { name: event.metadata.name, location: event.location, startAt: event.date, endAt: event.date };
   }
 }

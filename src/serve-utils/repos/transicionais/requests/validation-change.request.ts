@@ -1,5 +1,4 @@
-import type { ISendBookingData } from "../../../interfaces/transicionais";
-import { AttendanceAnswer } from "../../../domain/Attendance";
+import { type Attendance, AttendanceAnswer } from "../../../domain/Attendance";
 import { numericId } from "../transicionais-id";
 
 // tipo da validação: o Hormônios só envia presença
@@ -14,34 +13,33 @@ export enum ValidationAnswer {
   Tentative = "TENTATIVE",
 }
 
-// corpo do POST v2/manager-validations/change com o token de membro, em nome da conta da pessoa
-// (D41): profileGuestId (convidado) ou profileId (membro), nunca os dois
+// corpo do POST v2/manager-validations/change com o token de membro, em nome do convidado (D41)
 export interface IValidationChangeBody {
   type: ValidationType;
   configDayId: number;
-  profileGuestId?: string;
-  profileId?: number;
+  profileGuestId: string;
   status: ValidationAnswer;
   groupId?: number; // ausente = só presença ("Não se aplica")
   supportTypeIds: number[];
 }
 
 export class ValidationChangeRequest {
-  // só presença ou "não vou": sem groupId e com supportTypeIds vazio
-  static fromDomain(data: ISendBookingData): IValidationChangeBody {
-    const attending = data.answer === AttendanceAnswer.Going;
-    const groupId = attending && data.groupId !== null ? numericId(data.groupId, "groupId") : undefined;
-    const { guestId, memberId } = data.account;
-
-    return {
+  static fromDomain(attendance: Attendance, guestId: string, dayId: number): IValidationChangeBody {
+    const attending = attendance.metadata.answer === AttendanceAnswer.Going;
+    const group = attending ? attendance.eventGroup : null;
+    const body: IValidationChangeBody = {
       type: ValidationType.Attendance,
-      configDayId: numericId(data.dayKey, "configDayId"),
-      ...(guestId === null ? {} : { profileGuestId: guestId }),
-      ...(guestId === null && memberId !== null ? { profileId: numericId(memberId, "profileId") } : {}),
+      configDayId: dayId,
+      profileGuestId: guestId,
       status: attending ? ValidationAnswer.Attending : ValidationAnswer.Declined,
-      ...(groupId === undefined ? {} : { groupId }),
-      supportTypeIds:
-        groupId === undefined ? [] : [...new Set<string>(data.supportTypeIds)].map((id) => numericId(id, "supportTypeId")),
+      supportTypeIds: [],
     };
+
+    if (group !== null) {
+      body.groupId = numericId(group.id, "groupId");
+      body.supportTypeIds = attendance.catalog.map((item) => numericId(item.id, "supportTypeId"));
+    }
+
+    return body;
   }
 }

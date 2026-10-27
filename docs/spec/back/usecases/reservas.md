@@ -26,10 +26,17 @@ As duas rotas usam o mesmo usecase: `POST /api/reserva` responde 201 e o desfaze
     evento que valem para o grupo (lista vazia = todos); quem já reservou outro grupo recebe
     `AlreadyReservedError`; instrumento do grupo esgotado → `SoldOutError`; acessório esgotado →
     `AccessorySoldOutError`; `capacity` do grupo zerado → `SoldOutError`.
-- Grava a pessoa (`createOrUpdateUser`) só depois das validações, e então a presença
+- A pessoa vem do `FindingUserUsecase` (pelo e-mail, sem presenças); a presença atual sai das
+  presenças do evento, filtradas pelo `userId`.
+- Grava a pessoa pelo `CreatingOrUpdateUserUsecase` só depois das validações, e então a presença
   (`createOrUpdateAttendance`), mantendo `id`, `createdAt`, `integrationId`, `syncHash` e
   `syncedAt` da presença anterior, com `sync: PENDING` (F8).
+- Envia a presença: `createAttendance` (`ATTENDANCE`, com o `profileGuestId` da pessoa e o
+  `transicionaisDayId` do evento). Pessoa ou evento ainda sem integração → `PENDING` com backoff.
 - Devolve o `User` com a presença gravada; a rota grava o cookie com o `userId` (D3).
+- **Envio ao Transicionais** ([`sincronizacao.md`](sincronizacao.md), "Envio"): depois de gravar, o
+  `private sync` tenta enviar. O resultado vai no metadata e na fila `integration_status`, e a
+  resposta da rota não muda.
 
 **Consequências.**
 - "Não vou" é uma presença gravada com `nao-vou`; "nem vi" é não ter presença (D15). Dizer que não
@@ -51,3 +58,28 @@ As duas rotas usam o mesmo usecase: `POST /api/reserva` responde 201 e o desfaze
 
 **Consequências.**
 - Nome, pronome e presenças vêm sempre da base; o cookie não guarda nada além do id (D3).
+
+## FindingUserUsecase — sem rota (usado pela reserva)
+
+> [`usecases/booking/FindingUserUsecase.ts`](../../../../src/serve-utils/usecases/booking/FindingUserUsecase.ts)
+
+**Contexto.** Acha a pessoa pelo e-mail, sem as presenças.
+
+**Decisão.**
+- Entrada `{ email }`, normalizado em minúsculas. Saída `User | null` (`findUserByEmail`), com
+  `attendances: []`.
+
+## CreatingOrUpdateUserUsecase — sem rota (usado pela reserva)
+
+> [`usecases/booking/CreatingOrUpdateUserUsecase.ts`](../../../../src/serve-utils/usecases/booking/CreatingOrUpdateUserUsecase.ts)
+
+**Contexto.** Grava a pessoa e a cadastra no Transicionais.
+
+**Decisão.**
+- Recebe um `User` e grava sem presenças (`createOrUpdateUser`).
+- Envia quando o `sync` não é `SYNCED` nem `MANUAL_RETRY`: `createUser` (`POST
+  manager-organization/users`, idempotente pelo e-mail). O `metadata.integrationId` passa a ser o
+  `profileGuestId`. Um e-mail de membro (só `profileId`) é recusa → `MANUAL_RETRY`.
+
+**Consequências.**
+- Como a reserva grava a pessoa como `PENDING`, toda reserva reenvia o cadastro (que é idempotente).

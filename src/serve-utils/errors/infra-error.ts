@@ -36,6 +36,8 @@ export class DatabaseError extends InfraError {
 
   constructor(operation: string, status: number, message: string | undefined) {
     super(InfraSource.Supabase, `${operation} failed with ${status}: ${message}`);
+    
+    console.log(this)
   }
 }
 

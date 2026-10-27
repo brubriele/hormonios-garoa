@@ -1,17 +1,17 @@
-import { Attendance } from "../domain/Attendance";
-import { Event } from "../domain/Event";
-import { User } from "../domain/User";
+import type { Attendance } from "../domain/Attendance";
+import type { Event } from "../domain/Event";
+import type { User } from "../domain/User";
 
 export interface ITransicionaisRepo {
-  // createEvent(event: Event): Promise<Event>;
+  createEvent(event: Event): Promise<Event>;
   // updateEvent(event: Event): Promise<Event>;
   findEvent(externalId: string): Promise<Event> // já resolve pela listagem e devolve o evento externo, caso receba o externalId pula essa etapa
 
-  // createAttendance(user: User): Promise<Attendance>;
+  createAttendance(user: User): Promise<Attendance>;
   // updateAttendance(user: User): Promise<Attendance>;
   // findUserAttendance(user: User): Promise<Attendance>
 
-  // createUser(user: User): Promise<User>;
+  createUser(user: User): Promise<User>;
   // updateUser(user: User): Promise<User>;
 }
 

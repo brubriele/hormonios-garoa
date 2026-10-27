@@ -96,7 +96,7 @@ function instrumentsOf(event){
   return event.groups.filter(g=>g.metadata.active).map(group=>({
     group,
     item:event.catalog.find(c=>c.metadata.type==="INSTRUMENT" && c.metadata.groupIds.includes(group.id)) || null
-  }));
+  })).filter(x=>x.item);
 }
 
 function accessoriesOf(event,groupId){
@@ -157,6 +157,19 @@ function bindRetry(el){
   el.querySelectorAll("[data-retry]").forEach(b=>b.addEventListener("click",()=>run(b,loadPublic)));
 }
 
+function isDebug(){
+  return window.HG_DEV === true || new URLSearchParams(location.search).get("debug") === "1";
+}
+
+function devEventCode(event){
+  if(!isDebug() || !event?.id) return "";
+  const integrationId=event.metadata?.integrationId;
+  const integration=integrationId == null
+    ? `<span class="dev-not-integrated">NÃO_INTEGRADO</span>`
+    : escapeHtml(String(integrationId));
+  return `E-${escapeHtml(event.id)}-${integration}`;
+}
+
 function renderAll(){
   const r=state.event || {};
   const date=formatDate(r.date);
@@ -170,6 +183,8 @@ function renderAll(){
   document.querySelector("#closed-time").textContent=time;
   document.querySelector("#closed-location").textContent=location;
   document.querySelector("#home-attendance").textContent=r.goingCount ?? 0;
+  const eventCode=devEventCode(state.event);
+  document.querySelectorAll("[data-dev-event-code]").forEach(el=>{ el.innerHTML=eventCode; el.hidden=!eventCode; });
 
   renderInstruments();
   renderMyReservations();
@@ -467,7 +482,7 @@ function renderAdmin(){
     </div>
 
     <div class="admin-card">
-      <h3>PRÓXIMO ENSAIO</h3>
+      <h3>PRÓXIMO ENSAIO${devEventCode(r)?` <small class="dev-event-code">${devEventCode(r)}</small>`:""}</h3>
       <form id="rehearsal-form" class="admin-form">
         <label>Data<input id="admin-date" type="date" value="${escapeHtml(r.date||"")}"></label>
         <label>Horário<input id="admin-time" type="time" value="${escapeHtml(r.startTime||"")}"></label>
@@ -567,12 +582,20 @@ function adjustStock(button,id,delta){
   run(button,()=>updateEvent({catalog}));
 }
 
+function dateInDays(days){
+  const date=new Date();
+  date.setDate(date.getDate()+days);
+  const month=String(date.getMonth()+1).padStart(2,"0");
+  const day=String(date.getDate()).padStart(2,"0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
 function resetRehearsal(button){
   if(!confirm("Encerrar o ensaio atual e criar um novo? Presença e reservas do ensaio atual serão arquivadas e o novo ensaio começará fechado para reservas."))return;
 
   run(button,async()=>{
     const { id, ...body }=eventBody(state.admin.event);
-    await api("/api/admin/novo-ensaio",{method:"POST",body:{...body,bookingOpen:false,date:"",startTime:null}});
+    await api("/api/admin/novo-ensaio",{method:"POST",body:{...body,bookingOpen:false,date:dateInDays(7),startTime:null}});
     await loadAdmin();
     loadPublic();
     navigate("home");

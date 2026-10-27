@@ -1,19 +1,24 @@
 import { SupabaseClient } from "../../clients/supabase-client";
 import type { Attendance } from "../../domain/Attendance";
 import type { Event } from "../../domain/Event";
+import type { IntegrationEntity, IntegrationStatus } from "../../domain/IntegrationStatus";
 import type { User } from "../../domain/User";
 import { DatabaseError } from "../../errors/infra-error";
 import type { IHormoniosRepository } from "../../interfaces/IHormoniosRepository";
 import { AttendanceRequest } from "./requests/AttendanceRequest";
 import { EventRequest } from "./requests/EventRequest";
+import { IntegrationStatusRequest } from "./requests/IntegrationStatusRequest";
 import { UserRequest } from "./requests/UserRequest";
 import { AttendanceResponse } from "./responses/AttendanceResponse";
 import { EventResponse } from "./responses/EventResponse";
+import { IntegrationStatusResponse } from "./responses/IntegrationStatusResponse";
 import { UserResponse } from "./responses/UserResponse";
 
 const TABLE = "event";
 const USER_TABLE = "user";
 const ATTENDANCE_TABLE = "attendance";
+const INTEGRATION_STATUS_TABLE = "integration_status";
+const INTEGRATION_STATUS_COLUMNS = 'id, entity, "entityId", status, "syncAt", tentatives, "nextSyncAt", "errorCtx"';
 
 export class HormoniosRepository implements IHormoniosRepository {
   constructor(private readonly supabaseClient: SupabaseClient) {}
@@ -101,24 +106,16 @@ export class HormoniosRepository implements IHormoniosRepository {
     return EventResponse.toDomain(response.data);
   }
 
-  // D16
-  async findUser(email: string, event: Event): Promise<User | null> {
+  async findUserByEmail(email: string): Promise<User | null> {
     const response = await this.supabaseClient.query<unknown>((sdk) =>
-      sdk.from(USER_TABLE).select("id, data").eq("email", email).maybeSingle(),
+      sdk.from(USER_TABLE).select("data").eq("email", email).maybeSingle(),
     );
 
     if (response.error) {
-      throw new DatabaseError("findUser", response.status, response.error.message);
+      throw new DatabaseError("findUserByEmail", response.status, response.error.message);
     }
 
-    if (!response.data) {
-      return null;
-    }
-
-    const userId = (response.data as { id: string }).id;
-    const attendances = await this.findUserAttendances(userId, event);
-
-    return UserResponse.toDomain(response.data, attendances);
+    return response.data ? UserResponse.toDomain(response.data, []) : null;
   }
 
   // D3, D16
@@ -216,6 +213,35 @@ export class HormoniosRepository implements IHormoniosRepository {
     }
 
     return AttendanceResponse.toDomain(response.data, event);
+  }
+
+  async findIntegrationStatus(entity: IntegrationEntity, entityId: string): Promise<IntegrationStatus | null> {
+    const response = await this.supabaseClient.query<unknown>((sdk) =>
+      sdk.from(INTEGRATION_STATUS_TABLE).select(INTEGRATION_STATUS_COLUMNS).eq("entity", entity).eq("entityId", entityId).maybeSingle(),
+    );
+
+    if (response.error) {
+      throw new DatabaseError("findIntegrationStatus", response.status, response.error.message);
+    }
+
+    return response.data ? IntegrationStatusResponse.toDomain(response.data) : null;
+  }
+
+  async createOrUpdateIntegrationStatus(integrationStatus: IntegrationStatus): Promise<IntegrationStatus> {
+    const row = IntegrationStatusRequest.fromDomain(integrationStatus, new Date().toISOString());
+    const response = await this.supabaseClient.query<unknown>((sdk) =>
+      sdk
+        .from(INTEGRATION_STATUS_TABLE)
+        .upsert(row, { onConflict: "entity,entityId" })
+        .select(INTEGRATION_STATUS_COLUMNS)
+        .single(),
+    );
+
+    if (response.error || !response.data) {
+      throw new DatabaseError("createOrUpdateIntegrationStatus", response.status, response.error?.message);
+    }
+
+    return IntegrationStatusResponse.toDomain(response.data);
   }
 
   // D16

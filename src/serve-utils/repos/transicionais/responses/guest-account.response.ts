@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { InfraSource } from "../../../errors/infra-error";
-import type { ITransicionaisAccount } from "../../../interfaces/transicionais";
+import { UserMapper } from "../../../domain/mappers/UserMapper";
+import type { User } from "../../../domain/User";
+import { InfraSource, InvalidResponseError } from "../../../errors/infra-error";
 import { parseResponse } from "../../parse-response";
 import { TransicionaisIdSchema } from "../transicionais-id";
 
@@ -18,9 +19,17 @@ const GuestAccountSchema = z
   });
 
 export class GuestAccountResponse {
-  static toDomain(raw: unknown): ITransicionaisAccount {
+  static toDomain(raw: unknown, user: User): User {
     const account = parseResponse(GuestAccountSchema, raw, InfraSource.Transicionais, OPERATION);
+    const guestId = account.profileGuestId;
 
-    return { guestId: account.profileGuestId, memberId: account.profileId };
+    if (guestId === null) {
+      throw new InvalidResponseError(InfraSource.Transicionais, OPERATION, "member account is not supported");
+    }
+
+    const data = user.toJson();
+    const metadata = { ...data.metadata, integrationId: guestId };
+
+    return UserMapper.fromData({ ...data, metadata }, user.attendances);
   }
 }

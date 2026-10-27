@@ -24,14 +24,14 @@ const EventDaysSchema = z.array(EventDaySchema);
 export type ITransicionaisDay = z.infer<typeof EventDaySchema>;
 
 export class EventDayResponse {
-  static toDomain(raw: unknown, operation: string): any[] {
+  static toDomain(raw: unknown, operation: string): ITransicionaisDay[] {
     const days = parseResponse(EventDaysSchema, raw, InfraSource.Transicionais, operation);
 
     return InvalidResponseError.guard(InfraSource.Transicionais, operation, () => days.map(EventDayResponse.fromRaw));
   }
 
   // dia já validado (ex.: os configDays do completo do encontro)
-  static fromRaw(day: ITransicionaisDay): any {
+  static fromRaw(day: ITransicionaisDay): ITransicionaisDay {
     return day;
   }
 }

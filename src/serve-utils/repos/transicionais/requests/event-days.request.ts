@@ -1,3 +1,5 @@
+import type { Event } from "../../../domain/Event";
+import type { ITransicionaisDay } from "../responses/event-day.response";
 import { numericId } from "../transicionais-id";
 
 // um dia no PUT v2/manager-events/details/{id}/config-day: o dia inteiro, como veio do GET, com o
@@ -23,25 +25,25 @@ export interface IEventDaysBody {
 }
 
 export class EventDaysRequest {
-  static fromDomain(version: number, days: any[]): IEventDaysBody {
-    return { version, days: days.map(EventDaysRequest.toDay) };
+  static fromDomain(version: number, day: ITransicionaisDay, event: Event): IEventDaysBody {
+    return { version, days: [EventDaysRequest.toDay(day, event)] };
   }
 
-  private static toDay(day: any): IEventDayBody {
+  private static toDay(day: ITransicionaisDay, event: Event): IEventDayBody {
     const body: IEventDayBody = {
       id: day.id === null ? null : numericId(day.id, "configDayId"),
-      current: day.date,
-      isActive: day.active,
-      startTime: day.startTime,
-      endTime: day.endTime,
+      current: day.current,
+      isActive: true,
+      startTime: event.startTime,
+      endTime: event.metadata.endTime,
     };
 
     if (day.eventId !== null) {
       body.eventId = numericId(day.eventId, "eventId");
     }
 
-    if (day.kind !== null) {
-      body.type = day.kind;
+    if (day.type !== null) {
+      body.type = day.type;
     }
 
     if (day.weekOfYear !== null) {

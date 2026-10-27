@@ -31,7 +31,9 @@ const DaySupportSchema = z.object({
   isActive: z.boolean(),
   capacity: z.number().int().nullable(),
   rotativo: z.boolean(),
-  confirmed: z.number().int().transform((confirmed) => Math.max(0, confirmed)),
+  members: z.number().int().default(0),
+  guests: z.number().int().default(0),
+  occupied: z.number().int().default(0),
   groupIds: z.array(TransicionaisIdSchema).default([]),
 });
 
@@ -137,7 +139,8 @@ export class PublicEventResponse {
   }
 
   private static toCatalog(support: IDaySupport, eventGroupIds: string[]): EventCatalog {
-    const stock = new EventCatalogStock(support.capacity, support.rotativo, support.confirmed);
+    const totalUsage = support.members + support.guests + support.occupied;
+    const stock = new EventCatalogStock(support.capacity, support.rotativo, totalUsage);
     const groupIds = support.groupIds.filter((id) => eventGroupIds.includes(id));
     const type = CATALOG_TYPES[support.type as LoanCatalogKind];
     const metadata = new EventCatalogMetadata(groupIds, type);

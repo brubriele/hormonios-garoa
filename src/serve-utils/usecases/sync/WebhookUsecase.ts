@@ -46,6 +46,7 @@ export class WebhookUsecase {
     const data = this.validateInput(input);
 
     if (data.entity === WebhookEntity.Event) {
+      logger.info('Processing EventWebhookUseCase')
       const webhook = new Webhook(data.body.eventId, WebhookEntity.Event);
       const usecase = new EventWebhookUsecase(this.transicionaisRepo, this.hormoniosRepository);
 

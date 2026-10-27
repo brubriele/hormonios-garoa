@@ -55,6 +55,7 @@ export class EventWebhookUsecase {
     const external = await this.findTransicionaisEvent(webhook.id);
 
     if (!external) {
+       logger.info('Event not found', String(webhook.id))
       return new WebhookResult(SyncStatus.Rejected, false);
     }
 
@@ -62,6 +63,7 @@ export class EventWebhookUsecase {
 
     if (!current) {
       await this.createEvent(external);
+       logger.info('Sucess to create event', String(webhook.id))
 
       return new WebhookResult(SyncStatus.Synced, true);
     }
@@ -69,8 +71,11 @@ export class EventWebhookUsecase {
     const changed = this.isChanged(external, current);
 
     if (changed) {
+      logger.info('Sucess to update event', String(webhook.id))
       await this.updateEvent(external);
     }
+
+     logger.info('Event already processed', String(webhook.id))
 
     return new WebhookResult(SyncStatus.Synced, true);
   }
@@ -101,25 +106,25 @@ export class EventWebhookUsecase {
 
   private isChanged(external: Event, current: Event): boolean {
     const hashChanged = external.metadata.syncHash !== current.metadata.syncHash;
-    const newer = this.isNewer(external.metadata.syncedAt, current.metadata.syncedAt);
+    const older = this.isOlder(external.metadata.version, current.metadata.version);
 
-    return hashChanged && newer;
+    return hashChanged && !older;
   }
 
-  private isNewer(incoming: string | null, stored: string | null): boolean {
+  private isOlder(incoming: number | null, stored: number | null): boolean {
     if (stored === null) {
-      return true;
-    }
-
-    if (incoming === null) {
       return false;
     }
 
-    return Date.parse(incoming) > Date.parse(stored);
+    if (incoming === null) {
+      return true;
+    }
+
+    return incoming < stored;
   }
 
   private async createEvent(external: Event): Promise<Event> {
-    const usecase = new CreatingInternalEventUsecase(this.hormoniosRepository);
+    const usecase = new CreatingInternalEventUsecase(this.hormoniosRepository, this.transicionaisRepo);
 
     return usecase.execute(external);
   }

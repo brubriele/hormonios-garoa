@@ -1,10 +1,14 @@
 import { z } from "zod";
 import { Event, EventCatalogType, EventVisibility } from "../../domain/Event";
+import { ErrorCtx, IntegrationEntity, IntegrationStatus } from "../../domain/IntegrationStatus";
 import { EventMapper } from "../../domain/mappers/EventMapper";
-import { AppError } from "../../errors/app-error";
+import { SyncStatus } from "../../domain/SyncStatus";
+import { AppError, UpstreamUnavailableError } from "../../errors/app-error";
 import type { IHormoniosRepository } from "../../interfaces/IHormoniosRepository";
+import type { ITransicionaisRepo } from "../../interfaces/transicionais";
 import { createLogger } from "../../lib/logger";
 import { CountSchema, NonBlankSchema, validateSchema } from "../../lib/schema";
+import { toErrorCtx } from "../../lib/upstream";
 
 const logger = createLogger("CreatingInternalEventUsecase");
 
@@ -72,7 +76,10 @@ export const EventBodySchema = z
 const CreatingInternalEventInputSchema = z.instanceof(Event);
 
 export class CreatingInternalEventUsecase {
-  constructor(private readonly hormoniosRepository: IHormoniosRepository) {}
+  constructor(
+    private readonly hormoniosRepository: IHormoniosRepository,
+    private readonly transicionaisRepo: ITransicionaisRepo,
+  ) {}
 
   async execute(data: Event): Promise<Event> {
     try {
@@ -90,8 +97,9 @@ export class CreatingInternalEventUsecase {
   private async _execute(data: Event): Promise<Event> {
     const valid = this.validateInput(data);
     const event = this.withId(valid);
+    const created = await this.createEvent(event);
 
-    return this.createEvent(event);
+    return this.sync(created);
   }
 
   private validateInput(data: Event): Event {
@@ -112,5 +120,82 @@ export class CreatingInternalEventUsecase {
 
   private async createEvent(event: Event): Promise<Event> {
     return this.hormoniosRepository.createEvent(event);
+  }
+
+  private async sync(event: Event): Promise<Event> {
+    const shouldSync = this.shouldSync(event);
+
+    if (!shouldSync) {
+      return event;
+    }
+
+    const now = new Date();
+    const integrationStatus = await this.findIntegrationStatus(event, now);
+
+    if (!event.date) {
+      const errorCtx = new ErrorCtx(0, null, null, "Event date is not defined");
+      const pending = integrationStatus.pending(errorCtx, now);
+
+      return this.saveFailure(event, pending);
+    }
+
+    try {
+      const external = await this.transicionaisRepo.createEvent(event);
+
+      return await this.saveSynced(event, external, integrationStatus, now);
+    } catch (error) {
+      const failed = this.toFailedStatus(integrationStatus, error, now);
+
+      return this.saveFailure(event, failed);
+    }
+  }
+
+  private shouldSync(event: Event): boolean {
+    const { integrationId, sync } = event.metadata;
+    const done = sync === SyncStatus.Synced || sync === SyncStatus.ManualRetry;
+
+    return integrationId === null && !done;
+  }
+
+  private async findIntegrationStatus(event: Event, now: Date): Promise<IntegrationStatus> {
+    const found = await this.hormoniosRepository.findIntegrationStatus(IntegrationEntity.Event, event.id);
+
+    return found ?? IntegrationStatus.create(IntegrationEntity.Event, event.id, now);
+  }
+
+  private toFailedStatus(integrationStatus: IntegrationStatus, error: unknown, now: Date): IntegrationStatus {
+    const errorCtx = toErrorCtx(error);
+
+    if (error instanceof UpstreamUnavailableError) {
+      return integrationStatus.pending(errorCtx, now);
+    }
+
+    logger.error({ err: error, eventId: integrationStatus.entityId }, "event rejected by Transicionais");
+
+    return integrationStatus.manualRetry(errorCtx, now);
+  }
+
+  private async saveSynced(event: Event, external: Event, integrationStatus: IntegrationStatus, now: Date): Promise<Event> {
+    const json = event.toJson();
+    const externalMetadata = external.metadata.toJson();
+    const metadata = { ...externalMetadata, sync: SyncStatus.Synced, syncError: null };
+    const synced = EventMapper.fromData({ ...json, metadata });
+    const status = integrationStatus.synced(now);
+
+    await this.hormoniosRepository.createOrUpdateIntegrationStatus(status);
+
+    return this.hormoniosRepository.updateEvent(synced);
+  }
+
+  private async saveFailure(event: Event, integrationStatus: IntegrationStatus): Promise<Event> {
+    const json = event.toJson();
+    const errorCtx = integrationStatus.errorCtx;
+    const syncError = errorCtx ? errorCtx.key ?? errorCtx.message : null;
+    const metadata = { ...json.metadata, sync: integrationStatus.status, syncError };
+    const failed = EventMapper.fromData({ ...json, metadata });
+
+    await this.hormoniosRepository.createOrUpdateIntegrationStatus(integrationStatus);
+
+    return this.hormoniosRepository.updateEvent(failed);
   }
 }

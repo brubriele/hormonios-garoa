@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { type Attendance, AttendanceAnswer } from "../../domain/Attendance";
 import { type Event, EventCatalogType, type EventGroup } from "../../domain/Event";
+import { ErrorCtx, IntegrationEntity, IntegrationStatus } from "../../domain/IntegrationStatus";
 import { AttendanceMapper, type IAttendanceData } from "../../domain/mappers/AttendanceMapper";
 import { type IUserData, UserMapper } from "../../domain/mappers/UserMapper";
 import { SyncStatus } from "../../domain/SyncStatus";
@@ -13,10 +14,15 @@ import {
   InvalidParameterError,
   NotFoundError,
   SoldOutError,
+  UpstreamUnavailableError,
 } from "../../errors/app-error";
 import type { IHormoniosRepository } from "../../interfaces/IHormoniosRepository";
+import type { ITransicionaisRepo } from "../../interfaces/transicionais";
 import { createLogger } from "../../lib/logger";
 import { NonBlankSchema, UuidSchema, validateSchema } from "../../lib/schema";
+import { toErrorCtx } from "../../lib/upstream";
+import type { CreatingOrUpdateUserUsecase } from "./CreatingOrUpdateUserUsecase";
+import type { FindingUserUsecase } from "./FindingUserUsecase";
 
 const logger = createLogger("CreatingOrUpdatingAttendanceUsecase");
 
@@ -55,7 +61,12 @@ export interface ICreatingOrUpdatingAttendanceInput extends ICreatingOrUpdatingA
 }
 
 export class CreatingOrUpdatingAttendanceUsecase {
-  constructor(private readonly hormoniosRepository: IHormoniosRepository) {}
+  constructor(
+    private readonly hormoniosRepository: IHormoniosRepository,
+    private readonly transicionaisRepo: ITransicionaisRepo,
+    private readonly creatingOrUpdateUserUsecase: CreatingOrUpdateUserUsecase,
+    private readonly findingUserUsecase: FindingUserUsecase,
+  ) {}
 
   async execute(input: ICreatingOrUpdatingAttendanceInput): Promise<User> {
     try {
@@ -74,21 +85,23 @@ export class CreatingOrUpdatingAttendanceUsecase {
   private async _execute(input: ICreatingOrUpdatingAttendanceInput): Promise<User> {
     const data = this.validateInput(input);
     const event = await this.findCurrentEvent();
-    const found = await this.findUser(data.email, event);
+    const found = await this.findUser(data.email);
     const user = this.toUser(found, data);
-    const current = this.findUserAttendance(user);
+    const attendances = await this.findEventAttendance(event);
+    const current = this.findUserAttendance(attendances, user);
     const going = data.answer === AttendanceAnswer.Going;
 
     if (going) {
-      await this.validateGoing(event, user, current, data);
+      this.validateGoing(event, attendances, user, current, data);
     }
 
     const savedUser = await this.createOrUpdateUser(user);
     const attendance = this.toAttendance(event, savedUser, current, data);
     const savedAttendance = await this.createOrUpdateAttendance(attendance, event);
+    const syncedAttendance = await this.sync(savedUser, savedAttendance, event);
     const savedUserData = savedUser.toJson();
 
-    return UserMapper.fromData(savedUserData, [savedAttendance]);
+    return UserMapper.fromData(savedUserData, [syncedAttendance]);
   }
 
   private validateInput(input: ICreatingOrUpdatingAttendanceInput): ICreatingOrUpdatingAttendanceData {
@@ -106,9 +119,8 @@ export class CreatingOrUpdatingAttendanceUsecase {
     return event;
   }
 
-  // D16
-  private async findUser(email: string, event: Event): Promise<User | null> {
-    return this.hormoniosRepository.findUser(email, event);
+  private async findUser(email: string): Promise<User | null> {
+    return this.findingUserUsecase.execute({ email });
   }
 
   private toUser(found: User | null, data: ICreatingOrUpdatingAttendanceData): User {
@@ -140,25 +152,25 @@ export class CreatingOrUpdatingAttendanceUsecase {
       },
     };
 
-    return UserMapper.fromData(userData, found.attendances);
+    return UserMapper.fromData(userData, []);
   }
 
   // D16
-  private findUserAttendance(user: User): Attendance | null {
-    const attendance = user.attendances[0];
+  private findUserAttendance(attendances: Attendance[], user: User): Attendance | null {
+    const attendance = attendances.find((item) => item.metadata.userId === user.id);
 
     return attendance ?? null;
   }
 
-  private async validateGoing(
+  private validateGoing(
     event: Event,
+    attendances: Attendance[],
     user: User,
     current: Attendance | null,
     data: ICreatingOrUpdatingAttendanceData,
-  ): Promise<void> {
+  ): void {
     this.validateBookingOpen(event);
 
-    const attendances = await this.findEventAttendance(event);
     const others = this.filterOthers(attendances, user);
     const counted = event.withAttendances(others, true);
     const wasGoing = this.isGoing(current);
@@ -292,7 +304,7 @@ export class CreatingOrUpdatingAttendanceUsecase {
   }
 
   private async createOrUpdateUser(user: User): Promise<User> {
-    return this.hormoniosRepository.createOrUpdateUser(user);
+    return this.creatingOrUpdateUserUsecase.execute(user);
   }
 
   // F8
@@ -324,5 +336,95 @@ export class CreatingOrUpdatingAttendanceUsecase {
 
   private async createOrUpdateAttendance(attendance: Attendance, event: Event): Promise<Attendance> {
     return this.hormoniosRepository.createOrUpdateAttendance(attendance, event);
+  }
+
+  private async sync(user: User, attendance: Attendance, event: Event): Promise<Attendance> {
+    const shouldSync = this.shouldSync(attendance);
+
+    if (!shouldSync) {
+      return attendance;
+    }
+
+    const now = new Date();
+    const integrationStatus = await this.findIntegrationStatus(attendance, now);
+    const ready = user.metadata.integrationId !== null && event.metadata.transicionaisDayId !== null;
+
+    if (!ready) {
+      const errorCtx = new ErrorCtx(0, null, null, "User or event is not integrated");
+      const pending = integrationStatus.pending(errorCtx, now);
+
+      return this.saveFailure(attendance, pending, event);
+    }
+
+    try {
+      const userData = user.toJson();
+      const userWithAttendance = UserMapper.fromData(userData, [attendance]);
+
+      await this.transicionaisRepo.createAttendance(userWithAttendance);
+
+      return await this.saveSynced(attendance, integrationStatus, event, now);
+    } catch (error) {
+      const failed = this.toFailedStatus(integrationStatus, error, now);
+
+      return this.saveFailure(attendance, failed, event);
+    }
+  }
+
+  private shouldSync(attendance: Attendance): boolean {
+    const { sync } = attendance.metadata;
+
+    return sync !== SyncStatus.Synced && sync !== SyncStatus.ManualRetry;
+  }
+
+  private async findIntegrationStatus(attendance: Attendance, now: Date): Promise<IntegrationStatus> {
+    const found = await this.hormoniosRepository.findIntegrationStatus(IntegrationEntity.Attendance, attendance.id);
+
+    return found ?? IntegrationStatus.create(IntegrationEntity.Attendance, attendance.id, now);
+  }
+
+  private toFailedStatus(integrationStatus: IntegrationStatus, error: unknown, now: Date): IntegrationStatus {
+    const errorCtx = toErrorCtx(error);
+
+    if (error instanceof UpstreamUnavailableError) {
+      return integrationStatus.pending(errorCtx, now);
+    }
+
+    logger.error({ err: error, attendanceId: integrationStatus.entityId }, "attendance rejected by Transicionais");
+
+    return integrationStatus.manualRetry(errorCtx, now);
+  }
+
+  private async saveSynced(attendance: Attendance, integrationStatus: IntegrationStatus, event: Event, now: Date): Promise<Attendance> {
+    const syncedAt = now.toISOString();
+    const synced = this.withSync(attendance, SyncStatus.Synced, null, syncedAt, event);
+    const status = integrationStatus.synced(now);
+
+    await this.hormoniosRepository.createOrUpdateIntegrationStatus(status);
+
+    return this.createOrUpdateAttendance(synced, event);
+  }
+
+  private async saveFailure(attendance: Attendance, integrationStatus: IntegrationStatus, event: Event): Promise<Attendance> {
+    const errorCtx = integrationStatus.errorCtx;
+    const syncError = errorCtx ? errorCtx.key ?? errorCtx.message : null;
+    const failed = this.withSync(attendance, integrationStatus.status, syncError, attendance.metadata.syncedAt, event);
+
+    await this.hormoniosRepository.createOrUpdateIntegrationStatus(integrationStatus);
+
+    return this.createOrUpdateAttendance(failed, event);
+  }
+
+  private withSync(
+    attendance: Attendance,
+    sync: SyncStatus,
+    syncError: string | null,
+    syncedAt: string | null,
+    event: Event,
+  ): Attendance {
+    const json = attendance.toJson();
+    const groupId = json.groupId ?? null;
+    const metadata = { ...json.metadata, sync, syncError, syncedAt };
+
+    return AttendanceMapper.fromData({ ...json, groupId, metadata }, event);
   }
 }

@@ -22,7 +22,9 @@ import type {
   ITransicionaisPresence,
   ITransicionaisRepo,
 } from "../../interfaces/transicionais";
-import type { Event } from "../../domain/Event";
+import type { Attendance } from "../../domain/Attendance";
+import type { Event, EventCatalog } from "../../domain/Event";
+import type { User } from "../../domain/User";
 import {
   AnswerChangedError,
   UpstreamBadContractError,
@@ -42,7 +44,7 @@ import { LoanCatalogUpdateRequest } from "./requests/loan-catalog-update.request
 import { ValidationChangeRequest } from "./requests/validation-change.request";
 import { CreatedEventResponse } from "./responses/created-event.response";
 import { ErrorBodyResponse } from "./responses/error-body.response";
-import { EventDayResponse } from "./responses/event-day.response";
+import { EventDayResponse, type ITransicionaisDay } from "./responses/event-day.response";
 import { EventListResponse } from "./responses/event-list.response";
 import { EventSummaryResponse } from "./responses/event-summary.response";
 import { GuestAccountResponse } from "./responses/guest-account.response";
@@ -158,6 +160,193 @@ export class TransicionaisRepo implements ITransicionaisRepo {
     }
 
     return PublicEventResponse.toDomain(response.data, fetchedAt);
+  }
+
+  async createEvent(event: Event): Promise<Event> {
+    const eventId = await this.createEventDetails(event);
+
+    await this.saveCategory(eventId, event);
+    await this.saveGroups(eventId, event);
+    await this.savePublication(eventId, event);
+    await this.saveDay(eventId, event);
+    await this.saveCatalog(event);
+
+    return this.findEvent(eventId);
+  }
+
+  async createUser(user: User): Promise<User> {
+    const response = await this.session.request<unknown>({
+      method: HttpMethod.Post,
+      url: TransicionaisUrlCollection.organizationUsers(),
+      body: GuestAccountRequest.fromDomain(user),
+    });
+    const raw = this.assertWrite(response, REGISTER_OPERATION);
+
+    return GuestAccountResponse.toDomain(raw, user);
+  }
+
+  async createAttendance(user: User): Promise<Attendance> {
+    const attendance = this.findUserAttendance(user);
+    const event = attendance.event as Event;
+    const guestId = user.metadata.integrationId as string;
+    const dayId = event.metadata.transicionaisDayId as number;
+    const response = await this.session.request<unknown>({
+      method: HttpMethod.Post,
+      url: TransicionaisUrlCollection.validationChange(),
+      body: ValidationChangeRequest.fromDomain(attendance, guestId, dayId),
+    });
+
+    this.assertWrite(response, SEND_OPERATION);
+
+    return attendance;
+  }
+
+  private findUserAttendance(user: User): Attendance {
+    const [attendance] = user.attendances;
+
+    if (!attendance) {
+      throw new NotFoundError("Attendance Not Found");
+    }
+
+    return attendance;
+  }
+
+  private async createEventDetails(event: Event): Promise<string> {
+    const response = await this.session.request<unknown>({
+      method: HttpMethod.Post,
+      url: TransicionaisUrlCollection.events(),
+      body: EventCreateRequest.fromDomain(event),
+    });
+    const raw = this.assertWrite(response, "createEvent");
+    const eventId = CreatedEventResponse.toDomain(raw);
+
+    if (eventId) {
+      return eventId;
+    }
+
+    return this.findCreatedEventId(event);
+  }
+
+  // D18
+  private async findCreatedEventId(event: Event): Promise<string> {
+    const url = TransicionaisUrlCollection.eventsFrom(event.date);
+    const response = await this.session.request<unknown>({ url });
+    const raw = this.assertWrite(response, "listEvents");
+    const items = EventListResponse.toDomain(raw);
+    const created = items.filter((item) => item.name === event.metadata.name && item.date === event.date).pop();
+
+    if (!created) {
+      throw new NotFoundError("Created event Not Found");
+    }
+
+    return created.id;
+  }
+
+  private async saveCategory(eventId: string, event: Event): Promise<void> {
+    const categoryId = event.metadata.categoryId;
+
+    if (categoryId === null) {
+      return;
+    }
+
+    const response = await this.session.request<unknown>({
+      method: HttpMethod.Put,
+      url: TransicionaisUrlCollection.eventCategory(eventId),
+      body: EventCategoryRequest.fromDomain(categoryId),
+    });
+
+    this.assertWrite(response, "updateCategory");
+  }
+
+  private async saveGroups(eventId: string, event: Event): Promise<void> {
+    if (event.groups.length === 0) {
+      return;
+    }
+
+    const createdAt = new Date().toISOString();
+    const response = await this.session.request<unknown>({
+      method: HttpMethod.Put,
+      url: TransicionaisUrlCollection.eventGroups(eventId),
+      body: EventGroupsRequest.fromDomain(event, createdAt),
+    });
+
+    this.assertWrite(response, "addGroups");
+  }
+
+  private async savePublication(eventId: string, event: Event): Promise<void> {
+    const version = await this.findVersion(eventId);
+    const response = await this.session.request<unknown>({
+      method: HttpMethod.Put,
+      url: TransicionaisUrlCollection.eventById(eventId),
+      body: EventUpdateRequest.fromDomain(version, event),
+    });
+
+    this.assertWrite(response, "updateEvent");
+  }
+
+  private async saveDay(eventId: string, event: Event): Promise<void> {
+    const day = await this.findDay(eventId, event);
+    const version = await this.findVersion(eventId);
+    const response = await this.session.request<unknown>({
+      method: HttpMethod.Put,
+      url: TransicionaisUrlCollection.eventDays(eventId),
+      body: EventDaysRequest.fromDomain(version, day, event),
+    });
+
+    this.assertWrite(response, "saveDays");
+  }
+
+  private async findDay(eventId: string, event: Event): Promise<ITransicionaisDay> {
+    const url = TransicionaisUrlCollection.eventDays(eventId);
+    const response = await this.session.request<unknown>({ url });
+    const raw = this.assertWrite(response, "listDays");
+    const days = EventDayResponse.toDomain(raw, "listDays");
+    const day = days.find((item) => item.current === event.date);
+
+    if (!day) {
+      throw new NotFoundError("Event day Not Found");
+    }
+
+    return day;
+  }
+
+  private async findVersion(eventId: string): Promise<number> {
+    const url = TransicionaisUrlCollection.eventById(eventId);
+    const response = await this.session.request<unknown>({ url });
+    const raw = this.assertWrite(response, "findEventDetails");
+
+    return VersionResponse.toDomain(raw, "findEventDetails");
+  }
+
+  private async saveCatalog(event: Event): Promise<void> {
+    for (const item of event.catalog) {
+      await this.saveCatalogItem(item);
+    }
+  }
+
+  private async saveCatalogItem(item: EventCatalog): Promise<void> {
+    const url = TransicionaisUrlCollection.loanCatalog(item.id);
+    const current = await this.session.request<unknown>({ url });
+    const raw = this.assertWrite(current, "findLoanCatalog");
+    const loanCatalog = LoanCatalogResponse.toDomain(raw);
+    const response = await this.session.request<unknown>({
+      method: HttpMethod.Put,
+      url,
+      body: LoanCatalogUpdateRequest.fromDomain(item, loanCatalog),
+    });
+
+    this.assertSaved(response, "saveLoanCatalog");
+  }
+
+  // D26
+  private assertSaved(response: IClientResponse<unknown>, operation: string): void {
+    const saved = !response.error && response.status >= 200 && response.status < 300;
+
+    if (saved) {
+      return;
+    }
+
+    this.assertWrite(response, operation);
   }
 
   // // GET v2/manager-events/details?visibility=PUBLIC&startAt=<date>: os encontros Públicos de date em

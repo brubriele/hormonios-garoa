@@ -1,5 +1,6 @@
 import type { Attendance } from "../domain/Attendance";
 import type { Event } from "../domain/Event";
+import type { IntegrationEntity, IntegrationStatus } from "../domain/IntegrationStatus";
 import type { User } from "../domain/User";
 
 export interface IHormoniosRepository {
@@ -10,7 +11,7 @@ export interface IHormoniosRepository {
   createEvent(event: Event): Promise<Event>;
   updateEvent(event: Event): Promise<Event>;
 
-  findUser(email: string, event: Event): Promise<User | null>; // D16
+  findUserByEmail(email: string): Promise<User | null>;
   findUserById(id: string, event: Event): Promise<User | null>; // D3, D16
   createOrUpdateUser(user: User): Promise<User>; // D8
   findEventUsers(event: Event): Promise<User[]>; // D5
@@ -20,4 +21,7 @@ export interface IHormoniosRepository {
   // todas as presenças do event, da mais antiga para a mais nova
   findEventAttendance(event: Event): Promise<Attendance[]>;
   createOrUpdateAttendance(attendance: Attendance, event: Event): Promise<Attendance>; // D8
+
+  findIntegrationStatus(entity: IntegrationEntity, entityId: string): Promise<IntegrationStatus | null>;
+  createOrUpdateIntegrationStatus(integrationStatus: IntegrationStatus): Promise<IntegrationStatus>;
 }

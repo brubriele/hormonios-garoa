@@ -4,6 +4,7 @@ import { ManagerEvent } from "../../domain/ManagerEvent";
 import type { User } from "../../domain/User";
 import { AppError, NotFoundError } from "../../errors/app-error";
 import type { IHormoniosRepository } from "../../interfaces/IHormoniosRepository";
+import type { ITransicionaisRepo } from "../../interfaces/transicionais";
 import { createLogger } from "../../lib/logger";
 import { emptyState } from "../../repos/supabase/mock/emptyState";
 import { CreatingInternalEventUsecase } from "./CreatingInternalEventUsecase";
@@ -11,7 +12,10 @@ import { CreatingInternalEventUsecase } from "./CreatingInternalEventUsecase";
 const logger = createLogger("FindingInternalEventUsecase");
 
 export class FindingInternalEventUsecase {
-  constructor(private readonly hormoniosRepository: IHormoniosRepository) {}
+  constructor(
+    private readonly hormoniosRepository: IHormoniosRepository,
+    private readonly transicionaisRepo: ITransicionaisRepo,
+  ) {}
 
   async execute(): Promise<ManagerEvent> {
     try {
@@ -51,9 +55,13 @@ export class FindingInternalEventUsecase {
   private async createMockEvent(): Promise<Event> {
     try {
       const event = emptyState();
-      const usecase = new CreatingInternalEventUsecase(this.hormoniosRepository);
+      const usecase = new CreatingInternalEventUsecase(this.hormoniosRepository, this.transicionaisRepo);
 
-      return await usecase.execute(event);
+      const newEvent = await usecase.execute(event);
+
+      logger.info('createMockEvent', newEvent.id)
+
+      return newEvent
     } catch (error) {
       logger.error({ err: error }, "mock event not created");
       throw new NotFoundError("Event Not Found");

@@ -3,7 +3,7 @@ import type { SyncStatus } from "../SyncStatus";
 import { User, UserMetadata } from "../User";
 
 export interface IUserMetadataData {
-  integrationId: number | null;
+  integrationId: string | null;
   sync: SyncStatus;
   syncError: string | null;
   syncHash: string | null;

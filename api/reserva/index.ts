@@ -1,18 +1,31 @@
+import { HttpClient } from "../../src/serve-utils/clients/http-client";
 import { SupabaseClient } from "../../src/serve-utils/clients/supabase-client";
 import { getOrCreateDevice } from "../../src/serve-utils/http/device";
 import { handle, readJson } from "../../src/serve-utils/http/handle";
 import { createUserCookie } from "../../src/serve-utils/http/user-cookie";
 import { HormoniosRepository } from "../../src/serve-utils/repos/supabase/HormoniosRepository";
+import { TransicionaisRepo } from "../../src/serve-utils/repos/transicionais/repo";
+import { TransicionaisSession } from "../../src/serve-utils/repos/transicionais/session";
 import {
   CreatingOrUpdatingAttendanceUsecase,
   type ICreatingOrUpdatingAttendanceBody,
 } from "../../src/serve-utils/usecases/booking/CreatingOrUpdatingAttendanceUsecase";
+import { CreatingOrUpdateUserUsecase } from "../../src/serve-utils/usecases/booking/CreatingOrUpdateUserUsecase";
+import { FindingUserUsecase } from "../../src/serve-utils/usecases/booking/FindingUserUsecase";
 
 // F7
 export const POST = handle(async (request) => {
   const { deviceId, cookie } = getOrCreateDevice(request);
   const body = await readJson<ICreatingOrUpdatingAttendanceBody>(request);
-  const usecase = new CreatingOrUpdatingAttendanceUsecase(new HormoniosRepository(new SupabaseClient()));
+  const hormoniosRepository = new HormoniosRepository(new SupabaseClient());
+  const httpClient = new HttpClient();
+  const transicionaisRepo = new TransicionaisRepo(httpClient, new TransicionaisSession(httpClient));
+  const usecase = new CreatingOrUpdatingAttendanceUsecase(
+    hormoniosRepository,
+    transicionaisRepo,
+    new CreatingOrUpdateUserUsecase(hormoniosRepository, transicionaisRepo),
+    new FindingUserUsecase(hormoniosRepository),
+  );
   const user = await usecase.execute({ ...body, deviceId });
   const attendances = user.attendances.map((attendance) => attendance.toJson());
   const userCookie = createUserCookie(user.id);

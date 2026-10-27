@@ -1,4 +1,4 @@
-import type { EventVisibility } from "../../../domain/Event";
+import type { Event, EventGroup, EventVisibility } from "../../../domain/Event";
 import { numericId } from "../transicionais-id";
 
 export interface IGroupCapacityBody {
@@ -23,21 +23,25 @@ export interface IEventPublicationBody {
 }
 
 export class PublicationSettingsRequest {
-  static fromDomain(publication: any): IEventPublicationBody {
+  static fromDomain(event: Event): IEventPublicationBody {
+    const description = event.metadata.description;
+    const groups = event.groups.filter((group) => group.metadata.exclusiveCapacity !== null);
+
     return {
-      visibility: publication.visibility,
-      publicDescription: publication.description,
-      releaseAt: publication.releaseAt,
-      membersEarlyAt: publication.membersEarlyAt,
-      guestDeadlineMinutes: publication.guestDeadlineMinutes,
-      supportTypeIds: publication.supportIds.map((id: string) => numericId(id, "supportTypeId")),
+      visibility: description.visibility,
+      publicDescription: description.description,
+      releaseAt: description.releaseAt,
+      membersEarlyAt: description.membersEarlyAt,
+      guestDeadlineMinutes: null,
+      supportTypeIds: event.catalog.map((item) => numericId(item.id, "supportTypeId")),
       vacancies: {
-        total: publication.totalVacancies,
-        groups: publication.groupVacancies.map((vacancy: any) => ({
-          groupId: numericId(vacancy.groupId, "groupId"),
-          total: vacancy.total,
-        })),
+        total: description.totalVacancies,
+        groups: groups.map((group) => PublicationSettingsRequest.toGroupCapacity(group)),
       },
     };
+  }
+
+  private static toGroupCapacity(group: EventGroup): IGroupCapacityBody {
+    return { groupId: numericId(group.id, "groupId"), total: group.metadata.exclusiveCapacity };
   }
 }

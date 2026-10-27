@@ -1,35 +1,14 @@
-import type { IEventChanges } from "../../../interfaces/transicionais";
+import type { Event } from "../../../domain/Event";
 import { PublicationSettingsRequest, type IEventPublicationBody } from "./publication-settings.request";
 
-// corpo do PUT v2/manager-events/details/{id}: a version e só o que muda (campo ausente = não mexe)
+// corpo do PUT v2/manager-events/details/{id}: a version e a publicação inteira
 export interface IEventUpdateBody {
   version: number;
-  location?: string;
-  startAt?: string; // YYYY-MM-DD
-  endAt?: string; // YYYY-MM-DD
-  public?: IEventPublicationBody;
+  public: IEventPublicationBody;
 }
 
 export class EventUpdateRequest {
-  static fromDomain(version: number, changes: IEventChanges): IEventUpdateBody {
-    const body: IEventUpdateBody = { version };
-
-    if (changes.location !== undefined) {
-      body.location = changes.location;
-    }
-
-    if (changes.startDate !== undefined) {
-      body.startAt = changes.startDate;
-    }
-
-    if (changes.endDate !== undefined) {
-      body.endAt = changes.endDate;
-    }
-
-    if (changes.publication !== undefined) {
-      body.public = PublicationSettingsRequest.fromDomain(changes.publication);
-    }
-
-    return body;
+  static fromDomain(version: number, event: Event): IEventUpdateBody {
+    return { version, public: PublicationSettingsRequest.fromDomain(event) };
   }
 }
