@@ -23,6 +23,7 @@ Se for mexer em um arquivo de uma pasta, leia o doc dela:
 - **Se for mexer em `src/serve-utils/repos/<fonte>/{responses,requests}/`** (schema zod e tradução), leia [`requests-responses.md`](requests-responses.md).
 - **Se for mexer em `src/serve-utils/lib/`** (datas, `isUnavailable`, logger), ou for escrever um helper ou um log, leia [`lib.md`](lib.md).
 - **Se for mexer em `src/serve-utils/usecases/`**, leia [`usecases.md`](usecases.md).
+- **Se for mexer em `src/serve-utils/envolviment/`** (onde as rotas pedem os usecases), leia [`envolviment.md`](envolviment.md).
 
 ### Por tarefa
 
@@ -72,7 +73,7 @@ etc.) fica fora deste padrão.
 ## Pastas
 
 ```
-api/                                   rotas da Vercel: só montam o usecase e respondem
+api/                                   rotas da Vercel: pedem o usecase ao Envolviment e respondem
 src/serve-utils/
   errors/                              AppError e erros de domínio
   domain/                              entidades
@@ -81,6 +82,7 @@ src/serve-utils/
   interfaces/                          contratos (I*): interface do repo, entradas e filtros
   clients/                             HTTP/SDK compartilhado
   http/                                handle, cookies, hg_device, hg_admin, cron, webhook e IP real
+  envolviment/Envolviment.ts           make<T>(token): monta o usecase e as dependências na 1ª vez e as guarda (singleton lazy)
   lib/                                 helpers sem lib externa: datas, isUnavailable, logger
   repos/parse-response.ts              parseResponse (resposta da fonte) e parseInput (corpo que a fonte manda, webhook): o zod de todo response
   repos/transicionais/transicionais-id.ts  TransicionaisIdSchema (volta) e numericId (ida): o id do Transicionais
@@ -96,7 +98,7 @@ src/serve-utils/
 ## Fluxo de uma chamada
 
 ```
-api/<rota>.ts (handle) → Usecase.execute(input) → Repo (pela interface) → Client → API externa / Supabase
+api/<rota>.ts (handle) → Envolviment.make<T>(token) → Usecase.execute(input) → Repo (pela interface) → Client → API externa / Supabase
                                        ← domain                ← XResponse.toDomain(raw) (schema zod)
 ```
 
@@ -112,6 +114,9 @@ api/<rota>.ts (handle) → Usecase.execute(input) → Repo (pela interface) → 
 | G6 | **Conjunto fechado é enum**, nunca texto solto ([`domain.md`](domain.md), M6). |
 | G7 | **Log só pelo logger** (`createLogger`), nunca `console.*` ([`lib.md`](lib.md)). |
 | G8 | **Sem helper repetido:** procure em `lib/`, em `repos/parse-response.ts` e em `lib/schema.ts` antes de escrever um. Não vale para a regra de usecases de contextos diferentes, que pode se parecer de propósito ([`usecases.md`](usecases.md), U11). |
+| G9 | **No máximo 2 métodos encadeados** (`items.map(f).filter(g)`). Para mais, guarde o meio num `const`. A única exceção é o **build**: o builder do zod (`z.…`, `<Nome>Schema.…`) e o da consulta do Supabase (`sdk.…`, dentro do `query(build)`). Outro build leva `// check-ignore chained-calls: build`. |
+| G10 | **Classe é instanciada num `const`**, nunca dentro de outra expressão: nada de `new X(new Y())`, de `new` como argumento de um método, nem de método direto no `new` (`new Date().toISOString()` → `const now = new Date()` e `now.toISOString()` na linha de baixo). `throw new XError(…)`, `return new Domain(…)` e `=> new Domain(…)` são a expressão inteira e valem. |
+| G11 | **Nunca `return await`.** `const <nome> = await …;` e, na linha de baixo, `return <nome>;`. Vale dentro do `try`: o `await` continua no bloco e o `catch` pega a rejeição. |
 
 ## Checklist ao terminar
 
@@ -128,4 +133,5 @@ api/<rota>.ts (handle) → Usecase.execute(input) → Repo (pela interface) → 
 11. **`console.*`** em vez do logger? (L4)
 12. **Criei um helper** sem procurar em `lib/`, `repos/parse-response.ts` e `lib/schema.ts`? (G8)
 13. **Algum domain importa o domain de outro domínio para montar a saída, ou o usecase devolve uma interface solta?** É mapper com domain de saída (U9).
-14. `yarn typecheck` passa e o `check.cjs` não acusa nada nos arquivos tocados.
+14. **Cadeia com mais de 2 métodos fora do build, `new` dentro de argumento ou `return await`?** (G9, G10, G11)
+15. `yarn typecheck` passa e o `check.cjs` não acusa nada nos arquivos tocados.

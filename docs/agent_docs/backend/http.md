@@ -192,7 +192,10 @@ async function verify(payload: string, signature: string): Promise<boolean> {
   try {
     const bytes = Uint8Array.from(atob(signature), (char) => char.charCodeAt(0));
 
-    return await globalThis.crypto.subtle.verify("HMAC", await hmacKey(), bytes, encoder.encode(payload));
+    const key = await hmacKey();
+    const valid = await globalThis.crypto.subtle.verify("HMAC", key, bytes, encoder.encode(payload));
+
+    return valid;
   } catch {
     return false;
   }

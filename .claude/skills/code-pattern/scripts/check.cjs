@@ -102,6 +102,13 @@ const LINE_RULES = [
     pattern: /\bconst\s+enum\b/,
     message: "sem const enum (o esbuild não o compila entre arquivos)",
   },
+  {
+    id: "return-await",
+    doc: "README.md G11",
+    applies: () => true,
+    pattern: /\breturn\s+await\b/,
+    message: "sem return await: const <nome> = await …; e, na linha de baixo, return <nome>;",
+  },
 ];
 
 function listFiles(target) {
@@ -257,19 +264,184 @@ function checkUsecaseInputs(sources) {
   });
 }
 
+// o código sem strings, template e comentários (trocados por espaço), com as quebras de linha no lugar
+function stripCode(text) {
+  return text.replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\/|(["'`])(?:\\[\s\S]|(?!\1)[^\\])*\1/g, (match) =>
+    match.replace(/[^\n]/g, " "),
+  );
+}
+
+function lineAt(code, index) {
+  return code.slice(0, index).split("\n").length;
+}
+
+const OPEN = "([{";
+const CLOSE = ")]}";
+const CHAIN_LINK = /^\s*[!?]?\??\.\s*\w+\s*(?:<[^()]*?>)?\s*\(/;
+const CHAIN_RESET = /^(?:=>|===?|!==?|&&|\|\||\?\?|[,;=:?])/;
+const BUILD_HEAD = /^(?:(?:return|await|export|const|let|yield|throw)\s+)*(?:z|sdk|\w+Schema)\s*\./;
+
+// cadeia com mais de 2 métodos (G9); o build (z., sdk., *Schema.) é a exceção
+function checkChains(sources) {
+  return sources.flatMap(({ file, lines, text }) => {
+    const code = stripCode(text);
+    const links = [0];
+    const starts = [0];
+    const findings = [];
+
+    for (let i = 0; i < code.length; i += 1) {
+      const char = code[i];
+      const depth = links.length - 1;
+
+      if (OPEN.includes(char)) {
+        links.push(0);
+        starts.push(i + 1);
+        continue;
+      }
+
+      if (CLOSE.includes(char)) {
+        if (links.length > 1) {
+          links.pop();
+          starts.pop();
+        }
+
+        const outer = links.length - 1;
+        const rest = code.slice(i + 1, i + 200);
+
+        if (char !== ")") {
+          continue;
+        }
+
+        if (!CHAIN_LINK.test(rest)) {
+          continue;
+        }
+
+        links[outer] += 1;
+
+        if (links[outer] !== 2) {
+          continue;
+        }
+
+        const head = code.slice(starts[outer], i).trimStart();
+        const line = lineAt(code, i);
+
+        if (BUILD_HEAD.test(head) || isIgnored(lines, line - 1, "chained-calls")) {
+          continue;
+        }
+
+        findings.push({
+          file,
+          line,
+          rule: "chained-calls",
+          doc: "README.md G9",
+          message: "no máximo 2 métodos encadeados: guarde o meio num const (o build é a exceção)",
+          code: (lines[line - 1] ?? "").trim(),
+        });
+        continue;
+      }
+
+      const reset = CHAIN_RESET.exec(code.slice(i, i + 3));
+
+      if (reset) {
+        links[depth] = 0;
+        starts[depth] = i + reset[0].length;
+        i += reset[0].length - 1;
+      }
+    }
+
+    return findings;
+  });
+}
+
+const NEW_EXPRESSION = /\bnew\s+[\w.]+/g;
+
+// classe instanciada num const (G10): nada de new dentro de argumento nem método direto no new
+function checkInlineNew(sources) {
+  return sources.flatMap(({ file, lines, text }) => {
+    const code = stripCode(text);
+    const stack = [];
+    const findings = [];
+    const flagged = new Set();
+
+    const report = (index, message) => {
+      const line = lineAt(code, index);
+
+      if (flagged.has(line) || isIgnored(lines, line - 1, "inline-new")) {
+        return;
+      }
+
+      flagged.add(line);
+      findings.push({ file, line, rule: "inline-new", doc: "README.md G10", message, code: (lines[line - 1] ?? "").trim() });
+    };
+
+    const news = [...code.matchAll(NEW_EXPRESSION)].map((match) => match.index);
+    let next = 0;
+
+    for (let i = 0; i < code.length; i += 1) {
+      const char = code[i];
+
+      if (news[next] === i) {
+        const before = code.slice(0, i).trimEnd();
+
+        if (stack[stack.length - 1] === "(" && !before.endsWith("=>")) {
+          report(i, "classe instanciada num const, não dentro de um argumento");
+        }
+
+        next += 1;
+      }
+
+      if (OPEN.includes(char)) {
+        stack.push(char);
+        continue;
+      }
+
+      if (CLOSE.includes(char)) {
+        stack.pop();
+      }
+    }
+
+    for (const index of news) {
+      const after = code.slice(index);
+      const call = /^new\s+[\w.]+\s*(?:<[^()]*?>)?\s*\(/.exec(after);
+
+      if (!call) {
+        continue;
+      }
+
+      let depth = 0;
+      let end = call[0].length - 1;
+
+      for (; end < after.length; end += 1) {
+        if (after[end] === "(") depth += 1;
+        if (after[end] === ")") depth -= 1;
+        if (depth === 0) break;
+      }
+
+      if (/^\s*[!?]?\??\.\s*\w/.test(after.slice(end + 1, end + 50))) {
+        report(index, "classe instanciada num const; o método é chamado na linha de baixo");
+      }
+    }
+
+    return findings;
+  });
+}
+
 function main() {
   const targets = process.argv.slice(2);
   const files = [...new Set((targets.length ? targets : DEFAULT_TARGETS).flatMap(listFiles))];
-  const sources = files.map((full) => ({
-    file: path.relative(ROOT, full).split(path.sep).join("/"),
-    lines: fs.readFileSync(full, "utf8").split("\n"),
-  }));
+  const sources = files.map((full) => {
+    const text = fs.readFileSync(full, "utf8");
+
+    return { file: path.relative(ROOT, full).split(path.sep).join("/"), text, lines: text.split("\n") };
+  });
 
   const findings = [
     ...sources.flatMap(({ file, lines }) => checkLines(file, lines)),
     ...checkDuplicateHelpers(sources),
     ...checkMappers(sources),
     ...checkUsecaseInputs(sources),
+    ...checkChains(sources),
+    ...checkInlineNew(sources),
   ].sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
 
   if (findings.length === 0) {

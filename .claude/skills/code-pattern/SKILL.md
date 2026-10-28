@@ -31,6 +31,9 @@ O detalhe está nos docs; isto é o que mais aparece na revisão da Bea:
 - **Enum, não texto** para conjunto fechado; **`InfraError` com key**, não `throw new Error`, para falha
   de fonte; **logger**, não `console.*`; **helper comum em `lib/`**, nunca repetido.
 - se a saida de um mapper foi a mesma saida do usecase, então isso é uma domain, um objeto de dominio
+- **No máximo 2 métodos encadeados** (`a.b().c()`); só o build (`z.…`, `sdk.…`, `*Schema.…`) encadeia
+  mais. **Classe é instanciada num `const`**: nada de `new X(new Y())` nem `new Date().toISOString()`.
+  **Nunca `return await`**: `const <nome> = await …;` e, na linha de baixo, `return <nome>;` (README G9–G11).
 
 
 ## Conferir o padrão (`check.cjs`)
@@ -41,7 +44,8 @@ node .claude/skills/code-pattern/scripts/check.cjs <arquivos ou pastas tocados> 
 
 Lista cada desvio com `arquivo:linha [regra]` e o doc da regra: `console`, `safe-parse`,
 `response-fallback`, `throw-error`, `string-union`, `nullable-optional`, `raw-interface`,
-`repo-mapper`, `repo-mapping`, `const-enum`, `duplicate-helper` e `mapper-location` (mapper fora de
+`repo-mapper`, `repo-mapping`, `const-enum`, `duplicate-helper`, `return-await`, `inline-new`,
+`chained-calls` e `mapper-location` (mapper fora de
 `usecases/<contexto>/mappers/` ou mais de um por arquivo; em `domain/mappers/`, nome fora de `<Nome>Mapper.ts`). Corrija os desvios dos arquivos que você tocou.
 Uma exceção justificada leva `// check-ignore <regra>: motivo` na linha ou na de cima. O código fora
 do piloto ainda tem desvios de legado: não os corrija fora do escopo da tarefa.
