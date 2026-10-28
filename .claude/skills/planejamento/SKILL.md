@@ -44,11 +44,11 @@ Regras que o rascunho já respeita:
   `CLAUDE.md`. Corpo de rota vira domain no `*Request.toDomain`.
 - **Um usecase por contexto** (`booking/`, `event/`, `sync/`, `job/`). Código parecido entre
   contextos não é duplicação. Contexto novo só com a Bea de acordo.
-- **A rota pede o usecase ao injetor:** `await Envolviment.make<X>(X.token)`, numa variável com o
+- **A rota pede o usecase ao injetor:** `Envolviment.make<X>(X.token)`, numa variável com o
   nome do usecase. Usecase novo pedido por rota ganha `token` e um `case`.
 - **A UX é do dev do front:** telas e textos ficam como estão, e só o que é novo muda. Controle de
   diagnóstico fica atrás do `isDebug()` (`?debug=1`).
-- **Arquivos de código novos** levam o nome da classe (`IntegrationSetting.ts`), nada de
+- **Arquivos de código novos** levam o nome da classe (`FakeHttpClient.ts`), nada de
   kebab-case.
 
 ## 3. Os três documentos (onda 1, feita pelo orquestrador)
@@ -127,7 +127,7 @@ Entre as ondas, o orquestrador:
 - **Arquitetura e infra:** `docs/plans/deploy/README.md`, que planeja o deploy por provedor (dev,
   Vercel e Cloudflare), os jobs e os limites.
 - **Feature com injeção:** a chave que desliga o Transicionais:
-  - spec `fase-2.md`, regras K1–K5, J0 e F15;
-  - história em `plans/back/fase-2.md` e `plans/front/fase-2.md`;
-  - usecases em `usecases/producao.md` e `usecases/sincronizacao.md`;
+  - spec `fase-2.md`, regras K1–K4 e J0;
+  - história em `plans/back/fase-2.md`;
+  - usecases em `usecases/sincronizacao.md`;
   - padrão em `agent_docs/backend/envolviment.md` (EV8).
