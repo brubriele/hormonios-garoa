@@ -19,11 +19,15 @@ export interface IFindingUserBookingInput {
 }
 
 export class FindingUserBookingUsecase {
+  static readonly token = "FindingUserBookingUsecase";
+
   constructor(private readonly hormoniosRepository: IHormoniosRepository) {}
 
   async execute(input: IFindingUserBookingInput): Promise<User> {
     try {
-      return await this._execute(input);
+      const user = await this._execute(input);
+
+      return user;
     } catch (error) {
       if (error instanceof AppError) {
         logger.appError(error, { hormoniosUserId: input.userId ?? undefined });

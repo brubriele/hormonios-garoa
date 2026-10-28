@@ -16,5 +16,9 @@
   tentativas; webhook do Transicionais para encontro, pessoa e presença; job que reenvia a fila.
 - **Alteradas:** criar ensaio, gravar pessoa e reservar passam a enviar ao Transicionais; os logs
   ganham os contextos `Sync`, `Job` e `TransicionaisRepository`; a presença lida com grupo ou
-  suporte fora do evento responde 422 `INVALID_CACHE_STATE_ERROR` em vez de 500.
+  suporte fora do evento responde 422 `INVALID_CACHE_STATE_ERROR` em vez de 500; as rotas pedem
+  o usecase ao `Envolviment` (singleton lazy: client, session, repos e usecase montados uma vez por
+  instância, e o SDK do Supabase não é mais recriado a cada pedido); o token do Transicionais vira
+  campo da `TransicionaisSession`; o padrão ganha as regras G9 (no máximo 2 métodos encadeados), G10
+  (`new` só num `const`) e G11 (sem `return await`), conferidas pelo `check.cjs`.
 - **Removidas:** —

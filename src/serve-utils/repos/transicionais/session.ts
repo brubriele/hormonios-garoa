@@ -16,10 +16,10 @@ interface ISessionFailureResult {
 
 type ISessionResult = ISessionTokensResult | ISessionFailureResult;
 
-let tokens: ISessionTokens | null = null; // memória da instância (E2.6)
-
 // token de membro do Transicionais (E2.6). Login, refresh e o reenvio depois de um 401 ficam aqui (R10)
 export class TransicionaisSession {
+  private tokens: ISessionTokens | null = null; // E2.6
+
   constructor(private readonly httpClient: HttpClient) {}
 
   // chamada autenticada: num 401 (ou num status de renewOn), renova (ou entra de novo) e tenta uma vez mais
@@ -50,8 +50,8 @@ export class TransicionaisSession {
   }
 
   private async currentTokens(): Promise<ISessionResult> {
-    if (tokens) {
-      return { tokens };
+    if (this.tokens) {
+      return { tokens: this.tokens };
     }
 
     return this.login();
@@ -70,12 +70,13 @@ export class TransicionaisSession {
     }
 
     if (response.error || response.data === undefined) {
-      tokens = null;
+      this.tokens = null;
       return this.login();
     }
 
-    tokens = LoginResponse.toDomain(response.data, "refreshToken");
-    return { tokens };
+    this.tokens = LoginResponse.toDomain(response.data, "refreshToken");
+
+    return { tokens: this.tokens };
   }
 
   private async login(): Promise<ISessionResult> {
@@ -102,7 +103,8 @@ export class TransicionaisSession {
       throw new UpstreamResponseError("login", response.status, response.error?.message);
     }
 
-    tokens = LoginResponse.toDomain(response.data, "login");
-    return { tokens };
+    this.tokens = LoginResponse.toDomain(response.data, "login");
+
+    return { tokens: this.tokens };
   }
 }

@@ -95,6 +95,7 @@ encontro) e `fetchedAt` (a última leitura). O `User` guarda a conta inteira em 
 | T5 | Qualquer outra recusa vira `UpstreamBadContractError` (400, 409, 422) ou `UpstreamResponseError`, com o erro como veio, para gravar no `errorCtx`. |
 | T6 | O repo loga toda falha antes de lançar (`repositoryError`, `context: TransicionaisRepository`). |
 | T7 | A presença lida (Supabase ou webhook) com `groupId` ou `supportIds` fora do evento vira `InvalidCacheStateError` (422 `INVALID_CACHE_STATE_ERROR`, E9), e não 500. O front mostra "Não foi possível concluir. Tente de novo." (a `key` não tem mensagem própria no `app.js`). |
+| T8 | O token da conta de membro é campo da `TransicionaisSession`. Como a session é singleton pelo `Envolviment`, o login vale para os pedidos seguintes da mesma instância. |
 
 #### Envio (Supabase → Transicionais)
 
@@ -166,6 +167,14 @@ erro do Transicionais como veio). RLS ligada, sem políticas. O backoff é regra
 | usecases de `sync/` (webhook) | `Sync`: `track` no início (e o resultado do evento: criado, atualizado, já processado, não achado) e `appError` no catch |
 | usecases de `job/` | `Job`: `track` no início, `appError` no catch e `error` por item que falhou ou foi recusado, com o `hormonios*Id` |
 | `TransicionaisRepo` | `TransicionaisRepository`: `repositoryError` com a `operation` antes de lançar |
+
+#### Montagem das rotas (`Envolviment`)
+
+| # | Regra |
+|---|---|
+| V1 | A rota pede o usecase por `Envolviment.make<Tipo>(<Usecase>.token)` (estático), numa variável com o nome do usecase. Ela não monta client, session nem repo. |
+| V2 | **Singleton lazy por instância** (função da Vercel, isolate da Cloudflare): o 1º `make` de um token monta o usecase e as dependências que faltam (`HttpClient`, `SupabaseClient`, `TransicionaisSession`, repos) e guarda; os seguintes devolvem a instância. O SDK do Supabase nasce uma vez por instância, na 1ª consulta. |
+| V3 | Token sem `case` no `make` → `Error` de configuração (500). Os 8 usecases pedidos por rota têm `token`; `CreatingOrUpdateUserUsecase` e `FindingUserUsecase` são montados dentro do `CreatingOrUpdatingAttendanceUsecase`. |
 
 #### Limites conhecidos
 

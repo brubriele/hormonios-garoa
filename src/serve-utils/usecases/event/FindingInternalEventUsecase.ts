@@ -12,6 +12,8 @@ import { CreatingInternalEventUsecase } from "./CreatingInternalEventUsecase";
 const logger = createLogger("FindingInternalEventUsecase", LogContext.Event);
 
 export class FindingInternalEventUsecase {
+  static readonly token = "FindingInternalEventUsecase";
+
   constructor(
     private readonly hormoniosRepository: IHormoniosRepository,
     private readonly transicionaisRepo: ITransicionaisRepo,
@@ -19,7 +21,9 @@ export class FindingInternalEventUsecase {
 
   async execute(): Promise<ManagerEvent> {
     try {
-      return await this._execute();
+      const managerEvent = await this._execute();
+
+      return managerEvent;
     } catch (error) {
       if (error instanceof AppError) {
         logger.appError(error);
@@ -45,7 +49,9 @@ export class FindingInternalEventUsecase {
 
   private async findCurrentEventOrMock(): Promise<Event> {
     try {
-      return await this.findCurrentEvent();
+      const event = await this.findCurrentEvent();
+
+      return event;
     } catch (error) {
       if (error instanceof NotFoundError) {
         return this.createMockEvent();

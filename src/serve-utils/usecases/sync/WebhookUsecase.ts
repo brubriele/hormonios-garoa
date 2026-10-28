@@ -41,6 +41,8 @@ type IWebhookData = z.infer<typeof WebhookInputSchema>;
 export type IWebhookInput = z.input<typeof WebhookInputSchema>;
 
 export class WebhookUsecase {
+  static readonly token = "WebhookUsecase";
+
   constructor(
     private readonly transicionaisRepo: ITransicionaisRepo,
     private readonly hormoniosRepository: IHormoniosRepository,
@@ -48,7 +50,9 @@ export class WebhookUsecase {
 
   async execute(input: IWebhookInput): Promise<WebhookResult> {
     try {
-      return await this._execute(input);
+      const result = await this._execute(input);
+
+      return result;
     } catch (error) {
       if (error instanceof AppError) {
         logger.appError(error);

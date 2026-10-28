@@ -116,7 +116,8 @@ private async findTransicionaisSnapshot(): Promise<CurrentEventSnapshot | null> 
 ## Exemplo: token do Transicionais (`session.ts`)
 
 Até existir a role `SERVICE`, o BFF entra como membro (`docs/spec/fase-2.md`). O token fica na
-memória da função (uma instância serve vários pedidos) e nunca sai do repo.
+campo da `TransicionaisSession`, que o `Envolviment` guarda como singleton ([`envolviment.md`](envolviment.md)):
+sobrevive entre os pedidos da mesma instância e nunca sai do repo.
 
 ```ts
 // src/serve-utils/repos/transicionais/session.ts
@@ -125,9 +126,9 @@ import type { IClientResponse } from "../../interfaces/client-response";
 import type { IRawLogin } from "../../interfaces/transicionais";
 import { TransicionaisUrlCollection } from "./url-collection";
 
-let tokens: { access: string; refresh: string } | null = null; // memória da instância
-
 export class TransicionaisSession {
+  private tokens: { access: string; refresh: string } | null = null;
+
   constructor(private readonly httpClient: HttpClient) {}
 
   // chamada autenticada: num 401, renova (ou entra de novo) e tenta uma vez mais
@@ -138,8 +139,9 @@ export class TransicionaisSession {
       return first;
     }
 
-    tokens = await this.renew();
-    return this.send<T>(input, tokens.access);
+    this.tokens = await this.renew();
+
+    return this.send<T>(input, this.tokens.access);
   }
 
   private send<T>(input: IHttpRequest, access: string): Promise<IClientResponse<T>> {
@@ -147,8 +149,9 @@ export class TransicionaisSession {
   }
 
   private async accessToken(): Promise<string> {
-    tokens ??= await this.login();
-    return tokens.access;
+    this.tokens ??= await this.login();
+
+    return this.tokens.access;
   }
 
   private async renew(): Promise<{ access: string; refresh: string }> {

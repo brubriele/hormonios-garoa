@@ -23,6 +23,8 @@ type IJobData = z.infer<typeof JobInputSchema>;
 export type IJobInput = z.input<typeof JobInputSchema>;
 
 export class JobUsecase {
+  static readonly token = "JobUsecase";
+
   constructor(
     private readonly transicionaisRepo: ITransicionaisRepo,
     private readonly hormoniosRepository: IHormoniosRepository,
@@ -30,7 +32,9 @@ export class JobUsecase {
 
   async execute(input: IJobInput): Promise<Event[] | User[] | Attendance[]> {
     try {
-      return await this._execute(input);
+      const items = await this._execute(input);
+
+      return items;
     } catch (error) {
       if (error instanceof AppError) {
         logger.appError(error);

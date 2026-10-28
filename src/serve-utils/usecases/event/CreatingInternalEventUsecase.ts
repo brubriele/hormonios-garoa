@@ -76,6 +76,8 @@ export const EventBodySchema = z
 const CreatingInternalEventInputSchema = z.instanceof(Event);
 
 export class CreatingInternalEventUsecase {
+  static readonly token = "CreatingInternalEventUsecase";
+
   constructor(
     private readonly hormoniosRepository: IHormoniosRepository,
     private readonly transicionaisRepo: ITransicionaisRepo,
@@ -83,7 +85,9 @@ export class CreatingInternalEventUsecase {
 
   async execute(data: Event): Promise<Event> {
     try {
-      return await this._execute(data);
+      const created = await this._execute(data);
+
+      return created;
     } catch (error) {
       if (error instanceof AppError) {
         logger.appError(error, { hormoniosEventId: data.id });
@@ -145,7 +149,9 @@ export class CreatingInternalEventUsecase {
     try {
       const external = await this.transicionaisRepo.createEvent(event);
 
-      return await this.saveSynced(event, external, integrationStatus, now);
+      const saved = await this.saveSynced(event, external, integrationStatus, now);
+
+      return saved;
     } catch (error) {
       const failed = this.toFailedStatus(integrationStatus, error, now);
 

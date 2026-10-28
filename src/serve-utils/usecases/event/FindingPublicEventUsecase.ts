@@ -7,11 +7,15 @@ import { createLogger, LogContext } from "../../lib/logger";
 const logger = createLogger("FindingPublicEventUsecase", LogContext.Event);
 
 export class FindingPublicEventUsecase {
+  static readonly token = "FindingPublicEventUsecase";
+
   constructor(private readonly hormoniosRepository: IHormoniosRepository) {}
 
   async execute(): Promise<Event> {
     try {
-      return await this._execute();
+      const event = await this._execute();
+
+      return event;
     } catch (error) {
       if (error instanceof AppError) {
         logger.appError(error);

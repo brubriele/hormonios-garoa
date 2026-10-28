@@ -15,11 +15,15 @@ const logger = createLogger("UpdatingInternalEventUsecase", LogContext.Event);
 const UpdatingInternalEventInputSchema = z.instanceof(Event);
 
 export class UpdatingInternalEventUsecase {
+  static readonly token = "UpdatingInternalEventUsecase";
+
   constructor(private readonly hormoniosRepository: IHormoniosRepository) {}
 
   async execute(data: Event): Promise<ManagerEvent> {
     try {
-      return await this._execute(data);
+      const managerEvent = await this._execute(data);
+
+      return managerEvent;
     } catch (error) {
       if (error instanceof AppError) {
         logger.appError(error, { hormoniosEventId: data.id });

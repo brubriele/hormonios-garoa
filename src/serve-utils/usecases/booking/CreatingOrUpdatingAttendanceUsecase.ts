@@ -65,6 +65,8 @@ export interface ICreatingOrUpdatingAttendanceInput extends ICreatingOrUpdatingA
 }
 
 export class CreatingOrUpdatingAttendanceUsecase {
+  static readonly token = "CreatingOrUpdatingAttendanceUsecase";
+
   constructor(
     private readonly hormoniosRepository: IHormoniosRepository,
     private readonly transicionaisRepo: ITransicionaisRepo,
@@ -74,7 +76,9 @@ export class CreatingOrUpdatingAttendanceUsecase {
 
   async execute(input: ICreatingOrUpdatingAttendanceInput): Promise<User> {
     try {
-      return await this._execute(input);
+      const user = await this._execute(input);
+
+      return user;
     } catch (error) {
       if (error instanceof AppError) {
         logger.appError(error, { hormoniosUserId: input.userId ?? undefined });
@@ -319,7 +323,8 @@ export class CreatingOrUpdatingAttendanceUsecase {
   // F8
   private toAttendance(event: Event, user: User, current: Attendance | null, data: ICreatingOrUpdatingAttendanceData): Attendance {
     const id = current ? current.id : globalThis.crypto.randomUUID();
-    const createdAt = current ? current.createdAt : new Date().toISOString();
+    const now = new Date();
+    const createdAt = current ? current.createdAt : now.toISOString();
     const currentMetadata = current ? current.metadata : null;
     const supportIds = this.uniqueSupportIds(data.supportIds);
     const attendanceData: IAttendanceData = {
@@ -372,7 +377,9 @@ export class CreatingOrUpdatingAttendanceUsecase {
 
       await this.transicionaisRepo.createAttendance(userWithAttendance);
 
-      return await this.saveSynced(attendance, integrationStatus, event, now);
+      const saved = await this.saveSynced(attendance, integrationStatus, event, now);
+
+      return saved;
     } catch (error) {
       const failed = this.toFailedStatus(integrationStatus, error, now);
 
