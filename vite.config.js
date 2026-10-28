@@ -8,10 +8,6 @@ function vercelApiDev() {
   return {
     name: 'vercel-api-dev',
     apply: 'serve',
-    // window.HG_DEV: o que só aparece no `yarn dev` (ex.: E-{id}-{integrationId} do ensaio)
-    transformIndexHtml() {
-      return [{ tag: 'script', children: 'window.HG_DEV = true', injectTo: 'head-prepend' }]
-    },
     configureServer(server) {
       const root = server.config.root
       const env = loadEnv('development', root, '') // .env, .env.local etc.

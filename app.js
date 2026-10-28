@@ -159,7 +159,7 @@ function bindRetry(el){
 }
 
 function isDebug(){
-  return window.HG_DEV === true || new URLSearchParams(location.search).get("debug") === "1";
+  return new URLSearchParams(location.search).get("debug") === "1";
 }
 
 function devEventCode(event){

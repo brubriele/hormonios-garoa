@@ -205,6 +205,6 @@ envio. Só muda o que segue.
 | # | Regra |
 |---|---|
 | F12 | **Presença recusada não conta.** A presença com `sync: "REJECTED"` (o Transicionais recusou) é ignorada em Minhas reservas, na folha ("Você já reservou este instrumento.") e nas presenças e reservas da Produção. A pessoa pode reservar de novo. |
-| F13 | **Código do evento em debug.** Com `?debug=1` na URL ou `window.HG_DEV = true`, a home (abertas e fechadas) e o título "PRÓXIMO ENSAIO" da Produção mostram `E-<id>-<integrationId>`. Evento ainda não enviado mostra `NÃO_INTEGRADO` no lugar do `integrationId`. Fora do debug, o código fica escondido. |
-| F15 | **Chave do Transicionais em debug.** Com `?debug=1` (ou `window.HG_DEV`), o `loadAdmin` também lê `GET /api/admin/integracao` (`state.integration`) e o `renderAdmin` mostra o botão "Transicionais: ligado / desligado", no estilo do `toggleBooking`, que grava pelo `PUT` e mostra um toast. Fora do debug, nada muda. |
+| F13 | **Código do evento em debug.** Só com `?debug=1` na URL, a home (abertas e fechadas) e o título "PRÓXIMO ENSAIO" da Produção mostram `E-<id>-<integrationId>`. Evento ainda não enviado mostra `NÃO_INTEGRADO` no lugar do `integrationId`. Fora do debug, o código fica escondido. |
+| F15 | **Chave do Transicionais em debug.** Só com `?debug=1` na URL, o `loadAdmin` também lê `GET /api/admin/integracao` (`state.integration`) e o `renderAdmin` mostra o botão "Transicionais: ligado / desligado", no estilo do `toggleBooking`, que grava pelo `PUT` e mostra um toast. Fora do debug, nada muda. |
 | F14 | **Evento criado pelo Transicionais** chega com a reserva fechada (`bookingOpen` `null`) e sem link do WhatsApp, até a Produção definir os dois. A home mostra o estado de reservas fechadas. |
