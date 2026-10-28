@@ -77,4 +77,8 @@ Exemplos de escolha simples:
 ## Fluxo
 
 1. Ao fim de cada onda, só `tsc` e `check.cjs`. **Nunca `yarn build`**: pode travar a máquina.
-2. Só no final, pergunte como ficam o commit e o push.
+2. Antes de commitar, atualize a doc de usecase para pessoas (`docs/usecases/`): o bloco de cada
+   usecase que mudou, com o **Desenho** (a rota, o usecase, o que ele confere e as chamadas de repo,
+   em alto nível, no formato do desenho da spec), e o "Retrato dos endpoints" do
+   `docs/usecases/README.md` se uma rota mudou.
+3. Só no final, pergunte como ficam o commit e o push.

@@ -10,6 +10,19 @@
 **Contexto.** Criar um ensaio, editar o estoque, gravar uma pessoa ou uma reserva precisa chegar ao Transicionais,
 sem fazer a tela esperar nem falhar.
 
+**Desenho.**
+
+```
+usecase grava no Hormônios (ensaio, estoque, pessoa ou reserva)
+  ▼
+hormoniosRepository.findIntegrationStatus(…)       a fila da entidade
+  ▼ pronto? (data, pessoa e ensaio lá)  não → fila pendente
+transicionaisRepo.create… / updateEvent(…)
+  ├─ ok → createOrUpdateIntegrationStatus(enviado)
+  ├─ fora do ar → pendente: 1, 5, 15, 60 min (na 10ª, parada)   (fase-2 E3)
+  └─ recusa → parada, com o motivo                              (fase-2 E4)
+```
+
 **Decisão.**
 - Logo depois de gravar, o sistema envia.
 - Se o Transicionais estiver fora do ar, tenta de novo depois de 1, 5, 15 e então a cada 60
@@ -33,6 +46,19 @@ ensaio e as reservas.
 
 **Contexto.** O Transicionais avisa que um encontro, uma pessoa ou uma presença mudou.
 
+**Desenho.**
+
+```
+POST /api/webhooks/transicionais (chave do aviso) ── WebhookUsecase
+  ▼ o que mudou?
+  ├─ encontro → EventWebhookUsecase
+  ├─ pessoa → UserWebhookUsecase
+  ├─ presença → AttendanceWebhookUsecase
+  └─ outro → recusado
+  ▼
+{ igual | pendente | recusado } ──► resposta
+```
+
 **Decisão.**
 - Só aceita aviso com a chave combinada.
 - Encaminha o aviso conforme o que mudou: encontro, pessoa ou presença. Outro tipo é recusado.
@@ -47,6 +73,19 @@ ensaio e as reservas.
 **Telas.** Nenhuma: o ensaio aparece na Home e na Produção.
 
 **Contexto.** Um encontro foi criado ou alterado no Transicionais.
+
+**Desenho.**
+
+```
+EventWebhookUsecase
+  ▼
+transicionaisRepo.findEvent(id)                   só os grupos da publicação (spec-4 B8)
+  │ não existe → recusado · fora do ar → pendente
+  ▼
+hormoniosRepository.findEventByIntegrationId(id)
+  ├─ não existe → CreatingInternalEventUsecase (reservas fechadas)
+  └─ mudou e não é mais antigo → UpdatingInternalEventUsecase (não volta para lá)
+```
 
 **Decisão.**
 - Se o encontro não existe lá, recusa.
@@ -66,6 +105,18 @@ ensaio e as reservas.
 
 **Contexto.** Uma pessoa foi cadastrada ou alterada no Transicionais.
 
+**Desenho.**
+
+```
+UserWebhookUsecase
+  ▼
+transicionaisRepo.findUser(id)                    não existe → recusado
+  ▼
+hormoniosRepository.findUserByIntegrationId(id) ou findUserByEmail(email)
+  ├─ achou → só liga à conta de lá
+  └─ não achou → CreatingOrUpdateUserUsecase (sem e-mail → recusado)
+```
+
 **Decisão.**
 - Se a pessoa não existe lá, recusa.
 - Procura a pessoa aqui pela conta ou pelo e-mail.
@@ -82,6 +133,20 @@ na Produção.
 
 **Contexto.** Uma presença foi criada ou alterada no Transicionais.
 
+**Desenho.**
+
+```
+AttendanceWebhookUsecase
+  ▼
+transicionaisRepo.findAttendance(id)              não existe → recusado
+  ▼
+hormoniosRepository.findEventByTransicionaisDayId(dia)   não existe → recusado
+  ▼
+pessoa: findUserByIntegrationId / findUserByEmail ou CreatingOrUpdateUserUsecase
+  ▼
+hormoniosRepository.findAttendanceByIntegrationId(…) → createOrUpdateAttendance(…) se mudou
+```
+
 **Decisão.**
 - Se a presença não existe lá, ou o ensaio dela não existe aqui, recusa.
 - Acha a pessoa ou a cria.
@@ -97,6 +162,19 @@ na Produção.
 **Telas.** Nenhuma: quem chama é um agendador, de tempos em tempos.
 
 **Contexto.** O que não chegou ao Transicionais precisa ser enviado de novo, sem ninguém pedir.
+
+**Desenho.**
+
+```
+GET /api/cron/sync?type=event|user|attendance (chave do cron) ── JobUsecase
+  ▼ Transicionais desligado? → "fora do ar" (503), sem tocar a fila   (spec-3 D1)
+  ├─ event → EventJobUsecase
+  ├─ user → UserJobUsecase
+  ├─ attendance → AttendanceJobUsecase
+  └─ outro → 400
+  ▼
+lista do que foi reenviado ──► resposta
+```
 
 **Decisão.**
 - Só aceita a chamada com a chave combinada.
@@ -115,6 +193,20 @@ na Produção.
 **Telas.** Nenhuma: quem chama é o reenvio acima.
 
 **Contexto.** Cada um reenvia os pendentes de um tipo.
+
+**Desenho.**
+
+```
+Event/User/AttendanceJobUsecase
+  ▼
+hormoniosRepository.findDueIntegrationStatus(tipo, pendente, agora, 30)
+  ▼ um por vez, em paralelo
+hormoniosRepository.findEvent / findUser / findAttendance(…)   não existe → parada
+  ▼
+transicionaisRepo.createEvent | updateEvent (já está lá) | createUser | createAttendance
+  ▼
+como no Envio
+```
 
 **Decisão.**
 - Pega os pendentes cuja nova tentativa já está na hora, os mais antigos primeiro, até 30 por vez.

@@ -9,6 +9,22 @@
 **Contexto.** Qualquer pessoa, sem se identificar, vê o próximo ensaio e o que ainda dá para
 reservar.
 
+**Desenho.**
+
+```
+GET /api/ensaio ── FindingPublicEventUsecase
+  ▼
+hormoniosRepository.findCurrentEvent()            o último criado (fase-1 D2)
+  │ não tem
+  ├─► transicionaisRepo.findLastPublicEvent()      o último Público de lá (spec-4 A2)
+  │     └─ fora do ar ou sem encontro → "não encontrado" (404)
+  │   hormoniosRepository.createEvent(…)           reservas fechadas, sem link (spec-4 A3)
+  ▼
+hormoniosRepository.findEventAttendance(event)
+  ▼
+conta quem vai e o que está livre ──► resposta
+```
+
 **Decisão.**
 - O ensaio atual é o último criado.
 - Sem ensaio aqui, traz o último ensaio aberto ao público no Transicionais, com as reservas

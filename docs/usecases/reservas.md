@@ -1,6 +1,6 @@
 # Reservas
 
-> Atualizado em 2026-10-27. A reserva é a presença da pessoa no ensaio atual, com ou sem
+> Atualizado em 2026-10-28. A reserva é a presença da pessoa no ensaio atual, com ou sem
 > instrumento.
 
 ## Confirmar presença, reservar ou desfazer (CreatingOrUpdatingAttendanceUsecase) — `POST /api/reserva` e `POST /api/reserva/desfazer`
@@ -10,6 +10,24 @@ reservas ("Desfazer").
 
 **Contexto.** A pessoa diz que vai ao ensaio (só presença, ou com instrumento e acessórios) ou que
 não vai.
+
+**Desenho.**
+
+```
+POST /api/reserva · /api/reserva/desfazer ── CreatingOrUpdatingAttendanceUsecase
+  ▼
+hormoniosRepository.findCurrentEvent()
+  ▼
+FindingUserUsecase (aparelho ou e-mail) + hormoniosRepository.findEventAttendance(event)
+  ▼ vai?
+confere: aberto, vaga no ensaio, no grupo, no instrumento e nos acessórios
+  ▼
+CreatingOrUpdateUserUsecase ──► hormoniosRepository.createOrUpdateAttendance(…)
+  ▼ pessoa e ensaio já estão lá?
+transicionaisRepo.createAttendance(user)          grupo + instrumento + acessórios (spec-4 D4)
+  ├─ ok → transicionaisRepo.findPresence(user) → guarda o id de lá (spec-4 D1)
+  └─ falha → fila pendente ou parada, a tela não falha
+```
 
 **Decisão.**
 - A pessoa informa e-mail, nome, pronome e se vai. Se vai, pode escolher um instrumento e os
@@ -38,6 +56,19 @@ mascarado, o nome e o pronome.
 
 **Contexto.** A pessoa vê a própria reserva do ensaio atual.
 
+**Desenho.**
+
+```
+GET /api/minhas-reservas ── FindingUserBookingUsecase
+  ▼
+pessoa reconhecida pelo aparelho
+  ▼
+hormoniosRepository.findCurrentEvent() + findUserById(userId)
+  │ não achou → "não encontrado"
+  ▼
+nome, pronome, e-mail mascarado e a reserva ──► resposta
+```
+
 **Decisão.**
 - A pessoa é reconhecida pelo aparelho onde reservou.
 - Mostra o nome, o pronome, o e-mail mascarado e a reserva dela no ensaio atual.
@@ -52,6 +83,19 @@ mascarado, o nome e o pronome.
 
 **Contexto.** Antes de reservar, o sistema precisa saber se a pessoa já existe.
 
+**Desenho.**
+
+```
+dentro da reserva ── FindingUserUsecase
+  ▼
+hormoniosRepository.findUserById(userId do aparelho)
+  │ e-mail confere (completo ou mascarado)? → é ela
+  ▼
+hormoniosRepository.findUserByEmail(email)
+  ├─ achou → é essa pessoa
+  └─ não achou → pessoa nova
+```
+
 **Decisão.**
 - Se o aparelho já reservou e o e-mail é o da pessoa (o completo, ou o mascarado que a tela
   mostrou), é ela.
@@ -65,6 +109,18 @@ mascarado, o nome e o pronome.
 **Telas.** Nenhuma diretamente: roda dentro da reserva e quando uma pessoa chega do Transicionais.
 
 **Contexto.** A pessoa que reserva precisa estar cadastrada aqui e no Transicionais.
+
+**Desenho.**
+
+```
+dentro da reserva ou do aviso ── CreatingOrUpdateUserUsecase
+  ▼
+hormoniosRepository.createOrUpdateUser(user)
+  ▼
+transicionaisRepo.createUser(user)                pelo e-mail, não duplica
+  ├─ ok → guarda a conta de lá + fila enviada
+  └─ falha → fila pendente ou parada
+```
 
 **Decisão.**
 - Grava a pessoa, nova ou atualizada.

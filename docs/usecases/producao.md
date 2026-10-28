@@ -8,6 +8,20 @@
 
 **Contexto.** A Produção acompanha o ensaio atual: quem vai, quem reservou o quê e o estoque.
 
+**Desenho.**
+
+```
+GET /api/admin/ensaio (chave da Produção) ── FindingInternalEventUsecase
+  ▼
+hormoniosRepository.findCurrentEvent()
+  │ não tem (primeira vez)
+  ├─► CreatingInternalEventUsecase                 grupos e catálogo padrão
+  ▼
+hormoniosRepository.findEventAttendance(event) + findEventUsers(event)
+  ▼
+conta vagas por grupo e estoque ──► resposta
+```
+
 **Decisão.**
 - Mostra o ensaio atual com as pessoas e o que cada uma reservou.
 - Mostra quantas vagas sobram em cada grupo, além do estoque de cada item.
@@ -26,6 +40,20 @@
 vez que a Produção abre e quando um encontro novo chega do Transicionais.
 
 **Contexto.** Ao fim de um ensaio, a Produção abre o próximo.
+
+**Desenho.**
+
+```
+POST /api/admin/novo-ensaio (chave da Produção) ── CreatingInternalEventUsecase
+  ▼
+confere local, data, horários, acessórios e instrumentos
+  ▼
+hormoniosRepository.createEvent(event)            passa a ser o atual
+  ▼ sem data → fila pendente
+transicionaisRepo.createEvent(event)              nome <nome>#<id>, todos os grupos (spec-4 B9, F1)
+  ├─ ok → hormoniosRepository.updateEvent(ids de lá) + fila enviada
+  └─ falha → fila pendente (fora do ar) ou parada (recusa)  (fase-2 E1–E5)
+```
 
 **Decisão.**
 - O ensaio precisa ter local, data e horários válidos, acessórios só de grupos do ensaio e no
@@ -46,6 +74,22 @@ estoque −/+. Também roda sem tela, quando o encontro muda no Transicionais.
 
 **Contexto.** A Produção ajusta o ensaio: data, horário, local, link do grupo, abertura das
 reservas, grupos e estoque.
+
+**Desenho.**
+
+```
+PUT /api/admin/ensaio (chave da Produção) ── UpdatingInternalEventUsecase
+  ▼
+hormoniosRepository.findEvent(id) + findEventAttendance(event)
+  ▼
+junta com o gravado · confere grupos/itens reservados e estoque
+  ▼
+hormoniosRepository.updateEvent(event)
+  ▼ já está no Transicionais e veio do admin?
+transicionaisRepo.updateEvent(event)              o estoque de cada item (spec-4 C1–C3)
+  ├─ ok → fila enviada
+  └─ falha → fila pendente ou parada, a tela não falha
+```
 
 **Decisão.**
 - As mesmas regras da criação valem na edição.
