@@ -7,3 +7,7 @@ dist/
 .vercel
 .env*
 !.env.example
+
+# contrato OpenAPI do Transicionais e exemplo de resposta: só local
+docs/transicionais-api.json
+docs/plans/transicionais/public-event-exemplo.json
