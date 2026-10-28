@@ -1,6 +1,6 @@
 # Sincronização
 
-> Atualizado em 2026-10-27. O ensaio, as pessoas e as presenças ficam iguais no Transicionais: o
+> Atualizado em 2026-10-28. O ensaio, as pessoas e as presenças ficam iguais no Transicionais: o
 > que muda aqui é enviado para lá, e o que muda lá é trazido para cá.
 
 ## Envio — dentro de criar ensaio, gravar pessoa e reservar
@@ -103,6 +103,8 @@ na Produção.
 
 **Consequências.**
 - Cada tipo é chamado separado, então um tipo com problema não atrasa os outros.
+- Enquanto o Transicionais está desligado, as tentativas não contam: o que ficou pendente não
+  para por excesso de tentativas.
 
 ## Reenviar ensaios, pessoas ou presenças (EventJobUsecase, UserJobUsecase e AttendanceJobUsecase) — sem rota
 

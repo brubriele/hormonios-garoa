@@ -72,20 +72,6 @@ Criados:
 Já existiam: a fila, o envio do repo do Transicionais e a mesma regra de envio dos usecases de
 criação.
 
-## Como time, quero desligar o Transicionais de propósito sem travar a fila
-
-Criados:
-- **Env** `TRANSICIONAIS_ENABLED` (padrão `true`; `false` desliga), lida por
-  `isTransicionaisEnabled()` em [`lib/upstream.ts`](../../../src/serve-utils/lib/upstream.ts).
-- **Client** [`FakeHttpClient`](../../../src/serve-utils/clients/FakeHttpClient.ts) e a interface
-  `IHttpClient`: o Transicionais desligado responde "fora do ar" na hora, sem rede.
-
-Alterados:
-- **`Envolviment`:** injeta o repo do Transicionais com o `FakeHttpClient` quando a env desliga.
-- **`JobUsecase`:** a 1ª linha confere a env; desligado, responde 503 sem tocar a fila.
-
-Já existiam: o plano de falha dos usecases de envio (fora do ar → `Pending`), que não muda.
-
 ## Como time, quero achar as falhas do Transicionais nos logs
 
 Alterado: o padrão de log ganha os contextos `Sync`, `Job` e `TransicionaisRepository`. O repo do

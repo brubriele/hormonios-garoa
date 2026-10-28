@@ -14,7 +14,7 @@
 | EV4 | `make` tem **um `switch (token)`**, um `case <Usecase>.token` por usecase pedido em rota, e o `default` lança `Error` de configuração (E7) com o token. |
 | EV5 | Clients, session e repos são **getters estáticos privados**, criados no 1º acesso. Os repos saem tipados pela interface (`IHormoniosRepository`, `ITransicionaisRepo`). |
 | EV6 | Cada `case` monta o usecase com um `const` por dependência (G10). O usecase usado só dentro de outro é montado no `case` de quem o usa, sem token. |
-| EV8 | **Transicionais ligado ou desligado:** no `make` de um usecase que usa o Transicionais, lê `isTransicionaisEnabled()` (`lib/upstream.ts`, env `TRANSICIONAIS_ENABLED`). Ligado → o repo com `HttpClient`; desligado → o repo com `FakeHttpClient` (responde 503 na hora, sem rede). As duas montagens são lazy; o usecase fica no cache por `token` + estado (spec fase-2, K1–K4). |
+| EV8 | **Transicionais ligado ou desligado:** no `make` de um usecase que usa o Transicionais, lê `isTransicionaisEnabled()` (`lib/upstream.ts`, env `TRANSICIONAIS_ENABLED`). Ligado → o repo com `HttpClient`; desligado → o repo com `FakeHttpClient` (responde 503 na hora, sem rede). As duas montagens são lazy; o usecase fica no cache por `token` + estado ([`spec-3`](../../spec/spec-3-transicionais-desligado.md) A e B). |
 | EV7 | Teste com fake não usa o `Envolviment`: monta o usecase pelo construtor ([`usecases.md`](usecases.md), "Teste com fake"). |
 
 ## Fluxo
