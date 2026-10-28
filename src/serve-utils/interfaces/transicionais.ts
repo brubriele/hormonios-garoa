@@ -4,12 +4,14 @@ import type { User } from "../domain/User";
 
 export interface ITransicionaisRepo {
   createEvent(event: Event): Promise<Event>;
-  // updateEvent(event: Event): Promise<Event>;
+  updateEvent(event: Event): Promise<Event>; // spec-4 C1, C2, C5
   findEvent(externalId: string): Promise<Event> // já resolve pela listagem e devolve o evento externo, caso receba o externalId pula essa etapa
+  findLastPublicEvent(): Promise<Event>; // spec-4 A2
 
   createAttendance(user: User): Promise<Attendance>;
   // updateAttendance(user: User): Promise<Attendance>;
   // findUserAttendance(user: User): Promise<Attendance>
+  findPresence(user: User): Promise<Attendance | null>; // spec-4 D1
 
   createUser(user: User): Promise<User>;
   findUser(externalId: string): Promise<User>;

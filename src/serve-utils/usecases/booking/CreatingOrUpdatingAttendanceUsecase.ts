@@ -377,7 +377,9 @@ export class CreatingOrUpdatingAttendanceUsecase {
 
       await this.transicionaisRepo.createAttendance(userWithAttendance);
 
-      const saved = await this.saveSynced(attendance, integrationStatus, event, now);
+      const presence = await this.findPresence(userWithAttendance, attendance);
+
+      const saved = await this.saveSynced(attendance, presence, integrationStatus, event, now);
 
       return saved;
     } catch (error) {
@@ -411,9 +413,28 @@ export class CreatingOrUpdatingAttendanceUsecase {
     return integrationStatus.manualRetry(errorCtx, now);
   }
 
-  private async saveSynced(attendance: Attendance, integrationStatus: IntegrationStatus, event: Event, now: Date): Promise<Attendance> {
+  // spec-4 D2
+  private async findPresence(user: User, attendance: Attendance): Promise<Attendance | null> {
+    try {
+      const presence = await this.transicionaisRepo.findPresence(user);
+
+      return presence;
+    } catch (error) {
+      logger.error({ err: error, hormoniosAttendanceId: attendance.id }, "presence not read after send");
+
+      return null;
+    }
+  }
+
+  private async saveSynced(
+    attendance: Attendance,
+    presence: Attendance | null,
+    integrationStatus: IntegrationStatus,
+    event: Event,
+    now: Date,
+  ): Promise<Attendance> {
     const syncedAt = now.toISOString();
-    const synced = this.withSync(attendance, SyncStatus.Synced, null, syncedAt, event);
+    const synced = this.withPresence(attendance, presence, syncedAt, event);
     const status = integrationStatus.synced(now);
 
     await this.hormoniosRepository.createOrUpdateIntegrationStatus(status);
@@ -429,6 +450,17 @@ export class CreatingOrUpdatingAttendanceUsecase {
     await this.hormoniosRepository.createOrUpdateIntegrationStatus(integrationStatus);
 
     return this.createOrUpdateAttendance(failed, event);
+  }
+
+  // spec-4 D1, D2
+  private withPresence(attendance: Attendance, presence: Attendance | null, syncedAt: string, event: Event): Attendance {
+    const json = attendance.toJson();
+    const groupId = json.groupId ?? null;
+    const syncHash = presence ? presence.metadata.syncHash : null;
+    const integrationId = presence ? presence.metadata.integrationId : json.metadata.integrationId;
+    const metadata = { ...json.metadata, sync: SyncStatus.Synced, syncError: null, syncHash, syncedAt, integrationId };
+
+    return AttendanceMapper.fromData({ ...json, groupId, metadata }, event);
   }
 
   private withSync(

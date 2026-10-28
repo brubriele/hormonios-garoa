@@ -7,7 +7,7 @@
 
 **Telas.** As mesmas desses usecases. O envio não aparece na tela.
 
-**Contexto.** Criar um ensaio, gravar uma pessoa ou uma reserva precisa chegar ao Transicionais,
+**Contexto.** Criar um ensaio, editar o estoque, gravar uma pessoa ou uma reserva precisa chegar ao Transicionais,
 sem fazer a tela esperar nem falhar.
 
 **Decisão.**
@@ -19,6 +19,8 @@ sem fazer a tela esperar nem falhar.
   esperar por ele. Ao religar, o reenvio automático manda o que ficou pendente.
 - Enquanto o ensaio não tem data, ou a pessoa ou o ensaio ainda não chegaram lá, a reserva espera
   para ser enviada.
+- A reserva com grupo leva o instrumento do grupo e os acessórios escolhidos.
+- Depois de enviada, a reserva guarda o código que ela ganhou no Transicionais.
 
 **Consequências.**
 - A tela responde igual com ou sem o Transicionais.
@@ -51,6 +53,8 @@ ensaio e as reservas.
 - Se o ensaio ainda não existe aqui, cria. Se existe e mudou, atualiza. Uma versão mais antiga que
   a guardada é ignorada.
 - O link do grupo e a abertura das reservas não mudam por esse aviso.
+- Só entram os grupos que estão na publicação do encontro lá. O instrumento de cada grupo vem do
+  cadastro dele no Transicionais; o grupo sem esse cadastro fica sem instrumento.
 
 **Consequências.**
 - As regras de criar e editar o ensaio também valem aqui: um encontro que tira um grupo com reserva
@@ -116,7 +120,7 @@ na Produção.
 - Pega os pendentes cuja nova tentativa já está na hora, os mais antigos primeiro, até 30 por vez.
 - Envia cada um com as mesmas regras do **Envio**. Um que falha não para os outros.
 - O que não existe mais aqui para e espera alguém.
-- O ensaio que já está no Transicionais só é marcado como enviado, sem criar de novo.
+- O ensaio que já está no Transicionais não é criado de novo: só a edição do estoque é reenviada.
 
 **Consequências.**
 - O que parou para alguém olhar não volta sozinho.

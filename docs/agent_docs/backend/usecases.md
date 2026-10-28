@@ -19,6 +19,10 @@
 | U11 | **Um usecase por contexto, com responsabilidade única.** Uma rota que cobre mais de um contexto (ex.: `GET /api/cron/sync`: o próximo ensaio, o estoque e as reservas) recebe o contexto na entrada (`?type=nextEvent`) e chama o usecase dele (`syncing-next-event-pending`, `syncing-stock-pending`, `syncing-booking-pending`); não há usecase que junte os contextos. Usecase sem rota só por reuso (`syncing-user-booking`). **Código parecido entre contextos não é duplicação:** cada um tem a sua regra (o que fazer com cada erro, o lote, a recusa) e evolui sozinho. Não extraia o que é comum entre usecases de contextos diferentes para um helper ou um método compartilhado; um erro novo ou uma inconsistência num contexto não pode virar refatoração nos outros. A G8 (sem helper repetido) vale para os helpers de `lib/`, `repos/parse-response.ts` e `lib/schema.ts`, não para a regra de um usecase. |
 | U12 | **Usecase pedido por rota tem `static readonly token = "<NomeDaClasse>"`** e um `case` no `Envolviment.make` ([`envolviment.md`](envolviment.md)). O usecase usado só dentro de outro (ex.: `CreatingOrUpdateUserUsecase`) não precisa de token: é montado no `case` de quem o usa. |
 
+## Usecases
+
+O que cada usecase faz, um arquivo por usecase: [`../usecases/README.md`](../usecases/README.md).
+
 ## Exemplo
 
 ```ts

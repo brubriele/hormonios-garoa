@@ -57,6 +57,7 @@ import { PublicEventResponse } from "./responses/public-event.response";
 import { LoanCatalogResponse } from "./responses/loan-catalog.response";
 import { VersionResponse } from "./responses/version.response";
 import { TransicionaisSession } from "./session";
+import { numericId } from "./transicionais-id";
 import { OrganizationUserRef, TransicionaisUrlCollection } from "./url-collection";
 
 const logger = createLogger("TransicionaisRepo", LogContext.TransicionaisRepository);
@@ -121,6 +122,27 @@ export class TransicionaisRepo implements ITransicionaisRepo {
     return this.findPublicEvent(publicId);
   }
 
+  // spec-4 A2
+  async findLastPublicEvent(): Promise<Event> {
+    const publicId = await this.findLastPublicId();
+    const event = await this.findPublicEvent(publicId);
+
+    return event;
+  }
+
+  private async findLastPublicId(): Promise<string> {
+    const url = TransicionaisUrlCollection.lastPublicEvent();
+    const response = await this.session.request<unknown>({ url });
+    const raw = this.assertWrite(response, "listPublicEvents");
+    const [publicId] = EventSummaryResponse.toDomain(raw);
+
+    if (!publicId) {
+      throw new NotFoundError("Event Not Found");
+    }
+
+    return publicId;
+  }
+
   private async findPublicId(externalId: string): Promise<string> {
     const isIntegrationId = /^\d+$/.test(externalId);
 
@@ -178,6 +200,17 @@ export class TransicionaisRepo implements ITransicionaisRepo {
     await this.saveCatalog(event);
 
     return this.findEvent(eventId);
+  }
+
+  // spec-4 C1, C2, C5
+  async updateEvent(event: Event): Promise<Event> {
+    const integrationId = numericId(String(event.metadata.integrationId), "integrationId");
+
+    await this.saveCatalog(event);
+
+    const updated = await this.findEvent(String(integrationId));
+
+    return updated;
   }
 
   async createUser(user: User): Promise<User> {
@@ -245,12 +278,26 @@ export class TransicionaisRepo implements ITransicionaisRepo {
     const response = await this.session.request<unknown>({
       method: HttpMethod.Post,
       url: TransicionaisUrlCollection.validationChange(),
-      body: ValidationChangeRequest.fromDomain(attendance, account, dayId),
+      body: ValidationChangeRequest.fromDomain(attendance, event, account, dayId),
     });
 
     this.assertWrite(response, SEND_OPERATION);
 
     return attendance;
+  }
+
+  // spec-4 D1
+  async findPresence(user: User): Promise<Attendance | null> {
+    const now = new Date();
+    const fetchedAt = now.toISOString();
+    const attendance = this.findUserAttendance(user);
+    const event = attendance.event as Event;
+    const dayId = event.metadata.transicionaisDayId as number;
+    const url = TransicionaisUrlCollection.guestPresence(String(dayId), user.email);
+    const response = await this.session.request<unknown>({ url });
+    const raw = this.assertWrite(response, PRESENCE_OPERATION);
+
+    return GuestPresenceResponse.toDomain(raw, user.email, dayId, fetchedAt);
   }
 
   private findUserAttendance(user: User): Attendance {
@@ -285,7 +332,8 @@ export class TransicionaisRepo implements ITransicionaisRepo {
     const response = await this.session.request<unknown>({ url });
     const raw = this.assertWrite(response, "listEvents");
     const items = EventListResponse.toDomain(raw);
-    const created = items.filter((item) => item.name === event.metadata.name && item.date === event.date).pop();
+    const name = EventCreateRequest.toName(event);
+    const created = items.filter((item) => item.name === name && item.date === event.date).pop();
 
     if (!created) {
       throw new NotFoundError("Created event Not Found");

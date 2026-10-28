@@ -15,6 +15,7 @@ export class EventResponse {
       categoryId: event.categoryId,
       description: event.description.toJson(),
       integrationId: event.integrationId,
+      externalPublicId: event.metadata.externalPublicId,
       groups: event.groups.map((group) => EventResponse.toGroup(group)),
       catalog: event.catalog.map((item) => EventResponse.toCatalog(item)),
     };

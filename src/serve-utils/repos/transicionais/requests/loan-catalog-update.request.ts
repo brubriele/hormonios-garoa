@@ -22,7 +22,7 @@ export class LoanCatalogUpdateRequest {
       description: current.description,
       isActive: true,
       capacity: item.stock.total,
-      groupIds: item.metadata.groupIds.map((id) => numericId(id, "groupId")),
+      groupIds: current.groupIds.map((id) => numericId(id, "groupId")),
       rotativo: item.stock.rotative,
       requiredForActivity: current.requiredForActivity,
     };

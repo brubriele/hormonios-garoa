@@ -3,12 +3,7 @@ import { numericId } from "../transicionais-id";
 
 export interface IGroupCapacityBody {
   groupId: number;
-  total: number | null; // null = sem limite
-}
-
-export interface IPublicationVacanciesBody {
-  total: number | null;
-  groups: IGroupCapacityBody[];
+  capacity: number | null; // null = sem limite
 }
 
 // `public` no PUT v2/manager-events/details/{id}: inteiro (dúvida D4)
@@ -19,13 +14,13 @@ export interface IEventPublicationBody {
   membersEarlyAt: string | null;
   guestDeadlineMinutes: number | null;
   supportTypeIds: number[];
-  vacancies: IPublicationVacanciesBody;
+  capacity: number | null;
+  groups: IGroupCapacityBody[];
 }
 
 export class PublicationSettingsRequest {
   static fromDomain(event: Event): IEventPublicationBody {
     const description = event.metadata.description;
-    const groups = event.groups.filter((group) => group.metadata.exclusiveCapacity !== null);
 
     return {
       visibility: description.visibility,
@@ -34,14 +29,13 @@ export class PublicationSettingsRequest {
       membersEarlyAt: description.membersEarlyAt,
       guestDeadlineMinutes: null,
       supportTypeIds: event.catalog.map((item) => numericId(item.id, "supportTypeId")),
-      vacancies: {
-        total: description.totalVacancies,
-        groups: groups.map((group) => PublicationSettingsRequest.toGroupCapacity(group)),
-      },
+      // spec-4 B9
+      capacity: description.totalVacancies,
+      groups: event.groups.map((group) => PublicationSettingsRequest.toGroupCapacity(group)),
     };
   }
 
   private static toGroupCapacity(group: EventGroup): IGroupCapacityBody {
-    return { groupId: numericId(group.id, "groupId"), total: group.metadata.exclusiveCapacity };
+    return { groupId: numericId(group.id, "groupId"), capacity: group.metadata.exclusiveCapacity };
   }
 }

@@ -1,4 +1,5 @@
 import { type Attendance, AttendanceAnswer } from "../../../domain/Attendance";
+import { type Event, type EventGroup, EventCatalogType } from "../../../domain/Event";
 import type { UserAccount } from "../../../domain/User";
 import { numericId } from "../transicionais-id";
 
@@ -27,7 +28,7 @@ export interface IValidationChangeBody {
 }
 
 export class ValidationChangeRequest {
-  static fromDomain(attendance: Attendance, account: UserAccount, dayId: number): IValidationChangeBody {
+  static fromDomain(attendance: Attendance, event: Event, account: UserAccount, dayId: number): IValidationChangeBody {
     const attending = attendance.metadata.answer === AttendanceAnswer.Going;
     const group = attending ? attendance.eventGroup : null;
     const body: IValidationChangeBody = {
@@ -47,9 +48,20 @@ export class ValidationChangeRequest {
 
     if (group !== null) {
       body.groupId = numericId(group.id, "groupId");
-      body.supportTypeIds = attendance.catalog.map((item) => numericId(item.id, "supportTypeId"));
+      body.supportTypeIds = ValidationChangeRequest.toSupportTypeIds(attendance, event, group);
     }
 
     return body;
+  }
+
+  // spec-4 D4
+  private static toSupportTypeIds(attendance: Attendance, event: Event, group: EventGroup): number[] {
+    const instrument = event.catalog.find(
+      (item) => item.metadata.type === EventCatalogType.Instrument && item.metadata.groupIds.includes(group.id),
+    );
+    const accessoryIds = attendance.catalog.map((item) => item.id);
+    const ids = instrument ? [instrument.id, ...accessoryIds] : accessoryIds;
+
+    return ids.map((id) => numericId(id, "supportTypeId"));
   }
 }

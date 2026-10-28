@@ -170,6 +170,14 @@ function devEventCode(event){
   return `E-${escapeHtml(event.id)}-${integration}`;
 }
 
+function devAdminEventCode(event){
+  if(!isDebug() || !event?.id) return "";
+  const notIntegrated=`<span class="dev-not-integrated">NÃO_INTEGRADO</span>`;
+  const eventId=event.integrationId == null ? notIntegrated : escapeHtml(String(event.integrationId));
+  const publicId=event.externalPublicId == null ? notIntegrated : escapeHtml(String(event.externalPublicId));
+  return `transicionaisEventId: ${eventId}<br>transicionaisPublicEventId: ${publicId}<br>hormoniosId: ${escapeHtml(event.id)}`;
+}
+
 function renderAll(){
   const r=state.event || {};
   const date=formatDate(r.date);
@@ -504,7 +512,7 @@ function renderAdmin(){
     </div>
 
     <div class="admin-card">
-      <h3>PRÓXIMO ENSAIO${devEventCode(r)?` <small class="dev-event-code">${devEventCode(r)}</small>`:""}</h3>
+      <h3>PRÓXIMO ENSAIO${devAdminEventCode(r)?` <small class="dev-event-code">${devAdminEventCode(r)}</small>`:""}</h3>
       <form id="rehearsal-form" class="admin-form">
         <label>Data<input id="admin-date" type="date" value="${escapeHtml(r.date||"")}"></label>
         <label>Horário<input id="admin-time" type="time" value="${escapeHtml(r.startTime||"")}"></label>

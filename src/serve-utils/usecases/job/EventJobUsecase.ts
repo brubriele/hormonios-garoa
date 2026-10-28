@@ -23,7 +23,9 @@ export class EventJobUsecase {
 
   async execute(input: Job): Promise<Event[]> {
     try {
-      return await this._execute(input);
+      const events = await this._execute(input);
+
+      return events;
     } catch (error) {
       if (error instanceof AppError) {
         logger.appError(error);
@@ -65,7 +67,9 @@ export class EventJobUsecase {
         return null;
       }
 
-      return await this.sendEvent(event, integrationStatus, now);
+      const sent = await this.sendEvent(event, integrationStatus, now);
+
+      return sent;
     } catch (error) {
       logger.error({ err: error, hormoniosEventId: integrationStatus.entityId }, "event job failed");
 
@@ -82,11 +86,7 @@ export class EventJobUsecase {
 
   private async sendEvent(event: Event, integrationStatus: IntegrationStatus, now: Date): Promise<Event> {
     if (event.metadata.integrationId !== null) {
-      const status = integrationStatus.synced(now);
-
-      await this.hormoniosRepository.createOrUpdateIntegrationStatus(status);
-
-      return event;
+      return this.sendUpdate(event, integrationStatus, now);
     }
 
     if (!event.date) {
@@ -98,8 +98,23 @@ export class EventJobUsecase {
 
     try {
       const external = await this.transicionaisRepo.createEvent(event);
+      const saved = await this.saveSynced(event, external, integrationStatus, now);
 
-      return await this.saveSynced(event, external, integrationStatus, now);
+      return saved;
+    } catch (error) {
+      const failed = this.toFailedStatus(integrationStatus, error, now);
+
+      return this.saveFailure(event, failed);
+    }
+  }
+
+  // spec-4 C4
+  private async sendUpdate(event: Event, integrationStatus: IntegrationStatus, now: Date): Promise<Event> {
+    try {
+      const external = await this.transicionaisRepo.updateEvent(event);
+      const saved = await this.saveSynced(event, external, integrationStatus, now);
+
+      return saved;
     } catch (error) {
       const failed = this.toFailedStatus(integrationStatus, error, now);
 

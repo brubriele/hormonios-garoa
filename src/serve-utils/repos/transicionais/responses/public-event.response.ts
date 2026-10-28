@@ -48,6 +48,7 @@ const ConfigDaySchema = z.object({
 const EventGroupSchema = z.object({
   id: TransicionaisIdSchema,
   name: z.string(),
+  externalGroupId: TransicionaisIdSchema.nullable().default(null),
 });
 
 const VacancySchema = z.object({ total: z.number().int().nullable() });
@@ -104,10 +105,13 @@ export class PublicEventResponse {
 
   private static toEvent(event: IPublicEvent, fetchedAt: string): Event {
     const day = PublicEventResponse.findDay(event);
-    const groups = event.groups.map((group) => PublicEventResponse.toGroup(group, event));
+    const published = event.groups.filter((group) => group.externalGroupId !== null);
+    const groups = published.map((group) => PublicEventResponse.toGroup(group, event));
     const groupIds = groups.map((group) => group.id);
-    const supports = day.summary.supports.filter((support) => support.isActive && support.type !== undefined);
-    const catalog = supports.map((support) => PublicEventResponse.toCatalog(support, groupIds));
+    const supports = day.summary.supports.filter((support) => support.isActive);
+    const instruments = PublicEventResponse.toInstruments(supports, groupIds);
+    const accessories = PublicEventResponse.toAccessories(supports, groupIds);
+    const catalog = [...instruments, ...accessories];
     const metadata = PublicEventResponse.toMetadata(event, day, fetchedAt);
 
     return new Event(
@@ -138,14 +142,41 @@ export class PublicEventResponse {
     return new EventGroup(group.id, group.name, metadata);
   }
 
-  private static toCatalog(support: IDaySupport, eventGroupIds: string[]): EventCatalog {
+  // spec-4 B2, B3
+  private static toInstruments(supports: IDaySupport[], eventGroupIds: string[]): EventCatalog[] {
+    const instruments = supports.filter((support) => support.type === LoanCatalogKind.Instrument);
+    const chosen = eventGroupIds.map((groupId) => instruments.find((support) => support.groupIds.includes(groupId)));
+    const unique = new Set(chosen);
+    const found = [...unique].filter((support) => support !== undefined);
+
+    return found.map((support) => {
+      const groupIds = eventGroupIds.filter((_groupId, index) => chosen[index] === support);
+
+      return PublicEventResponse.toCatalog(support, groupIds);
+    });
+  }
+
+  private static toAccessories(supports: IDaySupport[], eventGroupIds: string[]): EventCatalog[] {
+    const accessories = supports.filter((support) => support.type === LoanCatalogKind.Accessory);
+
+    return accessories.map((support) => {
+      const groupIds = support.groupIds.filter((id) => eventGroupIds.includes(id));
+
+      return PublicEventResponse.toCatalog(support, groupIds);
+    });
+  }
+
+  private static toCatalog(support: IDaySupport, groupIds: string[]): EventCatalog {
     const totalUsage = support.members + support.guests + support.occupied;
     const stock = new EventCatalogStock(support.capacity, support.rotativo, totalUsage);
-    const groupIds = support.groupIds.filter((id) => eventGroupIds.includes(id));
     const type = CATALOG_TYPES[support.type as LoanCatalogKind];
     const metadata = new EventCatalogMetadata(groupIds, type);
 
     return new EventCatalog(support.id, support.title, stock, metadata);
+  }
+
+  private static toName(name: string): string {
+    return name.replace(/#[^#]*$/, "");
   }
 
   private static toMetadata(event: IPublicEvent, day: IConfigDay, fetchedAt: string): EventMetadata {
@@ -162,7 +193,7 @@ export class PublicEventResponse {
       publication.id,
       event.id,
       day.id,
-      event.name,
+      PublicEventResponse.toName(event.name),
       event.categoryId,
       day.endTime,
       description,

@@ -68,6 +68,13 @@ export class TransicionaisUrlCollection {
     return `${this.events()}?${query.toString()}`;
   }
 
+  // spec-4 A2
+  static lastPublicEvent(): string {
+    const query = new URLSearchParams({ visibility: "PUBLIC", orderBy: "startAt:desc", perPage: "1" });
+
+    return `${this.events()}?${query.toString()}`;
+  }
+
   static eventCategory(id: string): string {
     return `${this.eventById(id)}/category`;
   }
@@ -116,9 +123,9 @@ export class TransicionaisUrlCollection {
     return `${this.apiUrl}/${this.VALIDATION_PATH}/guests?${query.toString()}`;
   }
 
-  // a presença de uma pessoa (pelo e-mail) num dia (D49)
-  static guestPresence(dayKey: string, email: string): string {
-    const query = new URLSearchParams({ configDayIds: dayKey, search: email, perPage: "10" });
+  // spec-4 D1
+  static guestPresence(dayId: string, email: string): string {
+    const query = new URLSearchParams({ configDayId: dayId, search: email, perPage: "10" });
 
     return `${this.apiUrl}/${this.VALIDATION_PATH}/guests?${query.toString()}`;
   }

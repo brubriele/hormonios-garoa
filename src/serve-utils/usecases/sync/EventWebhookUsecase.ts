@@ -22,7 +22,9 @@ export class EventWebhookUsecase {
 
   async execute(input: Webhook): Promise<WebhookResult> {
     try {
-      return await this._execute(input);
+      const result = await this._execute(input);
+
+      return result;
     } catch (error) {
       if (error instanceof AppError) {
         logger.appError(error);
@@ -40,7 +42,9 @@ export class EventWebhookUsecase {
     const webhook = this.validateInput(input);
 
     try {
-      return await this.receiveEvent(webhook);
+      const result = await this.receiveEvent(webhook);
+
+      return result;
     } catch (error) {
       if (error instanceof UpstreamUnavailableError) {
         return new WebhookResult(SyncStatus.Pending, false);
@@ -92,7 +96,9 @@ export class EventWebhookUsecase {
     const externalId = String(id);
 
     try {
-      return await this.transicionaisRepo.findEvent(externalId);
+      const external = await this.transicionaisRepo.findEvent(externalId);
+
+      return external;
     } catch (error) {
       if (error instanceof NotFoundError) {
         return null;
@@ -138,7 +144,7 @@ export class EventWebhookUsecase {
   }
 
   private async updateEvent(external: Event): Promise<void> {
-    const usecase = new UpdatingInternalEventUsecase(this.hormoniosRepository);
+    const usecase = new UpdatingInternalEventUsecase(this.hormoniosRepository, this.transicionaisRepo);
 
     await usecase.execute(external);
   }

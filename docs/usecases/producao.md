@@ -1,6 +1,6 @@
 # Produção
 
-> Atualizado em 2026-10-27. Só quem entrou com a chave da Produção usa estes usecases.
+> Atualizado em 2026-10-28. Só quem entrou com a chave da Produção usa estes usecases.
 
 ## Ver o ensaio com quem vai (FindingInternalEventUsecase) — `GET /api/admin/ensaio`
 
@@ -11,6 +11,9 @@
 **Decisão.**
 - Mostra o ensaio atual com as pessoas e o que cada uma reservou.
 - Mostra quantas vagas sobram em cada grupo, além do estoque de cada item.
+- Instrumento zerado aparece com 0. O grupo sem instrumento cadastrado no Transicionais não mostra
+  instrumento, e o grupo que não está na publicação do encontro lá não aparece.
+- Com `?debug=1`, mostra os ids do ensaio no Transicionais e no Hormônios.
 - Na primeira vez, sem nenhum ensaio, cria um com os grupos e o catálogo padrão do Bloquinho. Se
   não conseguir, avisa que não encontrou.
 
@@ -29,7 +32,9 @@ vez que a Produção abre e quando um encontro novo chega do Transicionais.
   máximo um instrumento por grupo.
 - O ensaio criado passa a ser o atual. O anterior e as presenças dele ficam guardados.
 - O ensaio novo começa sem nenhuma presença.
-- O ensaio é enviado ao Transicionais. Sem data, o envio espera até ter.
+- O ensaio é enviado ao Transicionais com todos os grupos abertos para reserva. Sem data, o envio
+  espera até ter.
+- Lá, o nome do encontro leva o código do ensaio do Hormônios, para achar um no outro.
 
 **Consequências.**
 - Encerrar não apaga nada: o histórico dos ensaios fica.
@@ -48,6 +53,10 @@ reservas, grupos e estoque.
 - Não dá para tirar um grupo ou item que alguém reservou.
 - Não dá para baixar o estoque abaixo das reservas, a não ser num item rotativo.
 - Mudanças vindas do Transicionais não mexem no link do grupo nem na abertura das reservas.
+- O estoque editado aqui é enviado ao Transicionais. Se ele estiver fora do ar, tenta de novo
+  depois.
+- Quais grupos o ensaio tem e o cadastro dos instrumentos e acessórios são feitos no Transicionais
+  e chegam aqui pela sincronização.
 
 **Consequências.**
 - Um ensaio que chega do Transicionais fica com as reservas fechadas até a Produção abrir.

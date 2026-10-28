@@ -1,29 +1,20 @@
 import { z } from "zod";
 import { InfraSource } from "../../../errors/infra-error";
-import type { IEventRef } from "../../../interfaces/transicionais";
 import { parseResponse } from "../../parse-response";
-import { TransicionaisIdSchema } from "../transicionais-id";
 
-const OPERATION = "listEvents";
+const OPERATION = "listPublicEvents";
 
-// item de GET v2/manager-events/details?visibility=PUBLIC&startAt= (só o que o Hormônios lê)
 const EventSummarySchema = z.object({
-  id: z.number().int(), // id interno: só as escritas de manager usam, não sai do repo
-  externalId: z.string().min(1), // o da URL pública (= public.id)
-  configDayId: TransicionaisIdSchema, // o dia atual (= dayKey)
+  externalId: z.string().min(1),
 });
 
 const EventSummaryPageSchema = z.object({ content: z.array(EventSummarySchema) });
 
-export type IEventSummary = z.infer<typeof EventSummarySchema>;
-
 export class EventSummaryResponse {
-  // a página validada, na ordem da API (startAt asc)
-  static parse(raw: unknown): IEventSummary[] {
-    return parseResponse(EventSummaryPageSchema, raw, InfraSource.Transicionais, OPERATION).content;
-  }
+  // spec-4 A2
+  static toDomain(raw: unknown): string[] {
+    const page = parseResponse(EventSummaryPageSchema, raw, InfraSource.Transicionais, OPERATION);
 
-  static toDomain(raw: unknown): IEventRef[] {
-    return EventSummaryResponse.parse(raw).map((item) => ({ externalId: item.externalId, dayId: item.configDayId }));
+    return page.content.map((item) => item.externalId);
   }
 }

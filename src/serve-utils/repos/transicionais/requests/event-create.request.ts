@@ -10,6 +10,12 @@ export interface IEventCreateBody {
 
 export class EventCreateRequest {
   static fromDomain(event: Event): IEventCreateBody {
-    return { name: event.metadata.name, location: event.location, startAt: event.date, endAt: event.date };
+    const name = EventCreateRequest.toName(event);
+
+    return { name, location: event.location, startAt: event.date, endAt: event.date };
+  }
+
+  static toName(event: Event): string {
+    return `${event.metadata.name}#${event.id}`;
   }
 }

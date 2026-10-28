@@ -1,13 +1,23 @@
 import { z } from "zod";
 import type { Attendance } from "../../domain/Attendance";
 import { Event, type EventCatalog, type EventGroup, type EventMetadata } from "../../domain/Event";
+import { IntegrationEntity, IntegrationStatus } from "../../domain/IntegrationStatus";
 import { ManagerEvent } from "../../domain/ManagerEvent";
 import { EventMapper, type IEventCatalogData, type IEventGroupData, type IEventMetadataData } from "../../domain/mappers/EventMapper";
+import { SyncStatus } from "../../domain/SyncStatus";
 import type { User } from "../../domain/User";
-import { AppError, InvalidParameterError, NotFoundError, StockBelowReservationsError } from "../../errors/app-error";
+import {
+  AppError,
+  InvalidParameterError,
+  NotFoundError,
+  StockBelowReservationsError,
+  UpstreamUnavailableError,
+} from "../../errors/app-error";
 import type { IHormoniosRepository } from "../../interfaces/IHormoniosRepository";
+import type { ITransicionaisRepo } from "../../interfaces/transicionais";
 import { createLogger, LogContext } from "../../lib/logger";
 import { validateSchema } from "../../lib/schema";
+import { toErrorCtx } from "../../lib/upstream";
 import { EventBodySchema } from "./CreatingInternalEventUsecase";
 
 const logger = createLogger("UpdatingInternalEventUsecase", LogContext.Event);
@@ -17,7 +27,10 @@ const UpdatingInternalEventInputSchema = z.instanceof(Event);
 export class UpdatingInternalEventUsecase {
   static readonly token = "UpdatingInternalEventUsecase";
 
-  constructor(private readonly hormoniosRepository: IHormoniosRepository) {}
+  constructor(
+    private readonly hormoniosRepository: IHormoniosRepository,
+    private readonly transicionaisRepo: ITransicionaisRepo,
+  ) {}
 
   async execute(data: Event): Promise<ManagerEvent> {
     try {
@@ -47,7 +60,8 @@ export class UpdatingInternalEventUsecase {
     this.validateAttendancesKept(event, attendances);
     this.validateStockAboveReservations(event, attendances);
 
-    const updated = await this.updateEvent(event);
+    const saved = await this.updateEvent(event);
+    const updated = await this.sync(saved);
     const users = await this.findEventUsers(updated);
     const updatedAttendances = await this.findEventAttendance(updated);
     const counted = updated.withAttendances(updatedAttendances, true);
@@ -172,6 +186,78 @@ export class UpdatingInternalEventUsecase {
 
   private async updateEvent(event: Event): Promise<Event> {
     return this.hormoniosRepository.updateEvent(event);
+  }
+
+  // spec-4 C3, fase-2 E1–E5
+  private async sync(event: Event): Promise<Event> {
+    const shouldSync = this.shouldSync(event);
+
+    if (!shouldSync) {
+      return event;
+    }
+
+    const now = new Date();
+    const integrationStatus = await this.findIntegrationStatus(event, now);
+
+    try {
+      const external = await this.transicionaisRepo.updateEvent(event);
+      const saved = await this.saveSynced(event, external, integrationStatus, now);
+
+      return saved;
+    } catch (error) {
+      const failed = this.toFailedStatus(integrationStatus, error, now);
+
+      return this.saveFailure(event, failed);
+    }
+  }
+
+  // spec-4 C3
+  private shouldSync(event: Event): boolean {
+    const { integrationId, sync } = event.metadata;
+
+    return integrationId !== null && sync !== SyncStatus.Synced;
+  }
+
+  private async findIntegrationStatus(event: Event, now: Date): Promise<IntegrationStatus> {
+    const found = await this.hormoniosRepository.findIntegrationStatus(IntegrationEntity.Event, event.id);
+
+    return found ?? IntegrationStatus.create(IntegrationEntity.Event, event.id, now);
+  }
+
+  private toFailedStatus(integrationStatus: IntegrationStatus, error: unknown, now: Date): IntegrationStatus {
+    const errorCtx = toErrorCtx(error);
+
+    if (error instanceof UpstreamUnavailableError) {
+      return integrationStatus.pending(errorCtx, now);
+    }
+
+    logger.error({ err: error, hormoniosEventId: integrationStatus.entityId }, "event rejected by Transicionais");
+
+    return integrationStatus.manualRetry(errorCtx, now);
+  }
+
+  private async saveSynced(event: Event, external: Event, integrationStatus: IntegrationStatus, now: Date): Promise<Event> {
+    const json = event.toJson();
+    const externalMetadata = external.metadata.toJson();
+    const metadata = { ...externalMetadata, sync: SyncStatus.Synced, syncError: null };
+    const synced = EventMapper.fromData({ ...json, metadata });
+    const status = integrationStatus.synced(now);
+
+    await this.hormoniosRepository.createOrUpdateIntegrationStatus(status);
+
+    return this.hormoniosRepository.updateEvent(synced);
+  }
+
+  private async saveFailure(event: Event, integrationStatus: IntegrationStatus): Promise<Event> {
+    const json = event.toJson();
+    const errorCtx = integrationStatus.errorCtx;
+    const syncError = errorCtx ? errorCtx.key ?? errorCtx.message : null;
+    const metadata = { ...json.metadata, sync: integrationStatus.status, syncError };
+    const failed = EventMapper.fromData({ ...json, metadata });
+
+    await this.hormoniosRepository.createOrUpdateIntegrationStatus(integrationStatus);
+
+    return this.hormoniosRepository.updateEvent(failed);
   }
 
   private async findEventUsers(event: Event): Promise<User[]> {
