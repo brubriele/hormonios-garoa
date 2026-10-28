@@ -12,7 +12,6 @@
 
 ### [fase-2](fase-2.md) — 2026-10-27
 
-- **Adicionadas:** o código do ensaio em modo debug; a chave do Transicionais na Produção, em
-  modo debug.
+- **Adicionadas:** o código do ensaio em modo debug.
 - **Alteradas:** a presença recusada pelo Transicionais deixa de contar.
 - **Removidas:** —

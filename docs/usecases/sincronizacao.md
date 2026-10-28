@@ -15,7 +15,8 @@ sem fazer a tela esperar nem falhar.
 - Se o Transicionais estiver fora do ar, tenta de novo depois de 1, 5, 15 e então a cada 60
   minutos. Na 10ª tentativa, para e espera alguém.
 - Se o Transicionais recusar, para e espera alguém, com o motivo guardado.
-- Com o Transicionais desligado pela Produção, o envio fica pendente na hora, sem esperar por ele.
+- Com o Transicionais desligado de propósito na configuração, o envio fica pendente na hora, sem
+  esperar por ele. Ao religar, o reenvio automático manda o que ficou pendente.
 - Enquanto o ensaio não tem data, ou a pessoa ou o ensaio ainda não chegaram lá, a reserva espera
   para ser enviada.
 
@@ -96,7 +97,8 @@ na Produção.
 **Decisão.**
 - Só aceita a chamada com a chave combinada.
 - Recebe o que reenviar: ensaios, pessoas ou presenças. Outro tipo é recusado.
-- Com o Transicionais desligado pela Produção, não reenvia nada e avisa que ele está fora do ar.
+- Com o Transicionais desligado de propósito na configuração, não reenvia nada e avisa que ele
+  está fora do ar.
 - Responde a lista do que foi reenviado, com o resultado de cada um.
 
 **Consequências.**

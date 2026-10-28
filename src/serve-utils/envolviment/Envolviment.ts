@@ -3,6 +3,7 @@ import { HttpClient } from "../clients/http-client";
 import { SupabaseClient } from "../clients/supabase-client";
 import type { IHormoniosRepository } from "../interfaces/IHormoniosRepository";
 import type { ITransicionaisRepo } from "../interfaces/transicionais";
+import { isTransicionaisEnabled } from "../lib/upstream";
 import { HormoniosRepository } from "../repos/supabase/HormoniosRepository";
 import { TransicionaisRepo } from "../repos/transicionais/repo";
 import { TransicionaisSession } from "../repos/transicionais/session";
@@ -11,10 +12,8 @@ import { CreatingOrUpdatingAttendanceUsecase } from "../usecases/booking/Creatin
 import { FindingUserBookingUsecase } from "../usecases/booking/FindingUserBookingUsecase";
 import { FindingUserUsecase } from "../usecases/booking/FindingUserUsecase";
 import { CreatingInternalEventUsecase } from "../usecases/event/CreatingInternalEventUsecase";
-import { FindingIntegrationSettingUsecase } from "../usecases/event/FindingIntegrationSettingUsecase";
 import { FindingInternalEventUsecase } from "../usecases/event/FindingInternalEventUsecase";
 import { FindingPublicEventUsecase } from "../usecases/event/FindingPublicEventUsecase";
-import { UpdatingIntegrationSettingUsecase } from "../usecases/event/UpdatingIntegrationSettingUsecase";
 import { UpdatingInternalEventUsecase } from "../usecases/event/UpdatingInternalEventUsecase";
 import { JobUsecase } from "../usecases/job/JobUsecase";
 import { WebhookUsecase } from "../usecases/sync/WebhookUsecase";
@@ -46,8 +45,8 @@ export class Envolviment {
   private static _fakeTransicionaisRepo?: ITransicionaisRepo;
 
   // EV1, EV2, EV8
-  static async make<T>(token: string): Promise<T> {
-    const state = await this.transicionaisState(token);
+  static make<T>(token: string): T {
+    const state = this.transicionaisState(token);
     const key = state ? `${token}:${state}` : token;
     const cached = this.usecases.get(key);
 
@@ -63,13 +62,12 @@ export class Envolviment {
   }
 
   // EV8
-  private static async transicionaisState(token: string): Promise<TransicionaisState | null> {
+  private static transicionaisState(token: string): TransicionaisState | null {
     if (!this.transicionaisTokens.has(token)) {
       return null;
     }
 
-    const hormoniosRepository = this.hormoniosRepository;
-    const enabled = await hormoniosRepository.isTransicionaisEnabled();
+    const enabled = isTransicionaisEnabled();
 
     return enabled ? TransicionaisState.On : TransicionaisState.Off;
   }
@@ -89,10 +87,6 @@ export class Envolviment {
         return this.creatingInternalEventUsecase(state);
       case UpdatingInternalEventUsecase.token:
         return this.updatingInternalEventUsecase();
-      case FindingIntegrationSettingUsecase.token:
-        return this.findingIntegrationSettingUsecase();
-      case UpdatingIntegrationSettingUsecase.token:
-        return this.updatingIntegrationSettingUsecase();
       case JobUsecase.token:
         return this.jobUsecase(state);
       case WebhookUsecase.token:
@@ -146,18 +140,6 @@ export class Envolviment {
     const hormoniosRepository = this.hormoniosRepository;
 
     return new UpdatingInternalEventUsecase(hormoniosRepository);
-  }
-
-  private static findingIntegrationSettingUsecase(): FindingIntegrationSettingUsecase {
-    const hormoniosRepository = this.hormoniosRepository;
-
-    return new FindingIntegrationSettingUsecase(hormoniosRepository);
-  }
-
-  private static updatingIntegrationSettingUsecase(): UpdatingIntegrationSettingUsecase {
-    const hormoniosRepository = this.hormoniosRepository;
-
-    return new UpdatingIntegrationSettingUsecase(hormoniosRepository);
   }
 
   private static jobUsecase(state: TransicionaisState | null): JobUsecase {

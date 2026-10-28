@@ -9,7 +9,7 @@ import { ManagerEventResponse } from "../_responses/ManagerEventResponse";
 export const GET = handle(async (request) => {
   await requireAdmin(request);
 
-  const findingInternalEventUsecase = await Envolviment.make<FindingInternalEventUsecase>(FindingInternalEventUsecase.token);
+  const findingInternalEventUsecase = Envolviment.make<FindingInternalEventUsecase>(FindingInternalEventUsecase.token);
   const managerEvent = await findingInternalEventUsecase.execute();
 
   return { body: ManagerEventResponse.fromDomain(managerEvent) };
@@ -21,7 +21,7 @@ export const PUT = handle(async (request) => {
 
   const body = await readJson<IEventRequest>(request);
   const event = EventRequest.toDomain(body);
-  const updatingInternalEventUsecase = await Envolviment.make<UpdatingInternalEventUsecase>(UpdatingInternalEventUsecase.token);
+  const updatingInternalEventUsecase = Envolviment.make<UpdatingInternalEventUsecase>(UpdatingInternalEventUsecase.token);
   const managerEvent = await updatingInternalEventUsecase.execute(event);
 
   return { body: ManagerEventResponse.fromDomain(managerEvent) };

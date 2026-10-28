@@ -7,6 +7,7 @@ import { AppError, UpstreamUnavailableError } from "../../errors/app-error";
 import type { IHormoniosRepository } from "../../interfaces/IHormoniosRepository";
 import type { ITransicionaisRepo } from "../../interfaces/transicionais";
 import { createLogger, LogContext } from "../../lib/logger";
+import { isTransicionaisEnabled } from "../../lib/upstream";
 import { validateSchema } from "../../lib/schema";
 import { AttendanceJobUsecase } from "./AttendanceJobUsecase";
 import { EventJobUsecase } from "./EventJobUsecase";
@@ -49,7 +50,7 @@ export class JobUsecase {
   private async _execute(input: IJobInput): Promise<Event[] | User[] | Attendance[]> {
     logger.track("processing job");
 
-    await this.validateTransicionaisEnabled();
+    this.validateTransicionaisEnabled();
 
     const data = this.validateInput(input);
     const job = new Job(data.entity);
@@ -72,8 +73,8 @@ export class JobUsecase {
   }
 
   // J0
-  private async validateTransicionaisEnabled(): Promise<void> {
-    const enabled = await this.hormoniosRepository.isTransicionaisEnabled();
+  private validateTransicionaisEnabled(): void {
+    const enabled = isTransicionaisEnabled();
 
     if (!enabled) {
       throw new UpstreamUnavailableError("Transicionais is disabled");

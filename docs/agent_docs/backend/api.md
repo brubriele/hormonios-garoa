@@ -7,7 +7,7 @@
 | # | Regra |
 |---|---|
 | A1 | A rota **não tem regra de negócio**. Ela lê a entrada, monta o usecase, chama `execute` e responde. |
-| A2 | A rota **pede o usecase ao `Envolviment`**: `const <nomeDoUsecase> = await Envolviment.make<Tipo>(<Usecase>.token)`. A variável leva o nome do usecase real, nunca `usecase`, e o tipo vem no `<T>` (classe, interface ou `type`). A rota não monta client nem repo com `new` ([`envolviment.md`](envolviment.md)). |
+| A2 | A rota **pede o usecase ao `Envolviment`**: `const <nomeDoUsecase> = Envolviment.make<Tipo>(<Usecase>.token)`. A variável leva o nome do usecase real, nunca `usecase`, e o tipo vem no `<T>` (classe, interface ou `type`). A rota não monta client nem repo com `new` ([`envolviment.md`](envolviment.md)). |
 | A3 | Toda rota é envolvida por `handle(...)` ([`http.md`](http.md)), que converte `AppError` em `status` + `key` e qualquer outro erro em `500`. A rota não tem `try/catch`. |
 | A4 | As rotas ficam numa lista fechada (plano da fase). Rota nova entra no plano antes do código. |
 | A5 | Cookies e sessão só pelas peças de `http/` (`getOrCreateDevice`, `requireAdmin`, `createAdminCookie`, `isAdminKey`). Nas rotas da Produção, `requireAdmin` é a primeira linha. |
@@ -26,7 +26,7 @@ import type { UUID } from "../../src/serve-utils/interfaces/uuid";
 export const GET = handle(async (request) => {
   const url = new URL(request.url);
   const id = url.pathname.split("/").pop() as UUID;
-  const findingEventUsecase = await Envolviment.make<FindingEventUsecase>(FindingEventUsecase.token);
+  const findingEventUsecase = Envolviment.make<FindingEventUsecase>(FindingEventUsecase.token);
   const event = await findingEventUsecase.execute({ id });
 
   return { body: event };
@@ -56,7 +56,7 @@ export const POST = handle(async (request) => {
 // api/minhas-reservas.ts (trecho)
 export const GET = handle(async (request) => {
   const { deviceId, cookie } = getOrCreateDevice(request);
-  const findingUserBookingsUsecase = await Envolviment.make<FindingUserBookingsUsecase>(FindingUserBookingsUsecase.token);
+  const findingUserBookingsUsecase = Envolviment.make<FindingUserBookingsUsecase>(FindingUserBookingsUsecase.token);
   const body = await findingUserBookingsUsecase.execute({ deviceId });
 
   return { body, cookies: cookie ? [cookie] : [] };

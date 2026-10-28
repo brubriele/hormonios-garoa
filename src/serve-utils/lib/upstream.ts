@@ -56,3 +56,8 @@ export function toErrorCtx(error: unknown): ErrorCtx {
 
   return new ErrorCtx(0, null, null, String(error));
 }
+
+// K1: TRANSICIONAIS_ENABLED=false desliga; ausente ou outro valor = ligado
+export function isTransicionaisEnabled(): boolean {
+  return process.env.TRANSICIONAIS_ENABLED !== "false";
+}

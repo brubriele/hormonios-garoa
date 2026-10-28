@@ -10,7 +10,7 @@ export const POST = handle(async (request) => {
 
   const body = await readJson<IEventRequest>(request);
   const event = EventRequest.toDomain(body);
-  const creatingInternalEventUsecase = await Envolviment.make<CreatingInternalEventUsecase>(CreatingInternalEventUsecase.token);
+  const creatingInternalEventUsecase = Envolviment.make<CreatingInternalEventUsecase>(CreatingInternalEventUsecase.token);
   const created = await creatingInternalEventUsecase.execute(event);
 
   return { status: 201, body: EventResponse.fromDomain(created) };

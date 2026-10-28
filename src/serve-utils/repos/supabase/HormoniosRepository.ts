@@ -1,7 +1,6 @@
 import { SupabaseClient } from "../../clients/supabase-client";
 import type { Attendance } from "../../domain/Attendance";
 import type { Event } from "../../domain/Event";
-import type { IntegrationSetting } from "../../domain/IntegrationSetting";
 import type { IntegrationEntity, IntegrationStatus } from "../../domain/IntegrationStatus";
 import type { SyncStatus } from "../../domain/SyncStatus";
 import type { User } from "../../domain/User";
@@ -10,12 +9,10 @@ import type { IHormoniosRepository } from "../../interfaces/IHormoniosRepository
 import { createLogger, LogContext } from "../../lib/logger";
 import { AttendanceRequest } from "./requests/AttendanceRequest";
 import { EventRequest } from "./requests/EventRequest";
-import { IntegrationSettingRequest } from "./requests/IntegrationSettingRequest";
 import { IntegrationStatusRequest } from "./requests/IntegrationStatusRequest";
 import { UserRequest } from "./requests/UserRequest";
 import { AttendanceResponse } from "./responses/AttendanceResponse";
 import { EventResponse } from "./responses/EventResponse";
-import { IntegrationSettingResponse } from "./responses/IntegrationSettingResponse";
 import { IntegrationStatusResponse } from "./responses/IntegrationStatusResponse";
 import { UserResponse } from "./responses/UserResponse";
 
@@ -26,8 +23,6 @@ const USER_TABLE = "user";
 const ATTENDANCE_TABLE = "attendance";
 const INTEGRATION_STATUS_TABLE = "integration_status";
 const INTEGRATION_STATUS_COLUMNS = 'id, entity, "entityId", status, "syncAt", tentatives, "nextSyncAt", "errorCtx"';
-const SETTING_TABLE = "setting";
-const INTEGRATION_SETTING_ID = "integration";
 
 export class HormoniosRepository implements IHormoniosRepository {
   constructor(private readonly supabaseClient: SupabaseClient) {}
@@ -345,46 +340,6 @@ export class HormoniosRepository implements IHormoniosRepository {
     }
 
     return IntegrationStatusResponse.toDomain(response.data);
-  }
-
-  // K1
-  async isTransicionaisEnabled(): Promise<boolean> {
-    const setting = await this.findIntegrationSetting();
-
-    return setting.transicionaisEnabled;
-  }
-
-  // K1
-  async findIntegrationSetting(): Promise<IntegrationSetting> {
-    const response = await this.supabaseClient.query<unknown>((sdk) =>
-      sdk.from(SETTING_TABLE).select("data").eq("id", INTEGRATION_SETTING_ID).maybeSingle(),
-    );
-
-    if (response.error) {
-      throw this.databaseError("findIntegrationSetting", response.status, response.error.message);
-    }
-
-    if (!response.data) {
-      const now = new Date();
-
-      return IntegrationSettingResponse.toDefault(now.toISOString());
-    }
-
-    return IntegrationSettingResponse.toDomain(response.data);
-  }
-
-  async updateIntegrationSetting(setting: IntegrationSetting): Promise<IntegrationSetting> {
-    const now = new Date();
-    const row = IntegrationSettingRequest.fromDomain(setting, INTEGRATION_SETTING_ID, now.toISOString());
-    const response = await this.supabaseClient.query<unknown>((sdk) =>
-      sdk.from(SETTING_TABLE).upsert(row, { onConflict: "id" }).select("data").single(),
-    );
-
-    if (response.error || !response.data) {
-      throw this.databaseError("updateIntegrationSetting", response.status, response.error?.message);
-    }
-
-    return IntegrationSettingResponse.toDomain(response.data);
   }
 
   // D16
