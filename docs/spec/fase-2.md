@@ -133,6 +133,7 @@ erro do Transicionais como veio). RLS ligada, sem políticas. O backoff é regra
 | J4 | Os itens rodam em paralelo (`Promise.all`), cada um com o seu `try/catch`: a falha de um não para os outros. Para cada item, busca o registro no Supabase e envia como em **Envio**. |
 | J5 | Registro que não existe mais no Supabase → a fila vai para `MANUAL_RETRY` ("not found") e o item sai da resposta. |
 | J6 | Evento que já tem `integrationId` → só marca a fila como `SYNCED`, sem criar de novo. |
+| J0 | **Chave desligada:** a 1ª linha do `JobUsecase` chama `isTransicionaisEnabled()`. Desligada → `UpstreamUnavailableError` (503 `UPSTREAM_UNAVAILABLE_ERROR`), sem ler nem gravar a fila: as tentativas não andam. |
 | J7 | Resposta: a lista dos registros processados pelo `toJson()`, **com** o `metadata` (`sync` e `syncError` mostram o resultado de cada um). Só o cron chama essa rota. |
 
 `yarn cron:sync --type=event|user|attendance [BFF_URL]` chama a rota como o agendador.
@@ -172,9 +173,19 @@ erro do Transicionais como veio). RLS ligada, sem políticas. O backoff é regra
 
 | # | Regra |
 |---|---|
-| V1 | A rota pede o usecase por `Envolviment.make<Tipo>(<Usecase>.token)` (estático), numa variável com o nome do usecase. Ela não monta client, session nem repo. |
+| V1 | A rota pede o usecase por `await Envolviment.make<Tipo>(<Usecase>.token)` (estático e `async`), numa variável com o nome do usecase. Ela não monta client, session nem repo. |
 | V2 | **Singleton lazy por instância** (função da Vercel, isolate da Cloudflare): o 1º `make` de um token monta o usecase e as dependências que faltam (`HttpClient`, `SupabaseClient`, `TransicionaisSession`, repos) e guarda; os seguintes devolvem a instância. O SDK do Supabase nasce uma vez por instância, na 1ª consulta. |
 | V3 | Token sem `case` no `make` → `Error` de configuração (500). Os 8 usecases pedidos por rota têm `token`; `CreatingOrUpdateUserUsecase` e `FindingUserUsecase` são montados dentro do `CreatingOrUpdatingAttendanceUsecase`. |
+
+#### Chave do Transicionais (`GET`/`PUT /api/admin/integracao`)
+
+| # | Regra |
+|---|---|
+| K1 | Tabela `setting` (`v3__create_setting.sql`): `id text` (PK), `data jsonb`, `created_at`, `updated_at`; RLS ligada, sem políticas. A linha `integration` guarda `{ transicionaisEnabled, updatedAt }`. Sem linha = ligado. |
+| K2 | `GET` e `PUT /api/admin/integracao` com `requireAdmin`. O `PUT` recebe `{ transicionaisEnabled: boolean }`, vira `IntegrationSetting` no `IntegrationSettingRequest.toDomain` e vai ao `UpdatingIntegrationSettingUsecase`. Resposta das duas: `{ transicionaisEnabled, updatedAt }`. |
+| K3 | **Injeção:** no `make` de um usecase que usa o Transicionais, o `Envolviment` lê `isTransicionaisEnabled()`. Ligada → `TransicionaisRepo(HttpClient, TransicionaisSession(HttpClient))`; desligada → `TransicionaisRepo(FakeHttpClient, TransicionaisSession(FakeHttpClient))`. As duas montagens são lazy e ficam no cache; o usecase é guardado por `token` + estado. |
+| K4 | `FakeHttpClient` implementa `IHttpClient` (o mesmo contrato do `HttpClient`) e devolve `{ status: 503, error }` sem `fetch`. O repo converte em `UpstreamUnavailableError` (T1) e os usecases de envio seguem o plano de falha que já têm: gravam local e deixam `Pending`, sem esperar o timeout nem fazer login. |
+| K5 | A troca vale no próximo pedido, em todas as instâncias: a chave é lida a cada `make` de usecase com Transicionais. Ao religar, o próximo cron esvazia a fila. |
 
 #### Limites conhecidos
 
@@ -195,4 +206,5 @@ envio. Só muda o que segue.
 |---|---|
 | F12 | **Presença recusada não conta.** A presença com `sync: "REJECTED"` (o Transicionais recusou) é ignorada em Minhas reservas, na folha ("Você já reservou este instrumento.") e nas presenças e reservas da Produção. A pessoa pode reservar de novo. |
 | F13 | **Código do evento em debug.** Com `?debug=1` na URL ou `window.HG_DEV = true`, a home (abertas e fechadas) e o título "PRÓXIMO ENSAIO" da Produção mostram `E-<id>-<integrationId>`. Evento ainda não enviado mostra `NÃO_INTEGRADO` no lugar do `integrationId`. Fora do debug, o código fica escondido. |
+| F15 | **Chave do Transicionais em debug.** Com `?debug=1` (ou `window.HG_DEV`), o `loadAdmin` também lê `GET /api/admin/integracao` (`state.integration`) e o `renderAdmin` mostra o botão "Transicionais: ligado / desligado", no estilo do `toggleBooking`, que grava pelo `PUT` e mostra um toast. Fora do debug, nada muda. |
 | F14 | **Evento criado pelo Transicionais** chega com a reserva fechada (`bookingOpen` `null`) e sem link do WhatsApp, até a Produção definir os dois. A home mostra o estado de reservas fechadas. |

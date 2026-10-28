@@ -72,6 +72,25 @@ Criados:
 Já existiam: a fila, o envio do repo do Transicionais e a mesma regra de envio dos usecases de
 criação.
 
+## Como Produção, quero desligar o Transicionais de propósito sem travar a fila
+
+Criados:
+- **Banco** `setting` ([`v3__create_setting.sql`](../../../supabase/migrations/v3__create_setting.sql)),
+  linha `integration`.
+- **Domain** `IntegrationSetting`: a chave do Transicionais (ligado ou desligado).
+- **Client** `FakeHttpClient` e a interface `IHttpClient`: o Transicionais desligado responde
+  "fora do ar" na hora, sem rede.
+- **Repo:** `isTransicionaisEnabled`, ler e gravar a chave.
+- **Usecases** `FindingIntegrationSettingUsecase` e `UpdatingIntegrationSettingUsecase`.
+- **Rota** `GET` e `PUT /api/admin/integracao`.
+
+Alterados:
+- **`Envolviment`:** `make` passa a ser `async` e injeta o repo do Transicionais com o
+  `FakeHttpClient` quando a chave está desligada; as rotas fazem `await` no `make`.
+- **`JobUsecase`:** a 1ª linha confere a chave; desligada, responde 503 sem tocar a fila.
+
+Já existiam: o plano de falha dos usecases de envio (fora do ar → `Pending`), que não muda.
+
 ## Como time, quero achar as falhas do Transicionais nos logs
 
 Alterado: o padrão de log ganha os contextos `Sync`, `Job` e `TransicionaisRepository`. O repo do

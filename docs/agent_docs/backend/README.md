@@ -98,7 +98,7 @@ src/serve-utils/
 ## Fluxo de uma chamada
 
 ```
-api/<rota>.ts (handle) → Envolviment.make<T>(token) → Usecase.execute(input) → Repo (pela interface) → Client → API externa / Supabase
+api/<rota>.ts (handle) → await Envolviment.make<T>(token) → Usecase.execute(input) → Repo (pela interface) → Client → API externa / Supabase
                                        ← domain                ← XResponse.toDomain(raw) (schema zod)
 ```
 

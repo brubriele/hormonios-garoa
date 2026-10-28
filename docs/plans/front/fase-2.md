@@ -12,3 +12,9 @@ a Produção passam a não contar com ela.
 
 Criado em `app.js`: o código do ensaio em modo debug (`?debug=1`), `E-<id>-<id no Transicionais>`
 ou `NÃO_INTEGRADO`. No `index.html`, o lugar dele na home (`data-dev-event-code`).
+
+## Como Produção, quero desligar o Transicionais pela tela em modo debug
+
+Criado em `app.js`: com `?debug=1`, a Produção carrega a chave (`GET /api/admin/integracao`) e
+mostra o botão "Transicionais: ligado / desligado", que grava pelo `PUT`. Fora do debug, a tela
+não muda.
