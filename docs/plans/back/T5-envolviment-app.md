@@ -1,6 +1,6 @@
 # Back — T5: envolviment-app
 
-> **Em progresso.** Nenhum usecase muda: [`docs/usecases/`](../../usecases/README.md) fica igual. O
+> **Concluído em 2026-10-28.** Nenhum usecase muda: [`docs/usecases/`](../../usecases/README.md) fica igual. O
 > detalhe para agente: [`spec/spec-5-envolviment-app.md`](../../spec/spec-5-envolviment-app.md).
 
 ## Como time, quero rodar o job sem passar por uma rota e organizar o deploy por ambiente

@@ -1,6 +1,6 @@
 # Back — T6: cronjob
 
-> **Em progresso.** Nenhum usecase muda: [`docs/usecases/`](../../usecases/README.md) fica igual. O
+> **Concluído em 2026-10-28.** Nenhum usecase muda: [`docs/usecases/`](../../usecases/README.md) fica igual. O
 > detalhe para agente: [`spec/spec-6-cronjob.md`](../../spec/spec-6-cronjob.md).
 
 ## Como time, quero que a fila esvazie sozinha a cada 5 minutos na Cloudflare

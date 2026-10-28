@@ -1,6 +1,6 @@
 # spec-5 — envolviment-app: entradas e deploy por ambiente
 
-> Tarefa: [`plans/back/T5-envolviment-app.md`](../plans/back/T5-envolviment-app.md).
+> **Concluído em 2026-10-28.** Tarefa: [`plans/back/T5-envolviment-app.md`](../plans/back/T5-envolviment-app.md).
 > Rascunho de origem: [`plans/deploy/README.md`](../plans/deploy/README.md).
 
 ## Desenho

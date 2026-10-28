@@ -10,8 +10,8 @@
 | Fase 2 | Sincronização com o Transicionais | [back](back/fase-2.md), [front](front/fase-2.md) | [`fase-2.md`](../spec/fase-2.md) | Concluído em 2026-10-27 |
 | T3 | Transicionais desligado | [back](back/T3-transicionais-desligado.md) | [`spec-3-transicionais-desligado.md`](../spec/spec-3-transicionais-desligado.md) | Concluído em 2026-10-28 |
 | T4 | Grupos e catálogo integrados ao Transicionais | [back](back/T4-integrate-groupos-catalog.md) | [`spec-4-integrate-groupos-catalog.md`](../spec/spec-4-integrate-groupos-catalog.md) | Concluído em 2026-10-28 |
-| T5 | Entrada do cron (`cronjob/handler.ts`) e `deploy/` por ambiente (dev, Vercel) | [back](back/T5-envolviment-app.md) | [`spec-5-envolviment-app.md`](../spec/spec-5-envolviment-app.md) | Em progresso |
-| T6 | cronjob: o job na Cloudflare (`deploy/cloudflare/`, `scheduled()` → handler) | [back](back/T6-cronjob.md) | [`spec-6-cronjob.md`](../spec/spec-6-cronjob.md) | Em progresso |
+| T5 | Entrada do cron (`cronjob/handler.ts`) e `deploy/` por ambiente (dev, Vercel) | [back](back/T5-envolviment-app.md) | [`spec-5-envolviment-app.md`](../spec/spec-5-envolviment-app.md) | Concluído em 2026-10-28 |
+| T6 | cronjob: o job na Cloudflare (`deploy/cloudflare/`, `scheduled()` → handler) | [back](back/T6-cronjob.md) | [`spec-6-cronjob.md`](../spec/spec-6-cronjob.md) | Concluído em 2026-10-28 |
 | T7 | webhook: o webhook do Transicionais como worker separado | — | — | Próxima |
 
 Changelog por fase: [`back/README.md`](back/README.md) e [`front/README.md`](front/README.md).

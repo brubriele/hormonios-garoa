@@ -1,7 +1,7 @@
 # spec-6 — cronjob: o job na Cloudflare
 
-> Tarefa: [`plans/back/T6-cronjob.md`](../plans/back/T6-cronjob.md). A entrada do cron é a
-> spec-5 B1 (`cronjob/handler.ts`).
+> **Concluído em 2026-10-28.** Tarefa: [`plans/back/T6-cronjob.md`](../plans/back/T6-cronjob.md).
+> A entrada do cron é a spec-5 B1 (`cronjob/handler.ts`).
 
 ## Desenho
 
