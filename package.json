@@ -9,7 +9,9 @@
     "typecheck": "tsc --noEmit",
     "cron:event": "node scripts/cron.mjs event",
     "cron:sync": "node scripts/cron.mjs sync",
-    "cron:webhook": "node scripts/cron.mjs --type=webhook"
+    "cron:webhook": "node scripts/cron.mjs --type=webhook",
+    "cronjob:dev:cf": "yarn --cwd deploy/cloudflare cronjob:dev",
+    "cronjob:deploy": "yarn --cwd deploy/cloudflare cronjob:deploy"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",

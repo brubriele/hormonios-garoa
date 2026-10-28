@@ -7,6 +7,7 @@ import { SyncStatus } from "../../domain/SyncStatus";
 import { AppError, UpstreamUnavailableError } from "../../errors/app-error";
 import type { IHormoniosRepository } from "../../interfaces/IHormoniosRepository";
 import type { ITransicionaisRepo } from "../../interfaces/transicionais";
+import { jobSummary } from "../../lib/job-summary";
 import { createLogger, LogContext } from "../../lib/logger";
 import { validateSchema } from "../../lib/schema";
 import { toErrorCtx } from "../../lib/upstream";
@@ -44,9 +45,13 @@ export class EventJobUsecase {
 
     const now = new Date();
     const integrationStatuses = await this.findDueIntegrationStatus(now);
-    const events = await Promise.all(integrationStatuses.map((integrationStatus) => this.syncEvent(integrationStatus, now)));
+    const results = await Promise.all(integrationStatuses.map((integrationStatus) => this.syncEvent(integrationStatus, now)));
+    const events = results.filter((event) => event !== null);
+    const statuses = events.map((event) => event.metadata.sync);
 
-    return events.filter((event) => event !== null);
+    logger.track("event job finished", jobSummary(integrationStatuses.length, statuses));
+
+    return events;
   }
 
   private validateInput(input: Job): Job {
@@ -63,11 +68,14 @@ export class EventJobUsecase {
 
       if (!event) {
         await this.saveNotFound(integrationStatus, now);
+        logger.track("event job item", { hormoniosEventId: integrationStatus.entityId, status: SyncStatus.ManualRetry });
 
         return null;
       }
 
       const sent = await this.sendEvent(event, integrationStatus, now);
+
+      logger.track("event job item", { hormoniosEventId: sent.id, status: sent.metadata.sync });
 
       return sent;
     } catch (error) {

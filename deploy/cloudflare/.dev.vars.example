@@ -1,0 +1,15 @@
+# Copie para .dev.vars (fora do git): cp .dev.vars.example .dev.vars
+# Env local do wrangler dev. Em produção, cada chave vai por `npx wrangler secret put <CHAVE>`.
+
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+TRANSICIONAIS_URL=
+TRANSICIONAIS_ORG_ID=
+TRANSICIONAIS_USER=
+TRANSICIONAIS_PASSWORD=
+
+# false desliga o Transicionais: o job responde 503 sem tocar a fila (spec-3 D1)
+TRANSICIONAIS_ENABLED=false
+
+# trace [supabase]/[transicionais]/[cronjob] com ms no terminal; só local (spec-6 A5)
+TRACE_FETCH=true

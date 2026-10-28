@@ -60,8 +60,8 @@ export abstract class Logger {
     this.error({ err: error, operation }, "repository error");
   }
 
-  track(message: string, ids: ILogIds = {}): void {
-    this.info({ ...ids }, message);
+  track(message: string, fields: ILogIds & LogBindings = {}): void {
+    this.info({ ...fields }, message);
   }
 
   private log(level: LogLevel, fieldsOrMessage: LogBindings | string, message?: string): void {
@@ -86,9 +86,10 @@ function serializeError(error: unknown): unknown {
 class ConsoleLogger extends Logger {
   protected write(level: LogLevel, fields: LogBindings, message: string): void {
     const { err, ...rest } = fields;
+    const date = new Date();
     const line = JSON.stringify({
       level,
-      time: new Date().toISOString(),
+      time: date.toISOString(),
       ...rest,
       ...(err === undefined ? {} : { err: serializeError(err) }),
       msg: message,

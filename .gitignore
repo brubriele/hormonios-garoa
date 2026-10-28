@@ -11,3 +11,7 @@ dist/
 # contrato OpenAPI do Transicionais e exemplo de resposta: só local
 docs/transicionais-api.json
 docs/plans/transicionais/public-event-exemplo.json
+
+# Cloudflare (spec-6 A4)
+.dev.vars
+.wrangler/

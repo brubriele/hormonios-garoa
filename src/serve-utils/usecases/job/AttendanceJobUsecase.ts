@@ -10,6 +10,7 @@ import type { User } from "../../domain/User";
 import { AppError, UpstreamUnavailableError } from "../../errors/app-error";
 import type { IHormoniosRepository } from "../../interfaces/IHormoniosRepository";
 import type { ITransicionaisRepo } from "../../interfaces/transicionais";
+import { jobSummary } from "../../lib/job-summary";
 import { createLogger, LogContext } from "../../lib/logger";
 import { validateSchema } from "../../lib/schema";
 import { toErrorCtx } from "../../lib/upstream";
@@ -47,11 +48,15 @@ export class AttendanceJobUsecase {
 
     const now = new Date();
     const integrationStatuses = await this.findDueIntegrationStatus(now);
-    const attendances = await Promise.all(
+    const results = await Promise.all(
       integrationStatuses.map((integrationStatus) => this.syncAttendance(integrationStatus, now)),
     );
+    const attendances = results.filter((attendance) => attendance !== null);
+    const statuses = attendances.map((attendance) => attendance.metadata.sync);
 
-    return attendances.filter((attendance) => attendance !== null);
+    logger.track("attendance job finished", jobSummary(integrationStatuses.length, statuses));
+
+    return attendances;
   }
 
   private validateInput(input: Job): Job {
@@ -71,11 +76,14 @@ export class AttendanceJobUsecase {
 
       if (!event || !attendance || !user) {
         await this.saveNotFound(integrationStatus, now);
+        logger.track("attendance job item", { hormoniosAttendanceId: attendanceId, status: SyncStatus.ManualRetry });
 
         return null;
       }
 
       const sent = await this.sendAttendance(user, attendance, event, integrationStatus, now);
+
+      logger.track("attendance job item", { hormoniosAttendanceId: sent.id, status: sent.metadata.sync });
 
       return sent;
     } catch (error) {

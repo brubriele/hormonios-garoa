@@ -17,7 +17,8 @@ procure aqui: helper repetido em dois arquivos é erro de revisão.
 | L6 | Os dados variáveis vão nos campos, não na mensagem: `logger.warn({ supportId }, "instrument support has no group of the event (D21)")`, e não `` `support ${id} has no group` ``. A mensagem é fixa e cita a decisão (D#, E#) quando houver. |
 | L7 | **Contexto:** `LogContext.Event`, `User`, `Attendance`, `Job` ou `Sync` nos usecases (o domínio do usecase; `sync/` é `Sync`, `job/` é `Job`); `HormoniosRepository` ou `TransicionaisRepository` nos repos. Quem não é usecase nem repo (ex.: `handle`) fica sem contexto. |
 | L8 | **Log é para erro.** Cada `AppError` é logado uma vez, no catch do `execute` do usecase: `logger.appError(error, { hormoniosEventId \| hormoniosUserId \| hormoniosAttendanceId })`, com o id do Hormônios que a entrada traz. O repo loga a falha da fonte antes de lançar: `logger.repositoryError(error, operation)`. |
-| L9 | **Tracking só estratégico:** `logger.track("<o que o usecase faz>", ids?)` na primeira linha do `_execute`. Nada de `info`/`warn` espalhado pelo fluxo, nem log quebrado em várias linhas: cada log cabe numa linha. |
+| L9 | **Tracking só estratégico:** `logger.track("<o que o usecase faz>", ids?)` na primeira linha do `_execute`. Nada de `info`/`warn` espalhado pelo fluxo, nem log quebrado em várias linhas: cada log cabe numa linha. **Exceção, os jobs** (`usecases/job/`): também um `track("<tipo> job item", { hormonios*Id, status })` por item e um `track("<tipo> job finished", jobSummary(...))` no fim do `_execute` (spec-6 A7). |
+| L10 | `jobSummary(found, statuses)` (`job-summary.ts`) monta o resumo do job: `found`, `synced`, `pending`, `manualRetry`, `rejected` (dos itens que voltaram) e `notSent` (não achados, que ficam `MANUAL_RETRY`, ou falha inesperada, que já tem log de erro). |
 
 ## O que existe
 
@@ -25,7 +26,8 @@ procure aqui: helper repetido em dois arquivos é erro de revisão.
 |---|---|
 | `date.ts` | `SAO_PAULO_TIME_ZONE`, `today(timeZone?)` (YYYY-MM-DD), `addDays(date, days)` |
 | `upstream.ts` | `isUnavailable(status)`: 0, 429 ou 5xx = fora do ar |
-| `logger.ts` | `createLogger(scope, context?)`, `LogContext`, `ILogIds`, `Logger` (abstrata, API do pino: `debug/info/warn/error(campos?, msg)`, `child`, e os atalhos `appError`, `repositoryError` e `track`), `LogLevel` |
+| `job-summary.ts` | `jobSummary(found, statuses)`: o resumo do job para o `track` do fim (L10) |
+| `logger.ts` | `createLogger(scope, context?)`, `LogContext`, `ILogIds`, `Logger` (abstrata, API do pino: `debug/info/warn/error(campos?, msg)`, `child`, e os atalhos `appError`, `repositoryError` e `track(msg, campos?)`), `LogLevel` |
 
 ## Logger
 

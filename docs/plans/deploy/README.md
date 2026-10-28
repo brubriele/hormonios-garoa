@@ -1,7 +1,16 @@
 # Plano de deploy por provedor
 
 Rascunho de arquitetura para publicar o projeto em mais de um provedor (dev, Vercel, Cloudflare)
-sem mudar o núcleo. Ainda não implementado.
+sem mudar o núcleo. Virou tarefas, com entradas isoladas (`api/`, `cronjob/`, `webhook/`) que
+chamam o usecase pelo contrato dele, e `deploy/<ambiente>`, que é do ambiente e não da entrada:
+
+- **T5 envolviment-app** ([spec-5](../../spec/spec-5-envolviment-app.md)): `cronjob/handler.ts`
+  chama o `JobUsecase` direto; `deploy/dev/` e `deploy/vercel/`. O `vercel.json` fica na raiz.
+- **T6 cronjob** ([spec-6](../../spec/spec-6-cronjob.md)): `deploy/cloudflare/` sobe o `cronjob`
+  (`scheduled()` → handler), um cron por tipo.
+- **T7 webhook:** `webhook/` como worker separado na Cloudflare.
+
+O resto deste arquivo é o rascunho original.
 
 ## Contexto
 

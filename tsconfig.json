@@ -18,6 +18,9 @@
   },
   "include": [
     "api/**/*.ts",
-    "src/serve-utils/**/*.ts"
+    "src/serve-utils/**/*.ts",
+    "deploy/dev/**/*.ts",
+    "deploy/shared/**/*.ts",
+    "cronjob/**/*.ts"
   ]
 }

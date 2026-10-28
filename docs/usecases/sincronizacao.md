@@ -157,16 +157,17 @@ hormoniosRepository.findAttendanceByIntegrationId(…) → createOrUpdateAttenda
 **Consequências.**
 - A presença trazida não é enviada de volta.
 
-## Reenviar o que ficou pendente (JobUsecase) — `GET /api/cron/sync?type=event|user|attendance`
+## Reenviar o que ficou pendente (JobUsecase) — `GET /api/cron/sync?type=event|user|attendance` e agendador
 
-**Telas.** Nenhuma: quem chama é um agendador, de tempos em tempos.
+**Telas.** Nenhuma: quem chama é o agendador da Cloudflare, a cada 5 minutos, ou alguém pela rota.
 
 **Contexto.** O que não chegou ao Transicionais precisa ser enviado de novo, sem ninguém pedir.
 
 **Desenho.**
 
 ```
-GET /api/cron/sync?type=event|user|attendance (chave do cron) ── JobUsecase
+agendador (a cada 5 min, um tipo por vez) ─┐
+GET /api/cron/sync?type=… (chave do cron) ─┴── JobUsecase
   ▼ Transicionais desligado? → "fora do ar" (503), sem tocar a fila   (spec-3 D1)
   ├─ event → EventJobUsecase
   ├─ user → UserJobUsecase
@@ -177,7 +178,8 @@ lista do que foi reenviado ──► resposta
 ```
 
 **Decisão.**
-- Só aceita a chamada com a chave combinada.
+- O agendador roda sozinho a cada 5 minutos, um horário para cada tipo. Pela rota, só aceita a
+  chamada com a chave combinada.
 - Recebe o que reenviar: ensaios, pessoas ou presenças. Outro tipo é recusado.
 - Com o Transicionais desligado de propósito na configuração, não reenvia nada e avisa que ele
   está fora do ar.
@@ -187,6 +189,7 @@ lista do que foi reenviado ──► resposta
 - Cada tipo é chamado separado, então um tipo com problema não atrasa os outros.
 - Enquanto o Transicionais está desligado, as tentativas não contam: o que ficou pendente não
   para por excesso de tentativas.
+- Cada rodada deixa registrado o que aconteceu com cada item e um resumo, para o time conferir.
 
 ## Reenviar ensaios, pessoas ou presenças (EventJobUsecase, UserJobUsecase e AttendanceJobUsecase) — sem rota
 

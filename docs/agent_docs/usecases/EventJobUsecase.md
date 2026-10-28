@@ -19,6 +19,7 @@ findEvent(entityId)
         ├─ ok → saveSynced: metadata do Transicionais + SYNCED; fila synced
         └─ erro → toFailedStatus → saveFailure
   ▼
+track "event job item" por item; track "event job finished" (resumo)
 lista dos eventos processados (sem os null)
 ```
 
@@ -52,5 +53,5 @@ lista dos eventos processados (sem os null)
 
 | # | Regra |
 |---|---|
-| D1 | `LogContext.Job`: `track` no início, `appError` no catch e `error` por item com `hormoniosEventId`. |
+| D1 | `LogContext.Job`: `track` no início, `appError` no catch e `error` por item com `hormoniosEventId`. Também `track("event job item", { hormoniosEventId, status })` por item e `track("event job finished", jobSummary(...))` no fim (spec-6 A7). |
 | D2 | Devolve os `Event` processados, com o `metadata` (`sync` e `syncError` mostram o resultado, fase-2 J7). |

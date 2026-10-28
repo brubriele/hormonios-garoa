@@ -7,6 +7,7 @@ import type { User } from "../../domain/User";
 import { AppError, UpstreamUnavailableError } from "../../errors/app-error";
 import type { IHormoniosRepository } from "../../interfaces/IHormoniosRepository";
 import type { ITransicionaisRepo } from "../../interfaces/transicionais";
+import { jobSummary } from "../../lib/job-summary";
 import { createLogger, LogContext } from "../../lib/logger";
 import { validateSchema } from "../../lib/schema";
 import { toErrorCtx } from "../../lib/upstream";
@@ -23,7 +24,9 @@ export class UserJobUsecase {
 
   async execute(input: Job): Promise<User[]> {
     try {
-      return await this._execute(input);
+      const users = await this._execute(input);
+
+      return users;
     } catch (error) {
       if (error instanceof AppError) {
         logger.appError(error);
@@ -42,9 +45,13 @@ export class UserJobUsecase {
 
     const now = new Date();
     const integrationStatuses = await this.findDueIntegrationStatus(now);
-    const users = await Promise.all(integrationStatuses.map((integrationStatus) => this.syncUser(integrationStatus, now)));
+    const results = await Promise.all(integrationStatuses.map((integrationStatus) => this.syncUser(integrationStatus, now)));
+    const users = results.filter((user) => user !== null);
+    const statuses = users.map((user) => user.metadata.sync);
 
-    return users.filter((user) => user !== null);
+    logger.track("user job finished", jobSummary(integrationStatuses.length, statuses));
+
+    return users;
   }
 
   private validateInput(input: Job): Job {
@@ -61,11 +68,16 @@ export class UserJobUsecase {
 
       if (!user) {
         await this.saveNotFound(integrationStatus, now);
+        logger.track("user job item", { hormoniosUserId: integrationStatus.entityId, status: SyncStatus.ManualRetry });
 
         return null;
       }
 
-      return await this.sendUser(user, integrationStatus, now);
+      const sent = await this.sendUser(user, integrationStatus, now);
+
+      logger.track("user job item", { hormoniosUserId: sent.id, status: sent.metadata.sync });
+
+      return sent;
     } catch (error) {
       logger.error({ err: error, hormoniosUserId: integrationStatus.entityId }, "user job failed");
 
@@ -84,7 +96,9 @@ export class UserJobUsecase {
     try {
       const external = await this.transicionaisRepo.createUser(user);
 
-      return await this.saveSynced(external, integrationStatus, now);
+      const synced = await this.saveSynced(external, integrationStatus, now);
+
+      return synced;
     } catch (error) {
       const failed = this.toFailedStatus(integrationStatus, error, now);
 

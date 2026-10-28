@@ -18,6 +18,7 @@ findEventByAttendanceId → findAttendance(id, event) → findUser(attendance.me
         ├─ ok → findPresence → syncHash + integrationId → SYNCED (presença e fila)
         └─ erro → PENDING (fora do ar) / MANUAL_RETRY
   ▼
+track "attendance job item" por item; track "attendance job finished" (resumo)
 lista das presenças processadas (sem os null)
 ```
 
@@ -42,6 +43,6 @@ lista das presenças processadas (sem os null)
 | # | Regra |
 |---|---|
 | C1 | Como o [`CreatingOrUpdatingAttendanceUsecase`](CreatingOrUpdatingAttendanceUsecase.md) D1. |
-| C2 | `LogContext.Job`: `track`, `appError` no catch e `error` por item com `hormoniosAttendanceId`. |
+| C2 | `LogContext.Job`: `track`, `appError` no catch e `error` por item com `hormoniosAttendanceId`. Também `track("attendance job item", { hormoniosAttendanceId, status })` por item e `track("attendance job finished", jobSummary(...))` no fim (spec-6 A7). |
 | C3 | Devolve as `Attendance` processadas, com o `metadata` (fase-2 J7). |
 

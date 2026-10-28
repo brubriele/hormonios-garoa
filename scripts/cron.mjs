@@ -4,7 +4,7 @@
 //      yarn cron:webhook --entity=event --id=1 [BFF_URL] → POST /api/webhooks/transicionais (atualiza a base interna)
 //      ids: event = id do encontro ou uuid do link público; user = userId da conta; validation = validationId
 //      yarn cron:event [BFF_URL]                → GET /api/cron/event
-//      yarn cron:sync --type=event [BFF_URL] → GET /api/cron/sync?type=event (reenvia a fila integration_status)
+//      yarn cron:sync --type=event              → cronjob/handler.ts direto, sem HTTP (reenvia a fila integration_status)
 //      tipos do sync: event, user, attendance
 // BFF_URL padrão: BFF_URL do .env.local ou http://localhost:5173
 import { existsSync } from 'node:fs'
@@ -40,6 +40,11 @@ if (route === 'sync' && !SYNC_TYPES.includes(type)) {
   console.error(`--type inválido: ${type ?? '(vazio)'}. Use um de: ${SYNC_TYPES.join(', ')}`)
   process.exit(1)
 }
+if (route === 'sync') {
+  await callCronjob(type)
+  process.exit(0)
+}
+
 const secret = process.env.CRON_SECRET
 
 if (!secret) {
@@ -102,4 +107,26 @@ async function callWebhook(args) {
   }
 
   if (!response.ok) process.exit(1)
+}
+
+// spec-5 B2: carrega o handler pelo Vite (os imports do núcleo não têm extensão)
+async function callCronjob(entity) {
+  const { createServer } = await import('vite')
+  const server = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' })
+  const startedAt = Date.now()
+
+  try {
+    const { handler } = await server.ssrLoadModule('/cronjob/handler.ts')
+    const items = await handler({ entity })
+
+    console.log(`cronjob ${entity} → ${items.length} item(s) (${Date.now() - startedAt} ms)`)
+    console.log(JSON.stringify(items.map((item) => item.toJson()), null, 2))
+  } catch (error) {
+    console.error(`cronjob ${entity} → ${error.status ?? 500} ${error.key ?? error.name}: ${error.message}`)
+    process.exitCode = 1
+  } finally {
+    await server.close()
+  }
+
+  if (process.exitCode) process.exit(process.exitCode)
 }

@@ -73,7 +73,7 @@ etc.) fica fora deste padrão.
 ## Pastas
 
 ```
-api/                                   rotas da Vercel: pedem o usecase ao Envolviment e respondem
+api/                                   rotas REST do app: pedem o usecase ao Envolviment e respondem
 src/serve-utils/
   errors/                              AppError e erros de domínio
   domain/                              entidades

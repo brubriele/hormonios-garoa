@@ -45,3 +45,23 @@
   PUT do support-type mantém os `groupIds` dele; o job de evento reenvia a edição em vez de só marcar
   `SYNCED` (fase-2 J6).
 - **Removidas:** —
+
+### [T5 — envolviment-app](T5-envolviment-app.md) — 2026-10-28
+
+- **Adicionadas:** a entrada do cron `cronjob/handler.ts`, que chama o `JobUsecase` direto, como
+  uma lambda; `deploy/` por ambiente, com o plugin de dev e o README da Vercel.
+- **Alteradas:** o `yarn cron:sync` chama o handler direto, sem HTTP e sem `CRON_SECRET`; o
+  servidor de dev das rotas e o `server.host` saem do `vite.config.js` para `deploy/dev/`, carregados
+  só no `yarn dev`, com o mesmo comportamento.
+- **Removidas:** —
+
+### [T6 — cronjob](T6-cronjob.md) — 2026-10-28
+
+- **Adicionadas:** o job roda na Cloudflare (`deploy/cloudflare/`, worker `hormonios-cronjob`), um
+  cron por tipo a cada 5 minutos, chamando a entrada `cronjob/handler.ts`, com os logs guardados no
+  painel (Workers Logs); `yarn cronjob:dev:cf` e `yarn cronjob:deploy`.
+- **Alteradas:** os jobs de ensaio, pessoa e presença logam cada item (id e status) e um resumo no fim
+  (`found`, `synced`, `pending`, `manualRetry`, `rejected`, `notSent`); o `track` aceita campos além
+  dos ids; o `package.json` da raiz ganha os scripts `cronjob:dev:cf` e `cronjob:deploy`, que
+  chamam o pacote de `deploy/cloudflare` (instalado à parte, com wrangler, zod e Supabase).
+- **Removidas:** —
