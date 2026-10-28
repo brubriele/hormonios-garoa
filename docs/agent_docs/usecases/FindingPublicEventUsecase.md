@@ -1,6 +1,6 @@
 # FindingPublicEventUsecase — `GET /api/ensaio`
 
-> Código: [`usecases/event/FindingPublicEventUsecase.ts`](../../../src/serve-utils/usecases/event/FindingPublicEventUsecase.ts).
+> Código: [`usecases/event/FindingPublicEventUsecase.ts`](../../../src/bff/usecases/event/FindingPublicEventUsecase.ts).
 > Rota: [`api/ensaio.ts`](../../../api/ensaio.ts). Índice: [`README.md`](README.md).
 
 ## Fluxo

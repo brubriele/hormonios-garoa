@@ -1,4 +1,4 @@
-# Repos e UrlCollection (`src/serve-utils/repos/<fonte>/`)
+# Repos e UrlCollection (`src/bff/repos/<fonte>/`)
 
 > Índice: [`README.md`](README.md). Usa: [`clients.md`](clients.md), [`interfaces.md`](interfaces.md), [`domain.md`](domain.md).
 > Tradução do formato cru: [`requests-responses.md`](requests-responses.md).
@@ -33,7 +33,7 @@ negócio fica no usecase (R12).
 ## Exemplo
 
 ```ts
-// src/serve-utils/repos/transicionais/url-collection.ts
+// src/bff/repos/transicionais/url-collection.ts
 import type { UUID } from "../../interfaces/uuid";
 
 export class TransicionaisUrlCollection {
@@ -57,7 +57,7 @@ export class TransicionaisUrlCollection {
 ```
 
 ```ts
-// src/serve-utils/repos/transicionais/repo.ts (trecho)
+// src/bff/repos/transicionais/repo.ts (trecho)
 import { UpstreamUnavailableError } from "../../errors/app-error";
 import { UpstreamResponseError } from "../../errors/infra-error";
 import { HttpClient } from "../../clients/http-client";
@@ -97,7 +97,7 @@ export class TransicionaisRepo implements ITransicionaisRepo {
 O usecase decide o resto (E2.7 e plano de falha):
 
 ```ts
-// src/serve-utils/usecases/sync/receiving-current-event.ts (trecho)
+// src/bff/usecases/sync/receiving-current-event.ts (trecho)
 private async findTransicionaisSnapshot(): Promise<CurrentEventSnapshot | null> {
   try {
     const ref = (await this.transicionaisRepo.listPublicEventsFrom(today()))[0] ?? null; // o primeiro (E2.7)
@@ -120,7 +120,7 @@ campo da `TransicionaisSession`, que o `Envolviment` guarda como singleton ([`en
 sobrevive entre os pedidos da mesma instância e nunca sai do repo.
 
 ```ts
-// src/serve-utils/repos/transicionais/session.ts
+// src/bff/repos/transicionais/session.ts
 import { HttpClient, HttpMethod, type IHttpRequest } from "../../clients/http-client";
 import type { IClientResponse } from "../../interfaces/client-response";
 import type { IRawLogin } from "../../interfaces/transicionais";
@@ -190,7 +190,7 @@ pedem token. A rota pública do encontro usa o `HttpClient` direto.
 ## Exemplo: Supabase (função SQL)
 
 ```ts
-// src/serve-utils/repos/supabase/repo.ts (trecho)
+// src/bff/repos/supabase/repo.ts (trecho)
 const SQL_ERRORS: Record<string, () => AppError> = {
   BOOKING_CLOSED: () => new BookingClosedError("Booking is closed"),
   SOLD_OUT: () => new SoldOutError("Group is sold out"),

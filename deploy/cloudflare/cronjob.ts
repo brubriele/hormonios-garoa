@@ -1,5 +1,5 @@
 import { handler } from "../../cronjob/handler";
-import { JobEntity } from "../../src/serve-utils/domain/Job";
+import { JobEntity } from "../../src/bff/domain/Job";
 import { logTiming, timeUpstreamFetch } from "../shared/trace-fetch";
 
 interface IScheduledController {

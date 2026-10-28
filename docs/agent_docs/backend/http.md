@@ -1,4 +1,4 @@
-# HTTP (`src/serve-utils/http/`)
+# HTTP (`src/bff/http/`)
 
 > Índice: [`README.md`](README.md). Quem usa: [`api.md`](api.md). Erros: [`errors.md`](errors.md).
 
@@ -24,7 +24,7 @@ cookies, a autenticação do cron e do webhook e o IP real. Não têm regra de n
 ## Exemplo
 
 ```ts
-// src/serve-utils/http/handle.ts
+// src/bff/http/handle.ts
 import { AppError, InvalidParameterError } from "../errors/app-error";
 
 export interface IHttpResult {
@@ -75,7 +75,7 @@ export async function readJson<T>(request: Request): Promise<T> {
 ```
 
 ```ts
-// src/serve-utils/http/cookies.ts
+// src/bff/http/cookies.ts
 export function readCookie(request: Request, name: string): string | null {
   const header = request.headers.get("cookie");
 
@@ -100,7 +100,7 @@ export function buildCookie(name: string, value: string, maxAgeSeconds: number):
 ```
 
 ```ts
-// src/serve-utils/http/device.ts
+// src/bff/http/device.ts
 import type { UUID } from "../interfaces/uuid";
 import { buildCookie, readCookie } from "./cookies";
 
@@ -122,7 +122,7 @@ export function getOrCreateDevice(request: Request): { deviceId: UUID; cookie?: 
 ```
 
 ```ts
-// src/serve-utils/http/cron-auth.ts
+// src/bff/http/cron-auth.ts
 import { UnauthorizedError } from "../errors/app-error";
 
 const encoder = new TextEncoder();
@@ -153,7 +153,7 @@ export async function requireCron(request: Request): Promise<void> {
 ```
 
 ```ts
-// src/serve-utils/http/admin-session.ts
+// src/bff/http/admin-session.ts
 import { UnauthorizedError } from "../errors/app-error";
 import { buildCookie, readCookie } from "./cookies";
 

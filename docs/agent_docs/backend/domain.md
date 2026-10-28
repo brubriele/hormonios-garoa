@@ -1,4 +1,4 @@
-# Domains (`src/serve-utils/domain/`)
+# Domains (`src/bff/domain/`)
 
 > Índice: [`README.md`](README.md). Quem cria domains: os responses ([`requests-responses.md`](requests-responses.md), no `toDomain`).
 
@@ -21,7 +21,7 @@
 ## Exemplo
 
 ```ts
-// src/serve-utils/domain/basic-event.ts
+// src/bff/domain/basic-event.ts
 import { z } from "zod";
 import type { UUID } from "../interfaces/uuid";
 import { NonBlankSchema, validateSchema } from "./domain-schema";

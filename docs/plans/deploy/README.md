@@ -65,7 +65,7 @@ Tempo para zerar ~50 itens com lote 8: cron de 1 h → ~6–7 h; 15 min → ~1h3
 
 ## Núcleo e adaptadores
 
-O núcleo não muda: páginas, `api/**/*.ts` e `src/serve-utils/`. Cada provedor resolve três
+O núcleo não muda: páginas, `api/**/*.ts` e `src/bff/`. Cada provedor resolve três
 coisas: servir as páginas, rotear `/api/*` e disparar os jobs.
 
 ```
@@ -74,7 +74,7 @@ coisas: servir as páginas, rotear `/api/*` e disparar os jobs.
                         │  index.html · guias.html · flow.html │
                         │  api/**/*.ts   (GET/POST: Request →  │
                         │                 Response)            │
-                        │  src/serve-utils/  (usecases, repos) │
+                        │  src/bff/  (usecases, repos) │
                         └──────────────────┬───────────────────┘
                                            │
              ┌─────────────────────────────┼─────────────────────────────┐

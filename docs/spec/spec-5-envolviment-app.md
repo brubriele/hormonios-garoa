@@ -13,7 +13,7 @@
  webhook/            fetch → WebhookUsecase               T7
                        │
                        ▼
-            src/serve-utils/ (núcleo: Envolviment, usecases, repos — não muda)
+            src/bff/ (núcleo: Envolviment, usecases, repos — não muda)
 
  deploy/<ambiente>  é do ambiente, não da entrada: diz como cada ambiente sobe as entradas
  ──────────────────────────────────────────────────────────────────────────────────────

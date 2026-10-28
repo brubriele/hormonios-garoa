@@ -38,6 +38,6 @@
 | # | Regra |
 |---|---|
 | B1 | `deploy/cloudflare/` é um pacote à parte, instalado só nele (`npm install` dentro da pasta, com `package-lock.json` próprio): `wrangler` e as dependências que o bundle leva (`zod`, `@supabase/supabase-js`). O `[alias]` do `wrangler.toml` faz o bundle usar essas, não as da raiz. A Vercel não vê nada disso. |
-| B2 | A aplicação (`cronjob/`, `src/serve-utils/`) não tem `package.json` próprio; as dependências dela continuam também na raiz, para o dev e a Vercel. Mudou a versão de `zod` ou do Supabase na raiz → muda aqui também. |
+| B2 | A aplicação (`cronjob/`, `src/bff/`) não tem `package.json` próprio; as dependências dela continuam também na raiz, para o dev e a Vercel. Mudou a versão de `zod` ou do Supabase na raiz → muda aqui também. |
 | B3 | Da raiz: `yarn cronjob:dev:cf` (`wrangler dev --test-scheduled`) e `yarn cronjob:deploy`. Teste local de uma entity: `curl "localhost:8787/__scheduled?cron=1-59/5+*+*+*+*"` (user). Sem a Cloudflare, `yarn cron:sync --type=<tipo>` (spec-5 B2). |
 | B4 | Cron que não está na agenda → erro na execução (A1); erro do job (ex.: 503 com o Transicionais desligado) também falha a execução, e aparece no painel da Cloudflare. |

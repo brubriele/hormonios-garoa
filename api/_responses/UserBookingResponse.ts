@@ -1,5 +1,5 @@
-import type { User } from "../../src/serve-utils/domain/User";
-import { emailHash } from "../../src/serve-utils/lib/hash";
+import type { User } from "../../src/bff/domain/User";
+import { emailHash } from "../../src/bff/lib/hash";
 import { AttendanceResponse } from "./AttendanceResponse";
 
 export class UserBookingResponse {

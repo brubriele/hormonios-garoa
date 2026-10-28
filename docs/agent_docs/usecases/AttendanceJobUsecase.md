@@ -1,7 +1,7 @@
 # AttendanceJobUsecase — `GET /api/cron/sync?type=attendance`
 
-> Código: [`usecases/job/AttendanceJobUsecase.ts`](../../../src/serve-utils/usecases/job/AttendanceJobUsecase.ts).
-> Chamado pelo [`JobUsecase`](../../../src/serve-utils/usecases/job/JobUsecase.ts) (rota
+> Código: [`usecases/job/AttendanceJobUsecase.ts`](../../../src/bff/usecases/job/AttendanceJobUsecase.ts).
+> Chamado pelo [`JobUsecase`](../../../src/bff/usecases/job/JobUsecase.ts) (rota
 > [`api/cron/sync.ts`](../../../api/cron/sync.ts)). Índice: [`README.md`](README.md).
 
 ## Fluxo

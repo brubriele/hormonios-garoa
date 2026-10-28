@@ -3,9 +3,9 @@
 > **Concluído em 2026-10-27.** O que foi implementado está em [Como ficou](#como-ficou-2026-10-27). A
 > sincronização com o Transicionais (fase 3 do plano) está em [`fase-2.md`](fase-2.md).
 
-> Feito com a Bea em 2026-10-26. Os usecases antigos (`src/serve-utils/usecases/`) são apagados:
+> Feito com a Bea em 2026-10-26. Os usecases antigos (`src/bff/usecases/`) são apagados:
 > regras confusas, muita linha para pouca coisa. Os novos partem do contrato em
-> `src/serve-utils/domain/` (`Event`, `Attendance`, `User`, `ManagerEvent`), do
+> `src/bff/domain/` (`Event`, `Attendance`, `User`, `ManagerEvent`), do
 > `IHormoniosRepository` e da `supabase/migrations/v1__create_event.sql`. O código antigo
 > (models, repo, usecases) não serve de base. A Bea apaga os usecases antigos e as docs
 > desatualizadas deles; este plano não cita nem atualiza essas docs.
@@ -115,7 +115,7 @@ usecase faz, em [`docs/usecases/`](../usecases/README.md).
 - O BFF é o único que acessa o Supabase, com a `service_role`.
 - Sem login. A pessoa se identifica pelo e-mail na folha. O cookie `hg_user` guarda o id dela, e o
   `hg_device` guarda o aparelho. A Produção entra com uma chave, e a sessão fica no `hg_admin`.
-- O contrato é o domain em `src/serve-utils/domain/`: `Event`, `User`, `Attendance` e
+- O contrato é o domain em `src/bff/domain/`: `Event`, `User`, `Attendance` e
   `ManagerEvent`. O banco grava o `toJson()` de cada um, e as rotas respondem um recorte dele
   (`api/_responses/`).
 

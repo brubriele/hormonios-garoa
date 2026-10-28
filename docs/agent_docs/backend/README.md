@@ -14,16 +14,16 @@ e siga as regras e os exemplos deles.
 Se for mexer em um arquivo de uma pasta, leia o doc dela:
 
 - **Se for mexer em `api/`** (rotas), leia [`api.md`](api.md).
-- **Se for mexer em `src/serve-utils/http/`** (resposta, erro, cookies, sessão), leia [`http.md`](http.md).
-- **Se for mexer em `src/serve-utils/errors/`**, leia [`errors.md`](errors.md).
-- **Se for mexer em `src/serve-utils/domain/`**, leia [`domain.md`](domain.md).
-- **Se for mexer em `src/serve-utils/interfaces/`**, leia [`interfaces.md`](interfaces.md).
-- **Se for mexer em `src/serve-utils/clients/`**, leia [`clients.md`](clients.md).
-- **Se for mexer em `src/serve-utils/repos/<fonte>/`** (repo ou UrlCollection), leia [`repos.md`](repos.md).
-- **Se for mexer em `src/serve-utils/repos/<fonte>/{responses,requests}/`** (schema zod e tradução), leia [`requests-responses.md`](requests-responses.md).
-- **Se for mexer em `src/serve-utils/lib/`** (datas, `isUnavailable`, logger), ou for escrever um helper ou um log, leia [`lib.md`](lib.md).
-- **Se for mexer em `src/serve-utils/usecases/`**, leia [`usecases.md`](usecases.md).
-- **Se for mexer em `src/serve-utils/envolviment/`** (onde as rotas pedem os usecases), leia [`envolviment.md`](envolviment.md).
+- **Se for mexer em `src/bff/http/`** (resposta, erro, cookies, sessão), leia [`http.md`](http.md).
+- **Se for mexer em `src/bff/errors/`**, leia [`errors.md`](errors.md).
+- **Se for mexer em `src/bff/domain/`**, leia [`domain.md`](domain.md).
+- **Se for mexer em `src/bff/interfaces/`**, leia [`interfaces.md`](interfaces.md).
+- **Se for mexer em `src/bff/clients/`**, leia [`clients.md`](clients.md).
+- **Se for mexer em `src/bff/repos/<fonte>/`** (repo ou UrlCollection), leia [`repos.md`](repos.md).
+- **Se for mexer em `src/bff/repos/<fonte>/{responses,requests}/`** (schema zod e tradução), leia [`requests-responses.md`](requests-responses.md).
+- **Se for mexer em `src/bff/lib/`** (datas, `isUnavailable`, logger), ou for escrever um helper ou um log, leia [`lib.md`](lib.md).
+- **Se for mexer em `src/bff/usecases/`**, leia [`usecases.md`](usecases.md).
+- **Se for mexer em `src/bff/envolviment/`** (onde as rotas pedem os usecases), leia [`envolviment.md`](envolviment.md).
 
 ### Por tarefa
 
@@ -67,14 +67,14 @@ Se a tarefa não está na tabela, leia o doc de cada pasta que vai tocar, como e
 
 ## Escopo
 
-Só as rotas em `/api` e o código que elas usam em `src/serve-utils/`. O front (`app.js`, `guias.js`
+Só as rotas em `/api` e o código que elas usam em `src/bff/`. O front (`app.js`, `guias.js`
 etc.) fica fora deste padrão.
 
 ## Pastas
 
 ```
 api/                                   rotas REST do app: pedem o usecase ao Envolviment e respondem
-src/serve-utils/
+src/bff/
   errors/                              AppError e erros de domínio
   domain/                              entidades
   domain/mappers/                      <Nome>Mapper.ts: fromData monta o domain a partir do dado (M11)

@@ -1,4 +1,4 @@
-import type { ManagerEvent } from "../../src/serve-utils/domain/ManagerEvent";
+import type { ManagerEvent } from "../../src/bff/domain/ManagerEvent";
 import { EventResponse } from "./EventResponse";
 import { UserResponse } from "./UserResponse";
 

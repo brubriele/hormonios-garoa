@@ -1,7 +1,7 @@
-import { Envolviment } from "../src/serve-utils/envolviment/Envolviment";
-import { handle } from "../src/serve-utils/http/handle";
-import { readUserId } from "../src/serve-utils/http/user-cookie";
-import { FindingUserBookingUsecase } from "../src/serve-utils/usecases/booking/FindingUserBookingUsecase";
+import { Envolviment } from "../src/bff/envolviment/Envolviment";
+import { handle } from "../src/bff/http/handle";
+import { readUserId } from "../src/bff/http/user-cookie";
+import { FindingUserBookingUsecase } from "../src/bff/usecases/booking/FindingUserBookingUsecase";
 import { UserBookingResponse } from "./_responses/UserBookingResponse";
 
 export const GET = handle(async (request) => {

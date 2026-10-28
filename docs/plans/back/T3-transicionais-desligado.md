@@ -7,11 +7,11 @@
 ## Como time, quero desligar o Transicionais sem travar a fila
 
 Criado: a env `TRANSICIONAIS_ENABLED`, lida em
-[`lib/upstream.ts`](../../../src/serve-utils/lib/upstream.ts), e o
-[`FakeHttpClient`](../../../src/serve-utils/clients/FakeHttpClient.ts).
+[`lib/upstream.ts`](../../../src/bff/lib/upstream.ts), e o
+[`FakeHttpClient`](../../../src/bff/clients/FakeHttpClient.ts).
 
-Alterado: o [`Envolviment`](../../../src/serve-utils/envolviment/Envolviment.ts) injeta o
+Alterado: o [`Envolviment`](../../../src/bff/envolviment/Envolviment.ts) injeta o
 `FakeHttpClient` quando a env desliga, e o
-[`JobUsecase`](../../../src/serve-utils/usecases/job/JobUsecase.ts) responde 503 sem tocar a fila.
+[`JobUsecase`](../../../src/bff/usecases/job/JobUsecase.ts) responde 503 sem tocar a fila.
 
 Desligado, o envio fica pendente na hora e vai sozinho quando o Transicionais volta.

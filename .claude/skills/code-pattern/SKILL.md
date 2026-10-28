@@ -1,6 +1,6 @@
 ---
 name: code-pattern
-description: Padrão de código TypeScript das rotas em /api do bff-hormonios e das camadas em src/serve-utils/ (errors, domains, interfaces, clients, lib, repos com responses/requests em zod, usecases), com enums, InfraError, logger e o script check.cjs que acha desvios do padrão. Use ao criar, alterar, revisar ou refatorar arquivos em /api ou src/serve-utils/, e para ler o contrato OpenAPI do Transicionais (docs/transicionais-api.json) por script ao integrar com a API dele. Não se aplica ao front (app.js, guias.js etc.).
+description: Padrão de código TypeScript das rotas em /api do bff-hormonios e das camadas em src/bff/ (errors, domains, interfaces, clients, lib, repos com responses/requests em zod, usecases), com enums, InfraError, logger e o script check.cjs que acha desvios do padrão. Use ao criar, alterar, revisar ou refatorar arquivos em /api ou src/bff/, e para ler o contrato OpenAPI do Transicionais (docs/transicionais-api.json) por script ao integrar com a API dele. Não se aplica ao front (app.js, guias.js etc.).
 ---
 
 # Padrão de código do BFF (/api)
@@ -39,7 +39,7 @@ O detalhe está nos docs; isto é o que mais aparece na revisão da Bea:
 ## Conferir o padrão (`check.cjs`)
 
 ```bash
-node .claude/skills/code-pattern/scripts/check.cjs <arquivos ou pastas tocados>   # sem argumento: api/ e src/serve-utils/
+node .claude/skills/code-pattern/scripts/check.cjs <arquivos ou pastas tocados>   # sem argumento: api/ e src/bff/
 ```
 
 Lista cada desvio com `arquivo:linha [regra]` e o doc da regra: `console`, `safe-parse`,
@@ -53,7 +53,7 @@ do piloto ainda tem desvios de legado: não os corrija fora do escopo da tarefa.
 ## Contrato do Transicionais
 
 **É só referência, para a tradução.** O Hormônios tem o seu próprio contrato: as rotas `/api/*` e
-os domains de `src/serve-utils/`. O contrato do Transicionais **não** dita nomes, formatos nem rotas
+os domains de `src/bff/`. O contrato do Transicionais **não** dita nomes, formatos nem rotas
 do Hormônios. Ele serve para escrever os schemas de `repos/transicionais/responses/` e `requests/`,
 que traduzem nas duas direções: o cru vira domain do Hormônios no `toDomain`, e o domain vira o corpo
 da requisição no `fromDomain`.
@@ -89,7 +89,7 @@ da requisição no `fromDomain`.
   `docs/plans/front/` quando muda o front), com o changelog no README da pasta (adicionadas,
   alteradas e removidas). A spec (`docs/spec/fase-<N>.md`) é o que foi
   decidido que muda no técnico: rotas, formatos, banco e regras. Toda entrega que muda `api/`,
-  `src/serve-utils/` ou `supabase/` atualiza os dois (cria a fase, se não existir, no formato da
+  `src/bff/` ou `supabase/` atualiza os dois (cria a fase, se não existir, no formato da
   `fase-1.md`).
 - **Doc de usecase.** Usecase criado ou alterado atualiza a seção dele no doc do domínio, em
   `docs/usecases/<dominio>.md`, no modelo de `docs/usecases/README.md`. É uma doc para pessoas, do

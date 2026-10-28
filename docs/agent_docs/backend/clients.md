@@ -1,4 +1,4 @@
-# Clients (`src/serve-utils/clients/`)
+# Clients (`src/bff/clients/`)
 
 > Índice: [`README.md`](README.md). Contrato da resposta: [`interfaces.md`](interfaces.md). Quem usa: [`repos.md`](repos.md).
 
@@ -18,7 +18,7 @@
 ## Exemplo: HTTP
 
 ```ts
-// src/serve-utils/clients/http-client.ts
+// src/bff/clients/http-client.ts
 import type { IClientResponse } from "../interfaces/client-response";
 
 export enum HttpMethod {
@@ -75,7 +75,7 @@ O `supabase-js` já devolve `{ data, error, status }`. O client cria o SDK uma v
 chamada, e só ajusta o resultado ao contrato. O repo monta a consulta em `query(...)`.
 
 ```ts
-// src/serve-utils/clients/supabase-client.ts
+// src/bff/clients/supabase-client.ts
 import { createClient, type SupabaseClient as Sdk } from "@supabase/supabase-js";
 import type { IClientResponse } from "../interfaces/client-response";
 

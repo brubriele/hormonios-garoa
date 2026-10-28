@@ -1,11 +1,11 @@
-import { Envolviment } from "../../src/serve-utils/envolviment/Envolviment";
-import { getOrCreateDevice } from "../../src/serve-utils/http/device";
-import { handle, readJson } from "../../src/serve-utils/http/handle";
-import { createUserCookie, readUserId } from "../../src/serve-utils/http/user-cookie";
+import { Envolviment } from "../../src/bff/envolviment/Envolviment";
+import { getOrCreateDevice } from "../../src/bff/http/device";
+import { handle, readJson } from "../../src/bff/http/handle";
+import { createUserCookie, readUserId } from "../../src/bff/http/user-cookie";
 import {
   CreatingOrUpdatingAttendanceUsecase,
   type ICreatingOrUpdatingAttendanceBody,
-} from "../../src/serve-utils/usecases/booking/CreatingOrUpdatingAttendanceUsecase";
+} from "../../src/bff/usecases/booking/CreatingOrUpdatingAttendanceUsecase";
 import { UserResponse } from "../_responses/UserResponse";
 
 // D15, F7, F8

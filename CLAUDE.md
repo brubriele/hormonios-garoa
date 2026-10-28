@@ -1,8 +1,8 @@
 # Hormônios da Garoa
 
-## Backend (`/api` e `src/serve-utils/`)
+## Backend (`/api` e `src/bff/`)
 
-Antes de criar ou alterar qualquer arquivo em `api/` ou `src/serve-utils/`, leia
+Antes de criar ou alterar qualquer arquivo em `api/` ou `src/bff/`, leia
 `docs/agent_docs/backend/README.md` e siga a seção **Como usar**, no início dele. Ela diz qual doc
 ler para cada camada e para cada tarefa.
 

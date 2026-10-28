@@ -1,8 +1,8 @@
 # UpdatingInternalEventUsecase — `PUT /api/admin/ensaio`
 
-> Código: [`usecases/event/UpdatingInternalEventUsecase.ts`](../../../src/serve-utils/usecases/event/UpdatingInternalEventUsecase.ts).
+> Código: [`usecases/event/UpdatingInternalEventUsecase.ts`](../../../src/bff/usecases/event/UpdatingInternalEventUsecase.ts).
 > Rota: [`api/admin/ensaio.ts`](../../../api/admin/ensaio.ts) (`PUT`, com `requireAdmin`). Também é montado pelo
-> [`EventWebhookUsecase`](../../../src/serve-utils/usecases/sync/EventWebhookUsecase.ts). Índice: [`README.md`](README.md).
+> [`EventWebhookUsecase`](../../../src/bff/usecases/sync/EventWebhookUsecase.ts). Índice: [`README.md`](README.md).
 
 ## Fluxo
 

@@ -1,4 +1,4 @@
-# Usecases (`src/serve-utils/usecases/`)
+# Usecases (`src/bff/usecases/`)
 
 > Índice: [`README.md`](README.md). Usa: [`interfaces.md`](interfaces.md), [`errors.md`](errors.md). Quem chama: [`api.md`](api.md).
 
@@ -26,7 +26,7 @@ O que cada usecase faz, um arquivo por usecase: [`../usecases/README.md`](../use
 ## Exemplo
 
 ```ts
-// src/serve-utils/usecases/event/finding-event.ts
+// src/bff/usecases/event/finding-event.ts
 import { z } from "zod";
 import { AppError } from "../errors/app-error";
 import { createLogger, LogContext } from "../lib/logger";
@@ -89,7 +89,7 @@ export class FindingEventUsecase {
 ## Exemplo: mapper (U9)
 
 ```ts
-// src/serve-utils/domain/public-instrument.ts (trecho): a saída é domain
+// src/bff/domain/public-instrument.ts (trecho): a saída é domain
 export class PublicInstrument {
   constructor(
     readonly id: string,
@@ -102,7 +102,7 @@ export class PublicInstrument {
   // private validate() { ... } (M2, M3)
 }
 
-// src/serve-utils/usecases/event/mappers/public-event.mapper.ts (trecho)
+// src/bff/usecases/event/mappers/public-event.mapper.ts (trecho)
 export class PublicEventMapper {
   static toView(event: CurrentEvent, attendances: Booking[], stale: boolean): PublicEvent {
     return new PublicEvent(

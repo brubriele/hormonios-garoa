@@ -1,7 +1,7 @@
-import { Envolviment } from "../../src/serve-utils/envolviment/Envolviment";
-import { handle, readJson } from "../../src/serve-utils/http/handle";
-import { requireWebhookKey } from "../../src/serve-utils/http/webhook-auth";
-import { type IWebhookInput, WebhookUsecase } from "../../src/serve-utils/usecases/sync/WebhookUsecase";
+import { Envolviment } from "../../src/bff/envolviment/Envolviment";
+import { handle, readJson } from "../../src/bff/http/handle";
+import { requireWebhookKey } from "../../src/bff/http/webhook-auth";
+import { type IWebhookInput, WebhookUsecase } from "../../src/bff/usecases/sync/WebhookUsecase";
 
 export const POST = handle(async (request) => {
   await requireWebhookKey(request);

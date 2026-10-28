@@ -1,4 +1,4 @@
-import type { User } from "../../src/serve-utils/domain/User";
+import type { User } from "../../src/bff/domain/User";
 import { AttendanceResponse } from "./AttendanceResponse";
 
 export class UserResponse {

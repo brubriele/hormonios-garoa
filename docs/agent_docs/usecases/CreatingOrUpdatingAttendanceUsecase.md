@@ -1,6 +1,6 @@
 # CreatingOrUpdatingAttendanceUsecase — `POST /api/reserva`, `POST /api/reserva/desfazer`
 
-> Código: [`usecases/booking/CreatingOrUpdatingAttendanceUsecase.ts`](../../../src/serve-utils/usecases/booking/CreatingOrUpdatingAttendanceUsecase.ts).
+> Código: [`usecases/booking/CreatingOrUpdatingAttendanceUsecase.ts`](../../../src/bff/usecases/booking/CreatingOrUpdatingAttendanceUsecase.ts).
 > Rotas: [`api/reserva/index.ts`](../../../api/reserva/index.ts) e [`api/reserva/desfazer.ts`](../../../api/reserva/desfazer.ts)
 > (desfazer = `answer: nao-vou`, fase-1 D15). Índice: [`README.md`](README.md).
 

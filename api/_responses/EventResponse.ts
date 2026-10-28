@@ -1,4 +1,4 @@
-import type { Event, EventCatalog, EventGroup } from "../../src/serve-utils/domain/Event";
+import type { Event, EventCatalog, EventGroup } from "../../src/bff/domain/Event";
 
 export class EventResponse {
   static fromDomain(event: Event) {

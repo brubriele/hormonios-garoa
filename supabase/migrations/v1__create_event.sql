@@ -1,4 +1,4 @@
--- o Evento (src/serve-utils/domain/event.ts): só os ids ficam em coluna; o resto do contrato fica em data
+-- o Evento (src/bff/domain/event.ts): só os ids ficam em coluna; o resto do contrato fica em data
 create table event (
   id uuid primary key default gen_random_uuid(),
   "integrationId" bigint,                  -- id interno do encontro no Transicionais; null = ainda não integrado
@@ -13,7 +13,7 @@ create table event (
 -- só o BFF acessa, com a service_role (R10)
 alter table event enable row level security;
 
--- a pessoa (src/serve-utils/domain/user.ts): o email fica em coluna, único (acha e liga a pessoa ao
+-- a pessoa (src/bff/domain/user.ts): o email fica em coluna, único (acha e liga a pessoa ao
 -- Transicionais); o resto do contrato fica em data. "user" é palavra reservada: sempre entre aspas
 create table "user" (
   id uuid primary key default gen_random_uuid(),
@@ -26,7 +26,7 @@ create table "user" (
 -- só o BFF acessa, com a service_role (R10)
 alter table "user" enable row level security;
 
--- a Presença (src/serve-utils/domain/attendance.ts): só os ids ficam em coluna; o resto do contrato fica em data
+-- a Presença (src/bff/domain/attendance.ts): só os ids ficam em coluna; o resto do contrato fica em data
 create table attendance (
   id uuid primary key default gen_random_uuid(),
   "eventId" uuid not null references event(id),

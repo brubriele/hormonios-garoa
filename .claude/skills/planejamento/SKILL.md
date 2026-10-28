@@ -1,6 +1,6 @@
 ---
 name: planejamento
-description: Planeja uma tarefa do hormônios-garoa com foco em comportamento (BDD leve, visão de product hacking) e gera a tarefa (docs/plans/back|front/T<n>-<nome>.md), a spec (docs/spec/spec-<n>-<nome>.md) e a doc de usecase (docs/usecases/). Use para planejar uma tarefa, criar uma tarefa, salvar a spec e o plano, ou qualquer mudança em api/, src/serve-utils/, supabase/ ou nas telas. O padrão de código fica na skill code-pattern.
+description: Planeja uma tarefa do hormônios-garoa com foco em comportamento (BDD leve, visão de product hacking) e gera a tarefa (docs/plans/back|front/T<n>-<nome>.md), a spec (docs/spec/spec-<n>-<nome>.md) e a doc de usecase (docs/usecases/). Use para planejar uma tarefa, criar uma tarefa, salvar a spec e o plano, ou qualquer mudança em api/, src/bff/, supabase/ ou nas telas. O padrão de código fica na skill code-pattern.
 ---
 
 # Planejamento

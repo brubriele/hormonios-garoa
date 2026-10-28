@@ -1,6 +1,6 @@
-import { Envolviment } from "../src/serve-utils/envolviment/Envolviment";
-import { handle } from "../src/serve-utils/http/handle";
-import { FindingPublicEventUsecase } from "../src/serve-utils/usecases/event/FindingPublicEventUsecase";
+import { Envolviment } from "../src/bff/envolviment/Envolviment";
+import { handle } from "../src/bff/http/handle";
+import { FindingPublicEventUsecase } from "../src/bff/usecases/event/FindingPublicEventUsecase";
 import { EventResponse } from "./_responses/EventResponse";
 
 export const GET = handle(async () => {

@@ -1,4 +1,4 @@
--- a fila de integração (src/serve-utils/domain/IntegrationStatus.ts): uma linha por entidade enviada ao Transicionais
+-- a fila de integração (src/bff/domain/IntegrationStatus.ts): uma linha por entidade enviada ao Transicionais
 create table integration_status (
   id uuid primary key default gen_random_uuid(),
   entity text not null,                     -- EVENT | USER | ATTENDANCE

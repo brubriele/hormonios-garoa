@@ -1,4 +1,4 @@
-# Requests e responses (`src/serve-utils/repos/<fonte>/{requests,responses}/`)
+# Requests e responses (`src/bff/repos/<fonte>/{requests,responses}/`)
 
 > Índice: [`README.md`](README.md). Quem usa: [`repos.md`](repos.md). Cria: [`domain.md`](domain.md).
 > Erros: [`errors.md`](errors.md) (`InvalidResponseError`).
@@ -31,7 +31,7 @@ O domínio é o que está em `domain/`. As duas fontes mapeiam para os mesmos do
 ## Exemplo: response
 
 ```ts
-// src/serve-utils/repos/supabase/responses/user.response.ts
+// src/bff/repos/supabase/responses/user.response.ts
 import { z } from "zod";
 import { InfraSource, InvalidResponseError } from "../../../errors/infra-error";
 import type { UUID } from "../../../interfaces/uuid";
@@ -80,7 +80,7 @@ const PublicEventSchema = z.object({
 ## Exemplo: request
 
 ```ts
-// src/serve-utils/repos/supabase/requests/save-snapshot.request.ts (trecho)
+// src/bff/repos/supabase/requests/save-snapshot.request.ts (trecho)
 export interface ISaveSnapshotParams {
   p_external_id: string;
   p_version: number;
@@ -103,7 +103,7 @@ export class SaveSnapshotRequest {
 ## Exemplo: corpo de webhook (`parseInput`)
 
 ```ts
-// src/serve-utils/repos/transicionais/responses/webhook-envelope.response.ts (trecho)
+// src/bff/repos/transicionais/responses/webhook-envelope.response.ts (trecho)
 const envelope = parseInput(WebhookEnvelopeSchema, body); // fora do formato -> InvalidParameterError (400)
 ```
 

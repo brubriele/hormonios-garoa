@@ -3,7 +3,7 @@
   "include": [
     "cronjob.ts",
     "../../cronjob/**/*.ts",
-    "../../src/serve-utils/**/*.ts",
+    "../../src/bff/**/*.ts",
     "../shared/**/*.ts"
   ]
 }

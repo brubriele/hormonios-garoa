@@ -1,4 +1,4 @@
-# Erros (`src/serve-utils/errors/`)
+# Erros (`src/bff/errors/`)
 
 > Índice: [`README.md`](README.md). Quem converte em resposta: [`api.md`](api.md).
 
@@ -19,7 +19,7 @@
 ## Exemplo
 
 ```ts
-// src/serve-utils/errors/app-error.ts
+// src/bff/errors/app-error.ts
 export enum ErrorKey {
   InvalidParameter = "INVALID_PARAMETER_ERROR",
   NotFound = "NOT_FOUND_ERROR",
@@ -55,7 +55,7 @@ export class UnauthorizedError extends AppError {
 ## Exemplo: falha de fonte
 
 ```ts
-// src/serve-utils/errors/infra-error.ts (trecho)
+// src/bff/errors/infra-error.ts (trecho)
 export enum InfraErrorKey {
   Database = "DATABASE_ERROR",
   UpstreamResponse = "UPSTREAM_RESPONSE_ERROR",

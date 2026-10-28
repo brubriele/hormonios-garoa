@@ -1,4 +1,4 @@
-import type { Attendance } from "../../src/serve-utils/domain/Attendance";
+import type { Attendance } from "../../src/bff/domain/Attendance";
 
 export class AttendanceResponse {
   static fromDomain(attendance: Attendance) {

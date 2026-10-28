@@ -10,11 +10,11 @@ usecase → domain → repo → banco (`supabase/migrations/`). Cookies e sessã
 ## Como pessoa, quero ver o ensaio atual
 
 Criados:
-- **Domain** [`Event`](../../../src/serve-utils/domain/Event.ts): o ensaio, os grupos e o catálogo
+- **Domain** [`Event`](../../../src/bff/domain/Event.ts): o ensaio, os grupos e o catálogo
   (instrumentos e acessórios), com a conta do que está livre.
 - **Banco** [`v1__create_event.sql`](../../../supabase/migrations/v1__create_event.sql): as tabelas
   `event`, `"user"` e `attendance`.
-- **Repo** [`HormoniosRepository`](../../../src/serve-utils/repos/supabase/HormoniosRepository.ts):
+- **Repo** [`HormoniosRepository`](../../../src/bff/repos/supabase/HormoniosRepository.ts):
   o ensaio atual (o último criado) e as presenças dele.
 - **Usecase** [`FindingPublicEventUsecase`](../../usecases/ensaio.md).
 - **Resposta** `EventResponse` e **rota** `GET /api/ensaio`.
@@ -24,8 +24,8 @@ O público vê local, data, horário, quantas pessoas vão e o que ainda está l
 ## Como pessoa, quero confirmar presença ou reservar um instrumento
 
 Criados:
-- **Domain** [`User`](../../../src/serve-utils/domain/User.ts) e
-  [`Attendance`](../../../src/serve-utils/domain/Attendance.ts).
+- **Domain** [`User`](../../../src/bff/domain/User.ts) e
+  [`Attendance`](../../../src/bff/domain/Attendance.ts).
 - **Repo:** buscar e gravar a pessoa e a presença.
 - **Usecases** [`FindingUserUsecase`, `CreatingOrUpdateUserUsecase` e
   `CreatingOrUpdatingAttendanceUsecase`](../../usecases/reservas.md).
@@ -49,22 +49,22 @@ desfazer o instrumento mantém a presença, e desfazer a presença vira "não vo
 Criados:
 - **Usecase** [`FindingUserBookingUsecase`](../../usecases/reservas.md).
 - **Resposta** `UserBookingResponse`, com o e-mail mascarado e o `emailHash`
-  ([`lib/hash.ts`](../../../src/serve-utils/lib/hash.ts)), e **rota** `GET /api/minhas-reservas`.
+  ([`lib/hash.ts`](../../../src/bff/lib/hash.ts)), e **rota** `GET /api/minhas-reservas`.
 
 Já existiam: `User`, `Attendance`, o repo e o cookie `hg_user`.
 
 ## Como Produção, quero entrar com a chave
 
-Criados: a sessão `hg_admin` ([`http/admin-session.ts`](../../../src/serve-utils/http/admin-session.ts))
+Criados: a sessão `hg_admin` ([`http/admin-session.ts`](../../../src/bff/http/admin-session.ts))
 e a **rota** `POST /api/admin/entrar`. Não tem usecase.
 
 ## Como Produção, quero ver o ensaio com quem vai
 
 Criados:
-- **Domain** [`ManagerEvent`](../../../src/serve-utils/domain/ManagerEvent.ts): o ensaio e as
+- **Domain** [`ManagerEvent`](../../../src/bff/domain/ManagerEvent.ts): o ensaio e as
   pessoas com as presenças.
 - **Repo:** as pessoas do ensaio; o ensaio padrão do Bloquinho para a base vazia
-  ([`mock/emptyState.json`](../../../src/serve-utils/repos/supabase/mock/emptyState.json)).
+  ([`mock/emptyState.json`](../../../src/bff/repos/supabase/mock/emptyState.json)).
 - **Usecase** [`FindingInternalEventUsecase`](../../usecases/producao.md).
 - **Resposta** `ManagerEventResponse` e **rota** `GET /api/admin/ensaio`.
 
@@ -92,6 +92,6 @@ como histórico.
 
 ## Como time, quero achar os erros nos logs
 
-Criado: o padrão de log em [`lib/logger.ts`](../../../src/serve-utils/lib/logger.ts), com o
+Criado: o padrão de log em [`lib/logger.ts`](../../../src/bff/lib/logger.ts), com o
 contexto (`Event`, `User`, `Attendance`, `HormoniosRepository`). Cada erro conhecido é logado no
 usecase, com o id do Hormônios, e a falha do banco é logada no repo.

@@ -1,7 +1,7 @@
 # EventJobUsecase — `GET /api/cron/sync?type=event`
 
-> Código: [`usecases/job/EventJobUsecase.ts`](../../../src/serve-utils/usecases/job/EventJobUsecase.ts).
-> Chamado pelo [`JobUsecase`](../../../src/serve-utils/usecases/job/JobUsecase.ts) (rota
+> Código: [`usecases/job/EventJobUsecase.ts`](../../../src/bff/usecases/job/EventJobUsecase.ts).
+> Chamado pelo [`JobUsecase`](../../../src/bff/usecases/job/JobUsecase.ts) (rota
 > [`api/cron/sync.ts`](../../../api/cron/sync.ts)). Índice: [`README.md`](README.md).
 
 ## Fluxo

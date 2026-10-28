@@ -18,10 +18,10 @@
 
 ```ts
 // api/events/[id].ts
-import { Envolviment } from "../../src/serve-utils/envolviment/Envolviment";
-import { handle } from "../../src/serve-utils/http/handle";
-import { FindingEventUsecase } from "../../src/serve-utils/usecases/event/finding-event";
-import type { UUID } from "../../src/serve-utils/interfaces/uuid";
+import { Envolviment } from "../../src/bff/envolviment/Envolviment";
+import { handle } from "../../src/bff/http/handle";
+import { FindingEventUsecase } from "../../src/bff/usecases/event/finding-event";
+import type { UUID } from "../../src/bff/interfaces/uuid";
 
 export const GET = handle(async (request) => {
   const url = new URL(request.url);
@@ -37,9 +37,9 @@ export const GET = handle(async (request) => {
 
 ```ts
 // api/admin/entrar.ts
-import { UnauthorizedError } from "../../src/serve-utils/errors/app-error";
-import { createAdminCookie, isAdminKey } from "../../src/serve-utils/http/admin-session";
-import { handle, readJson } from "../../src/serve-utils/http/handle";
+import { UnauthorizedError } from "../../src/bff/errors/app-error";
+import { createAdminCookie, isAdminKey } from "../../src/bff/http/admin-session";
+import { handle, readJson } from "../../src/bff/http/handle";
 
 export const POST = handle(async (request) => {
   const { key } = await readJson<{ key?: string }>(request);

@@ -1,6 +1,6 @@
-import { UnauthorizedError } from "../../src/serve-utils/errors/app-error";
-import { createAdminCookie, isAdminKey } from "../../src/serve-utils/http/admin-session";
-import { handle, readJson } from "../../src/serve-utils/http/handle";
+import { UnauthorizedError } from "../../src/bff/errors/app-error";
+import { createAdminCookie, isAdminKey } from "../../src/bff/http/admin-session";
+import { handle, readJson } from "../../src/bff/http/handle";
 
 export const POST = handle(async (request) => {
   const { key } = await readJson<{ key?: string }>(request);

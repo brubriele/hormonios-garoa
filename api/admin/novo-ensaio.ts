@@ -1,7 +1,7 @@
-import { Envolviment } from "../../src/serve-utils/envolviment/Envolviment";
-import { requireAdmin } from "../../src/serve-utils/http/admin-session";
-import { handle, readJson } from "../../src/serve-utils/http/handle";
-import { CreatingInternalEventUsecase } from "../../src/serve-utils/usecases/event/CreatingInternalEventUsecase";
+import { Envolviment } from "../../src/bff/envolviment/Envolviment";
+import { requireAdmin } from "../../src/bff/http/admin-session";
+import { handle, readJson } from "../../src/bff/http/handle";
+import { CreatingInternalEventUsecase } from "../../src/bff/usecases/event/CreatingInternalEventUsecase";
 import { EventRequest, type IEventRequest } from "./_requests/EventRequest";
 import { EventResponse } from "../_responses/EventResponse";
 

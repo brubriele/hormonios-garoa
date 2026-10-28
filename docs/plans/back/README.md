@@ -1,4 +1,4 @@
-# Plano do back (BFF em `api/` e `src/serve-utils/`)
+# Plano do back (BFF em `api/` e `src/bff/`)
 
 ## Changelog
 

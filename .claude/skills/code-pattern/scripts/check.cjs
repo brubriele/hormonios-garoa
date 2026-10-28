@@ -2,7 +2,7 @@
 // Acha desvios do padrão do back (docs/agent_docs/backend/). Não substitui a revisão: aponta os
 // padrões que a Bea já corrigiu à mão, para o agente corrigir antes de entregar.
 //
-//   node .claude/skills/code-pattern/scripts/check.cjs                  # api/ e src/serve-utils/
+//   node .claude/skills/code-pattern/scripts/check.cjs                  # api/ e src/bff/
 //   node .claude/skills/code-pattern/scripts/check.cjs <arquivo|pasta>…  # só o que você tocou
 //
 // Exceção justificada: `// check-ignore <regra>: motivo` na linha ou na linha de cima.
@@ -12,14 +12,14 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const ROOT = path.resolve(__dirname, "../../../..");
-const DEFAULT_TARGETS = ["api", "src/serve-utils"];
+const DEFAULT_TARGETS = ["api", "src/bff"];
 
 // regra: { doc, test(arquivo relativo) -> aplica?, pattern, message }
 const LINE_RULES = [
   {
     id: "console",
     doc: "lib.md L4",
-    applies: (file) => file !== "src/serve-utils/lib/logger.ts",
+    applies: (file) => file !== "src/bff/lib/logger.ts",
     pattern: /\bconsole\.(log|info|warn|error|debug)\(/,
     message: "use o logger (createLogger), não console.*",
   },
@@ -27,7 +27,7 @@ const LINE_RULES = [
     id: "safe-parse",
     doc: "requests-responses.md RR7",
     applies: (file) =>
-      file !== "src/serve-utils/repos/parse-response.ts" && file !== "src/serve-utils/lib/schema.ts",
+      file !== "src/bff/repos/parse-response.ts" && file !== "src/bff/lib/schema.ts",
     pattern: /\.safeParse\(/,
     message: "valide com parseResponse(schema, raw, source, operation)",
   },
@@ -42,28 +42,28 @@ const LINE_RULES = [
   {
     id: "repo-mapping",
     doc: "repos.md R5, requests-responses.md",
-    applies: (file) => /^src\/serve-utils\/repos\/[^/]+\/repo\.ts$/.test(file),
+    applies: (file) => /^src\/bff\/repos\/[^/]+\/repo\.ts$/.test(file),
     pattern: /\?\?\s*(\[\]|""|''|null|\{\}|0\b|false\b)|\.\.\.\(/,
     message: "montar corpo ou domain é do request/response (fromDomain/toDomain), não do repo",
   },
   {
     id: "domain-manual-validate",
     doc: "domain.md M3",
-    applies: (file) => file.startsWith("src/serve-utils/domain/") && file !== "src/serve-utils/lib/schema.ts",
+    applies: (file) => file.startsWith("src/bff/domain/") && file !== "src/bff/lib/schema.ts",
     pattern: /throw new InvalidParameterError\(/,
     message: "o domain se valida pelo schema zod: validateSchema(<Domain>Schema, this, \"<prefixo>\")",
   },
   {
     id: "usecase-manual-validate",
     doc: "usecases.md U10",
-    applies: (file) => file.startsWith("src/serve-utils/usecases/"),
+    applies: (file) => file.startsWith("src/bff/usecases/"),
     pattern: /\btypeof\s+(input|change)\b/,
     message: "o formato da entrada é um schema zod: validateSchema(<Usecase>InputSchema, input)",
   },
   {
     id: "throw-error",
     doc: "errors.md E6/E7",
-    applies: (file) => file.startsWith("src/serve-utils/repos/"),
+    applies: (file) => file.startsWith("src/bff/repos/"),
     pattern: /throw new Error\(/,
     message: "falha de fonte é InfraError (DatabaseError, UpstreamResponseError, InvalidResponseError)",
   },
@@ -84,14 +84,14 @@ const LINE_RULES = [
   {
     id: "raw-interface",
     doc: "interfaces.md I3",
-    applies: (file) => file.startsWith("src/serve-utils/interfaces/"),
+    applies: (file) => file.startsWith("src/bff/interfaces/"),
     pattern: /export\s+(interface|type)\s+IRaw\w*/,
     message: "formato cru é o schema do response/request, não IRaw* em interfaces/ (legado: migrar)",
   },
   {
     id: "repo-mapper",
     doc: "repos.md R5",
-    applies: (file) => /^src\/serve-utils\/repos\/[^/]+\/repo\.ts$/.test(file),
+    applies: (file) => /^src\/bff\/repos\/[^/]+\/repo\.ts$/.test(file),
     pattern: /private\s+mapper\w*\(/,
     message: "o mapeamento é do response/request (toDomain/fromDomain), não mapper* no repo",
   },
@@ -197,8 +197,8 @@ function checkDuplicateHelpers(sources) {
 }
 
 // mapper (*Mapper, to*View) só em usecases/<contexto>/mappers/, um por arquivo <nome>.mapper.ts (usecases.md U9)
-const MAPPERS_DIR = /^src\/serve-utils\/usecases\/[^/]+\/mappers\//;
-const DOMAIN_MAPPERS_DIR = /^src\/serve-utils\/domain\/mappers\//;
+const MAPPERS_DIR = /^src\/bff\/usecases\/[^/]+\/mappers\//;
+const DOMAIN_MAPPERS_DIR = /^src\/bff\/domain\/mappers\//;
 const MAPPER_DOC = "usecases.md U9";
 const DOMAIN_MAPPER_DOC = "domain.md M11";
 const MAPPER_DECLARATION =
@@ -243,7 +243,7 @@ function checkMappers(sources) {
 // a rota não valida a entrada: todo usecase que recebe input a valida pelo schema (U10)
 function checkUsecaseInputs(sources) {
   return sources.flatMap(({ file, lines }) => {
-    if (!/^src\/serve-utils\/usecases\/[^/]+\/[^/]+\.ts$/.test(file)) {
+    if (!/^src\/bff\/usecases\/[^/]+\/[^/]+\.ts$/.test(file)) {
       return [];
     }
 

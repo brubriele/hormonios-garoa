@@ -1,4 +1,4 @@
-# Interfaces (`src/serve-utils/interfaces/`)
+# Interfaces (`src/bff/interfaces/`)
 
 > Índice: [`README.md`](README.md). Quem implementa: [`repos.md`](repos.md). Quem usa: [`usecases.md`](usecases.md).
 
@@ -17,12 +17,12 @@
 ## Exemplo
 
 ```ts
-// src/serve-utils/interfaces/uuid.ts
+// src/bff/interfaces/uuid.ts
 export type UUID = `${string}-${string}-${string}-${string}-${string}`;
 ```
 
 ```ts
-// src/serve-utils/interfaces/client-response.ts
+// src/bff/interfaces/client-response.ts
 // resposta padrão de todo client (ver clients.md)
 export interface IClientError {
   message: string;
@@ -37,7 +37,7 @@ export interface IClientResponse<T> {
 ```
 
 ```ts
-// src/serve-utils/interfaces/transicionais.ts
+// src/bff/interfaces/transicionais.ts
 import type { BasicEvent } from "../domain/basic-event";
 import type { UUID } from "./uuid";
 
