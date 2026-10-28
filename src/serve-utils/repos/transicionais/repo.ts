@@ -7,8 +7,9 @@ import {
   StockBelowReservationsError,
   UpstreamUnavailableError,
 } from "../../errors/app-error";
-import { HttpClient, HttpMethod } from "../../clients/http-client";
+import { HttpMethod } from "../../clients/http-client";
 import type { IClientResponse } from "../../interfaces/client-response";
+import type { IHttpClient } from "../../interfaces/IHttpClient";
 import type {
   IAddGroupsData,
   IEventChanges,
@@ -110,7 +111,7 @@ function errorCause(response: IClientResponse<unknown>, operation: string): ITra
 
 export class TransicionaisRepo implements ITransicionaisRepo {
   constructor(
-    private readonly httpClient: HttpClient,
+    private readonly httpClient: IHttpClient,
     private readonly session: TransicionaisSession,
   ) {}
 
@@ -145,7 +146,8 @@ export class TransicionaisRepo implements ITransicionaisRepo {
   }
 
   private async findPublicEvent(publicId: string): Promise<Event> {
-    const fetchedAt = new Date().toISOString();
+    const now = new Date();
+    const fetchedAt = now.toISOString();
     const url = TransicionaisUrlCollection.publicEvent(publicId, "");
     const response = await this.httpClient.get<unknown>(url);
 
@@ -154,7 +156,9 @@ export class TransicionaisRepo implements ITransicionaisRepo {
     }
 
     if (isUnavailable(response.status)) {
-      throw this.logged(new UpstreamUnavailableError("Transicionais is unavailable"), "publicEvent");
+      const unavailable = new UpstreamUnavailableError("Transicionais is unavailable");
+
+      throw this.logged(unavailable, "publicEvent");
     }
 
     if (response.error || response.data === undefined) {
@@ -188,7 +192,8 @@ export class TransicionaisRepo implements ITransicionaisRepo {
   }
 
   async findUser(externalId: string): Promise<User> {
-    const fetchedAt = new Date().toISOString();
+    const now = new Date();
+    const fetchedAt = now.toISOString();
     const account = await this.findAccount(externalId, OrganizationUserRef.UserId);
     const profileGuestId = account.profileGuestId;
 
@@ -205,7 +210,8 @@ export class TransicionaisRepo implements ITransicionaisRepo {
   }
 
   async findAttendance(externalId: string): Promise<User> {
-    const fetchedAt = new Date().toISOString();
+    const now = new Date();
+    const fetchedAt = now.toISOString();
     const url = TransicionaisUrlCollection.guestValidation(externalId);
     const response = await this.session.request<unknown>({ url });
     const raw = this.assertWrite(response, "findGuestValidation");
@@ -309,7 +315,8 @@ export class TransicionaisRepo implements ITransicionaisRepo {
       return;
     }
 
-    const createdAt = new Date().toISOString();
+    const now = new Date();
+    const createdAt = now.toISOString();
     const response = await this.session.request<unknown>({
       method: HttpMethod.Put,
       url: TransicionaisUrlCollection.eventGroups(eventId),
@@ -579,13 +586,17 @@ export class TransicionaisRepo implements ITransicionaisRepo {
   // VersionConflictError (o usecase tenta de novo); o resto -> UpstreamResponseError (R8, R11)
   private assertWrite(response: IClientResponse<unknown>, operation: string): unknown {
     if (isUnavailable(response.status)) {
-      throw this.logged(new UpstreamUnavailableError("Transicionais is unavailable"), operation);
+      const unavailable = new UpstreamUnavailableError("Transicionais is unavailable");
+
+      throw this.logged(unavailable, operation);
     }
 
     const error = ErrorBodyResponse.toDomain(response.error?.details);
 
     if (error.key === VERSION_CONFLICT_KEY) {
-      throw this.logged(new VersionConflictError(operation), operation);
+      const conflict = new VersionConflictError(operation);
+
+      throw this.logged(conflict, operation);
     }
 
     const knownError = error.key ? TRANSICIONAIS_ERRORS[error.key] : undefined;

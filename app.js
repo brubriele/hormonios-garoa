@@ -7,6 +7,7 @@ const state = {
   mineError: false,
   admin: null,        // GET /api/admin/ensaio
   adminLocked: false, // 401 na Produção
+  integration: null,  // GET /api/admin/integracao, só em debug
   email: ""           // último e-mail usado nesta aba (não é salvo)
 };
 
@@ -433,6 +434,7 @@ async function loadAdmin(){
   try{
     state.admin=await api("/api/admin/ensaio");
     state.adminLocked=false;
+    if(isDebug()) await loadIntegration();
   }catch(err){
     if(err.key==="UNAUTHORIZED_ERROR"){
       state.admin=null;
@@ -445,6 +447,23 @@ async function loadAdmin(){
     }
   }
   renderAdmin();
+}
+
+// F15: a chave do Transicionais só em debug; falhar aqui não derruba a Produção
+async function loadIntegration(){
+  try{
+    state.integration=await api("/api/admin/integracao");
+  }catch{
+    state.integration=null;
+  }
+}
+
+function integrationButtonHtml(){
+  if(!isDebug() || !state.integration) return "";
+  const enabled=state.integration.transicionaisEnabled === true;
+  return `<button id="toggle-integration" class="primary-btn" type="button" style="margin-top:12px">
+          Transicionais: ${enabled?"ligado":"desligado"} <span>→</span>
+        </button>`;
 }
 
 function renderAdmin(){
@@ -501,6 +520,7 @@ function renderAdmin(){
           ${bookingOpen?"Fechar reservas":"Liberar reservas"} <span>→</span>
         </button>
       </div>
+      ${integrationButtonHtml()}
     </div>
 
     <div class="admin-card">
@@ -546,6 +566,7 @@ function renderAdmin(){
   document.querySelector("#rehearsal-form").addEventListener("submit",saveRehearsal);
   document.querySelector("#whatsapp-form").addEventListener("submit",saveWhatsapp);
   document.querySelector("#toggle-booking").addEventListener("click",e=>toggleBooking(e.currentTarget));
+  document.querySelector("#toggle-integration")?.addEventListener("click",e=>toggleIntegration(e.currentTarget));
   el.querySelectorAll("[data-stock]").forEach(b=>b.addEventListener("click",()=>adjustStock(b,b.dataset.id,Number(b.dataset.stock))));
   document.querySelector("#reset-rehearsal").addEventListener("click",e=>resetRehearsal(e.currentTarget));
 }
@@ -587,6 +608,15 @@ function toggleBooking(button){
     await updateEvent({bookingOpen});
     if(!bookingOpen) navigate("home");
     showToast(bookingOpen?"Reservas liberadas. A UI de presença e reserva está ativa.":"Reservas fechadas. A página informativa está ativa.");
+  });
+}
+
+function toggleIntegration(button){
+  const transicionaisEnabled=!state.integration.transicionaisEnabled;
+  run(button,async()=>{
+    state.integration=await api("/api/admin/integracao",{method:"PUT",body:{transicionaisEnabled}});
+    renderAdmin();
+    showToast(transicionaisEnabled?"Transicionais ligado. O próximo reenvio manda o que ficou pendente.":"Transicionais desligado. Os envios ficam pendentes.");
   });
 }
 

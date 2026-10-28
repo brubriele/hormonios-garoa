@@ -1,6 +1,7 @@
-import { HttpClient, HttpMethod, type IHttpRequest } from "../../clients/http-client";
+import { HttpMethod, type IHttpRequest } from "../../clients/http-client";
 import { UpstreamResponseError } from "../../errors/infra-error";
 import type { IClientResponse } from "../../interfaces/client-response";
+import type { IHttpClient } from "../../interfaces/IHttpClient";
 import { isUnavailable } from "../../lib/upstream";
 import { type ISessionTokens, LoginResponse } from "./responses/login.response";
 import { TransicionaisUrlCollection } from "./url-collection";
@@ -20,7 +21,7 @@ type ISessionResult = ISessionTokensResult | ISessionFailureResult;
 export class TransicionaisSession {
   private tokens: ISessionTokens | null = null; // E2.6
 
-  constructor(private readonly httpClient: HttpClient) {}
+  constructor(private readonly httpClient: IHttpClient) {}
 
   // chamada autenticada: num 401 (ou num status de renewOn), renova (ou entra de novo) e tenta uma vez mais
   async request<T>(input: IHttpRequest, renewOn: readonly number[] = [401]): Promise<IClientResponse<T>> {

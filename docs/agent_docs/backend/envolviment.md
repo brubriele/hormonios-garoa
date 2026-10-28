@@ -51,4 +51,6 @@ const created = await creatingInternalEventUsecase.execute(event);
 1. `static readonly token = "<NomeDaClasse>"` na classe (U12).
 2. Um `case <Usecase>.token` no `make`.
 3. Na rota, `await Envolviment.make<<Usecase>>(<Usecase>.token)`.
-4. Se ele usa o Transicionais, recebe o repo pelo `transicionaisRepo()` do `Envolviment` (EV8).
+4. Se ele usa o Transicionais, o token entra no `transicionaisTokens` e o `case` recebe o repo pelo
+   `transicionaisRepo(state)` do `Envolviment`: o `make` lê a chave (`transicionaisState(token)`) e
+   guarda o usecase em `${token}:on` ou `${token}:off` (EV8).

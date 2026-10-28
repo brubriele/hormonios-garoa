@@ -1,3 +1,4 @@
+import { FakeHttpClient } from "../clients/FakeHttpClient";
 import { HttpClient } from "../clients/http-client";
 import { SupabaseClient } from "../clients/supabase-client";
 import type { IHormoniosRepository } from "../interfaces/IHormoniosRepository";
@@ -10,55 +11,92 @@ import { CreatingOrUpdatingAttendanceUsecase } from "../usecases/booking/Creatin
 import { FindingUserBookingUsecase } from "../usecases/booking/FindingUserBookingUsecase";
 import { FindingUserUsecase } from "../usecases/booking/FindingUserUsecase";
 import { CreatingInternalEventUsecase } from "../usecases/event/CreatingInternalEventUsecase";
+import { FindingIntegrationSettingUsecase } from "../usecases/event/FindingIntegrationSettingUsecase";
 import { FindingInternalEventUsecase } from "../usecases/event/FindingInternalEventUsecase";
 import { FindingPublicEventUsecase } from "../usecases/event/FindingPublicEventUsecase";
+import { UpdatingIntegrationSettingUsecase } from "../usecases/event/UpdatingIntegrationSettingUsecase";
 import { UpdatingInternalEventUsecase } from "../usecases/event/UpdatingInternalEventUsecase";
 import { JobUsecase } from "../usecases/job/JobUsecase";
 import { WebhookUsecase } from "../usecases/sync/WebhookUsecase";
 
+enum TransicionaisState {
+  On = "on",
+  Off = "off",
+}
+
 export class Envolviment {
   private static readonly usecases = new Map<string, unknown>();
 
+  // EV8
+  private static readonly transicionaisTokens = new Set<string>([
+    CreatingOrUpdatingAttendanceUsecase.token,
+    FindingInternalEventUsecase.token,
+    CreatingInternalEventUsecase.token,
+    JobUsecase.token,
+    WebhookUsecase.token,
+  ]);
+
   private static _httpClient?: HttpClient;
+  private static _fakeHttpClient?: FakeHttpClient;
   private static _supabaseClient?: SupabaseClient;
   private static _transicionaisSession?: TransicionaisSession;
+  private static _fakeTransicionaisSession?: TransicionaisSession;
   private static _hormoniosRepository?: IHormoniosRepository;
   private static _transicionaisRepo?: ITransicionaisRepo;
+  private static _fakeTransicionaisRepo?: ITransicionaisRepo;
 
-  // EV1, EV2
-  static make<T>(token: string): T {
-    const cached = this.usecases.get(token);
+  // EV1, EV2, EV8
+  static async make<T>(token: string): Promise<T> {
+    const state = await this.transicionaisState(token);
+    const key = state ? `${token}:${state}` : token;
+    const cached = this.usecases.get(key);
 
     if (cached) {
       return cached as T;
     }
 
-    const usecase = this.build(token);
+    const usecase = this.build(token, state);
 
-    this.usecases.set(token, usecase);
+    this.usecases.set(key, usecase);
 
     return usecase as T;
   }
 
+  // EV8
+  private static async transicionaisState(token: string): Promise<TransicionaisState | null> {
+    if (!this.transicionaisTokens.has(token)) {
+      return null;
+    }
+
+    const hormoniosRepository = this.hormoniosRepository;
+    const enabled = await hormoniosRepository.isTransicionaisEnabled();
+
+    return enabled ? TransicionaisState.On : TransicionaisState.Off;
+  }
+
   // EV4, EV6
-  private static build(token: string): unknown {
+  private static build(token: string, state: TransicionaisState | null): unknown {
     switch (token) {
       case FindingPublicEventUsecase.token:
         return this.findingPublicEventUsecase();
       case FindingUserBookingUsecase.token:
         return this.findingUserBookingUsecase();
       case CreatingOrUpdatingAttendanceUsecase.token:
-        return this.creatingOrUpdatingAttendanceUsecase();
+        return this.creatingOrUpdatingAttendanceUsecase(state);
       case FindingInternalEventUsecase.token:
-        return this.findingInternalEventUsecase();
+        return this.findingInternalEventUsecase(state);
       case CreatingInternalEventUsecase.token:
-        return this.creatingInternalEventUsecase();
+        return this.creatingInternalEventUsecase(state);
       case UpdatingInternalEventUsecase.token:
         return this.updatingInternalEventUsecase();
+      case FindingIntegrationSettingUsecase.token:
+        return this.findingIntegrationSettingUsecase();
+      case UpdatingIntegrationSettingUsecase.token:
+        return this.updatingIntegrationSettingUsecase();
       case JobUsecase.token:
-        return this.jobUsecase();
+        return this.jobUsecase(state);
       case WebhookUsecase.token:
-        return this.webhookUsecase();
+        return this.webhookUsecase(state);
       default:
         throw new Error(`Envolviment has no usecase for token ${token}`);
     }
@@ -76,9 +114,9 @@ export class Envolviment {
     return new FindingUserBookingUsecase(hormoniosRepository);
   }
 
-  private static creatingOrUpdatingAttendanceUsecase(): CreatingOrUpdatingAttendanceUsecase {
+  private static creatingOrUpdatingAttendanceUsecase(state: TransicionaisState | null): CreatingOrUpdatingAttendanceUsecase {
     const hormoniosRepository = this.hormoniosRepository;
-    const transicionaisRepo = this.transicionaisRepo;
+    const transicionaisRepo = this.transicionaisRepo(state);
     const creatingOrUpdateUserUsecase = new CreatingOrUpdateUserUsecase(hormoniosRepository, transicionaisRepo);
     const findingUserUsecase = new FindingUserUsecase(hormoniosRepository);
 
@@ -90,16 +128,16 @@ export class Envolviment {
     );
   }
 
-  private static findingInternalEventUsecase(): FindingInternalEventUsecase {
+  private static findingInternalEventUsecase(state: TransicionaisState | null): FindingInternalEventUsecase {
     const hormoniosRepository = this.hormoniosRepository;
-    const transicionaisRepo = this.transicionaisRepo;
+    const transicionaisRepo = this.transicionaisRepo(state);
 
     return new FindingInternalEventUsecase(hormoniosRepository, transicionaisRepo);
   }
 
-  private static creatingInternalEventUsecase(): CreatingInternalEventUsecase {
+  private static creatingInternalEventUsecase(state: TransicionaisState | null): CreatingInternalEventUsecase {
     const hormoniosRepository = this.hormoniosRepository;
-    const transicionaisRepo = this.transicionaisRepo;
+    const transicionaisRepo = this.transicionaisRepo(state);
 
     return new CreatingInternalEventUsecase(hormoniosRepository, transicionaisRepo);
   }
@@ -110,18 +148,39 @@ export class Envolviment {
     return new UpdatingInternalEventUsecase(hormoniosRepository);
   }
 
-  private static jobUsecase(): JobUsecase {
-    const transicionaisRepo = this.transicionaisRepo;
+  private static findingIntegrationSettingUsecase(): FindingIntegrationSettingUsecase {
+    const hormoniosRepository = this.hormoniosRepository;
+
+    return new FindingIntegrationSettingUsecase(hormoniosRepository);
+  }
+
+  private static updatingIntegrationSettingUsecase(): UpdatingIntegrationSettingUsecase {
+    const hormoniosRepository = this.hormoniosRepository;
+
+    return new UpdatingIntegrationSettingUsecase(hormoniosRepository);
+  }
+
+  private static jobUsecase(state: TransicionaisState | null): JobUsecase {
+    const transicionaisRepo = this.transicionaisRepo(state);
     const hormoniosRepository = this.hormoniosRepository;
 
     return new JobUsecase(transicionaisRepo, hormoniosRepository);
   }
 
-  private static webhookUsecase(): WebhookUsecase {
-    const transicionaisRepo = this.transicionaisRepo;
+  private static webhookUsecase(state: TransicionaisState | null): WebhookUsecase {
+    const transicionaisRepo = this.transicionaisRepo(state);
     const hormoniosRepository = this.hormoniosRepository;
 
     return new WebhookUsecase(transicionaisRepo, hormoniosRepository);
+  }
+
+  // EV8
+  private static transicionaisRepo(state: TransicionaisState | null): ITransicionaisRepo {
+    if (state === TransicionaisState.Off) {
+      return this.fakeTransicionaisRepo;
+    }
+
+    return this.onTransicionaisRepo;
   }
 
   // EV5
@@ -129,6 +188,12 @@ export class Envolviment {
     this._httpClient ??= new HttpClient();
 
     return this._httpClient;
+  }
+
+  private static get fakeHttpClient(): FakeHttpClient {
+    this._fakeHttpClient ??= new FakeHttpClient();
+
+    return this._fakeHttpClient;
   }
 
   private static get supabaseClient(): SupabaseClient {
@@ -147,6 +212,16 @@ export class Envolviment {
     return this._transicionaisSession;
   }
 
+  private static get fakeTransicionaisSession(): TransicionaisSession {
+    if (!this._fakeTransicionaisSession) {
+      const fakeHttpClient = this.fakeHttpClient;
+
+      this._fakeTransicionaisSession = new TransicionaisSession(fakeHttpClient);
+    }
+
+    return this._fakeTransicionaisSession;
+  }
+
   private static get hormoniosRepository(): IHormoniosRepository {
     if (!this._hormoniosRepository) {
       const supabaseClient = this.supabaseClient;
@@ -157,7 +232,7 @@ export class Envolviment {
     return this._hormoniosRepository;
   }
 
-  private static get transicionaisRepo(): ITransicionaisRepo {
+  private static get onTransicionaisRepo(): ITransicionaisRepo {
     if (!this._transicionaisRepo) {
       const httpClient = this.httpClient;
       const transicionaisSession = this.transicionaisSession;
@@ -166,5 +241,17 @@ export class Envolviment {
     }
 
     return this._transicionaisRepo;
+  }
+
+  // K3
+  private static get fakeTransicionaisRepo(): ITransicionaisRepo {
+    if (!this._fakeTransicionaisRepo) {
+      const fakeHttpClient = this.fakeHttpClient;
+      const fakeTransicionaisSession = this.fakeTransicionaisSession;
+
+      this._fakeTransicionaisRepo = new TransicionaisRepo(fakeHttpClient, fakeTransicionaisSession);
+    }
+
+    return this._fakeTransicionaisRepo;
   }
 }

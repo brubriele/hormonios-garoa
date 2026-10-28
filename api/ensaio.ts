@@ -4,7 +4,7 @@ import { FindingPublicEventUsecase } from "../src/serve-utils/usecases/event/Fin
 import { EventResponse } from "./_responses/EventResponse";
 
 export const GET = handle(async () => {
-  const findingPublicEventUsecase = Envolviment.make<FindingPublicEventUsecase>(FindingPublicEventUsecase.token);
+  const findingPublicEventUsecase = await Envolviment.make<FindingPublicEventUsecase>(FindingPublicEventUsecase.token);
   const event = await findingPublicEventUsecase.execute();
 
   return { body: EventResponse.fromDomain(event) };

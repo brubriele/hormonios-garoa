@@ -6,7 +6,7 @@ import { UserBookingResponse } from "./_responses/UserBookingResponse";
 
 export const GET = handle(async (request) => {
   const userId = readUserId(request);
-  const findingUserBookingUsecase = Envolviment.make<FindingUserBookingUsecase>(FindingUserBookingUsecase.token);
+  const findingUserBookingUsecase = await Envolviment.make<FindingUserBookingUsecase>(FindingUserBookingUsecase.token);
   const user = await findingUserBookingUsecase.execute({ userId });
 
   return { body: UserBookingResponse.fromDomain(user) };

@@ -1,4 +1,5 @@
 import type { IClientResponse } from "../interfaces/client-response";
+import type { IHttpClient } from "../interfaces/IHttpClient";
 
 export enum HttpMethod {
   Get = "GET",
@@ -17,7 +18,7 @@ export interface IHttpRequest {
 
 const DEFAULT_TIMEOUT_MS = 3000;
 
-export class HttpClient {
+export class HttpClient implements IHttpClient {
   async get<T>(url: string, headers?: Record<string, string>): Promise<IClientResponse<T>> {
     return this.request<T>({ url, headers });
   }

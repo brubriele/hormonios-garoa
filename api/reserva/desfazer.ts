@@ -12,7 +12,7 @@ import { UserResponse } from "../_responses/UserResponse";
 export const POST = handle(async (request) => {
   const { deviceId, cookie } = getOrCreateDevice(request);
   const body = await readJson<ICreatingOrUpdatingAttendanceBody>(request);
-  const creatingOrUpdatingAttendanceUsecase = Envolviment.make<CreatingOrUpdatingAttendanceUsecase>(
+  const creatingOrUpdatingAttendanceUsecase = await Envolviment.make<CreatingOrUpdatingAttendanceUsecase>(
     CreatingOrUpdatingAttendanceUsecase.token,
   );
   const userId = readUserId(request);

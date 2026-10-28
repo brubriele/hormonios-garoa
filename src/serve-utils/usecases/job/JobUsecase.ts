@@ -3,7 +3,7 @@ import type { Attendance } from "../../domain/Attendance";
 import type { Event } from "../../domain/Event";
 import { Job, JobEntity } from "../../domain/Job";
 import type { User } from "../../domain/User";
-import { AppError } from "../../errors/app-error";
+import { AppError, UpstreamUnavailableError } from "../../errors/app-error";
 import type { IHormoniosRepository } from "../../interfaces/IHormoniosRepository";
 import type { ITransicionaisRepo } from "../../interfaces/transicionais";
 import { createLogger, LogContext } from "../../lib/logger";
@@ -49,6 +49,8 @@ export class JobUsecase {
   private async _execute(input: IJobInput): Promise<Event[] | User[] | Attendance[]> {
     logger.track("processing job");
 
+    await this.validateTransicionaisEnabled();
+
     const data = this.validateInput(input);
     const job = new Job(data.entity);
 
@@ -67,6 +69,15 @@ export class JobUsecase {
     const usecase = new AttendanceJobUsecase(this.transicionaisRepo, this.hormoniosRepository);
 
     return usecase.execute(job);
+  }
+
+  // J0
+  private async validateTransicionaisEnabled(): Promise<void> {
+    const enabled = await this.hormoniosRepository.isTransicionaisEnabled();
+
+    if (!enabled) {
+      throw new UpstreamUnavailableError("Transicionais is disabled");
+    }
   }
 
   private validateInput(input: IJobInput): IJobData {

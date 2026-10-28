@@ -1,5 +1,6 @@
 import type { Attendance } from "../domain/Attendance";
 import type { Event } from "../domain/Event";
+import type { IntegrationSetting } from "../domain/IntegrationSetting";
 import type { IntegrationEntity, IntegrationStatus } from "../domain/IntegrationStatus";
 import type { SyncStatus } from "../domain/SyncStatus";
 import type { User } from "../domain/User";
@@ -32,4 +33,8 @@ export interface IHormoniosRepository {
   // status igual e nextSyncAt vencido (ou null), do syncAt mais antigo para o mais novo
   findDueIntegrationStatus(entity: IntegrationEntity, status: SyncStatus, now: Date, limit: number): Promise<IntegrationStatus[]>;
   createOrUpdateIntegrationStatus(integrationStatus: IntegrationStatus): Promise<IntegrationStatus>;
+
+  isTransicionaisEnabled(): Promise<boolean>; // K1: sem linha = ligado
+  findIntegrationSetting(): Promise<IntegrationSetting>; // K1: sem linha = ligado
+  updateIntegrationSetting(setting: IntegrationSetting): Promise<IntegrationSetting>;
 }

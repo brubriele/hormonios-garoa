@@ -7,7 +7,7 @@ export const POST = handle(async (request) => {
   await requireWebhookKey(request);
 
   const body = await readJson<IWebhookInput>(request);
-  const webhookUsecase = Envolviment.make<WebhookUsecase>(WebhookUsecase.token);
+  const webhookUsecase = await Envolviment.make<WebhookUsecase>(WebhookUsecase.token);
   const result = await webhookUsecase.execute(body);
 
   return { body: result.toJson() };
