@@ -1,5 +1,7 @@
 # Envolviment (`src/serve-utils/envolviment/`)
 
+> **Concluído em 2026-10-27.**
+>
 > Índice: [`README.md`](README.md). Quem usa: [`api.md`](api.md) (A2). Usecases: [`usecases.md`](usecases.md) (U12).
 
 ## Regras
