@@ -48,7 +48,7 @@ O Vite é utilizado principalmente como ferramenta de desenvolvimento e build.
 
 ### Entradas do Vite
 
-O arquivo `vite.config.js` define três entradas:
+O arquivo `vite.config.js` define três entradas (o que é só do desenvolvimento local fica em `deploy/dev/` e só é carregado no `npm run dev`):
 
 ```text
 index.html   → aplicação principal
@@ -95,6 +95,71 @@ hormonios-garoa/
 | `flow.html` | Fluxo de funcionamento/UX |
 | `vite.config.js` | Configuração do build multipágina |
 | `vercel.json` | Configuração mínima do deploy |
+
+---
+
+# Arquitetura do BFF
+
+## Stack atual
+
+- TypeScript
+- Zod
+- Supabase
+- Vercel Functions
+- Cloudflare Workers / Wrangler
+
+O BFF (backend for frontend) fica no mesmo repositório. As telas só falam com ele; ele grava no Supabase e mantém o Transicionais em dia.
+
+## Estrutura principal
+
+```text
+hormonios-garoa/
+│
+├── api/
+├── cronjob/
+│   └── handler.ts
+├── src/bff/
+├── supabase/
+│
+└── deploy/
+    ├── dev/
+    ├── vercel/
+    └── cloudflare/
+```
+
+### Responsabilidades
+
+| Arquivo | Responsabilidade |
+|---|---|
+| `api/` | Rotas usadas pelas telas e o webhook do Transicionais |
+| `cronjob/handler.ts` | Entrada do job que reenvia ao Transicionais o que ficou pendente |
+| `src/bff/` | Casos de uso, domínio e acesso ao Supabase e ao Transicionais |
+| `supabase/` | Migrações do banco (Supabase) |
+| `deploy/dev/` | Servidor local das rotas de `api/`, só no `npm run dev` |
+| `deploy/vercel/` | Como publicar na Vercel |
+| `deploy/cloudflare/` | Publicação do job na Cloudflare (pacote próprio) |
+
+## Fluxo
+
+```text
+┌──────────────────┐   ┌──────────────────┐   ┌──────────────────┐
+│     Telas        │   │  Transicionais   │   │   Job (cron)     │
+│  (frontend)      │   │    (webhook)     │   │   Cloudflare     │
+└────────┬─────────┘   └────────┬─────────┘   └────────┬─────────┘
+         │ /api                 │ /api/webhooks        │ cronjob/handler.ts
+         ▼                      ▼                      ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                 src/bff (casos de uso)                           │
+└────────────────┬──────────────────────────────┬──────────────────┘
+                 ▼                              ▼
+        ┌──────────────────┐           ┌──────────────────┐
+        │     Supabase     │           │  Transicionais   │
+        └──────────────────┘           └──────────────────┘
+```
+
+- O que vai para o Transicionais nunca faz a tela esperar: se ele estiver fora do ar, fica pendente e o job reenvia.
+- Endpoints e o que cada um faz: [`docs/usecases/README.md`](docs/usecases/README.md).
+- Padrão de código do BFF: [`docs/agent_docs/backend/README.md`](docs/agent_docs/backend/README.md).
 
 ---
 
@@ -172,6 +237,16 @@ Preview do build:
 npm run preview
 ```
 
+Rodar o job uma vez, direto, sem servidor (um tipo por vez):
+
+```bash
+npm run cron:sync -- --type=event
+npm run cron:sync -- --type=user
+npm run cron:sync -- --type=attendance
+```
+
+Mais detalhes em [`deploy/dev/README.md`](deploy/dev/README.md).
+
 ---
 
 # Deploy
@@ -221,6 +296,14 @@ git push
 ```
 
 O Vercel recebe o novo commit e executa o deploy automaticamente.
+
+Variáveis de ambiente e detalhes: [`deploy/vercel/README.md`](deploy/vercel/README.md).
+
+## Cloudflare
+
+O job que reenvia ao Transicionais o que ficou pendente roda na Cloudflare.
+
+Documentação: [`deploy/cloudflare/README.md`](deploy/cloudflare/README.md).
 
 ## Netlify
 
@@ -326,11 +409,11 @@ Cada funcionalidade relevante deve preferencialmente ter uma Issue associada e s
 **Objetivo:** criar a fundação para o frontend conversar com o Bloco Manager.
 
 - [ ] Mapear endpoints existentes
-- [ ] Definir URL/configuração da API
+- [x] Definir URL/configuração da API
 - [ ] Criar cliente HTTP do frontend
-- [ ] Definir tratamento de erros
-- [ ] Definir estados de loading/erro
-- [ ] Testar primeira chamada real à API
+- [x] Definir tratamento de erros
+- [x] Definir estados de loading/erro
+- [x] Testar primeira chamada real à API
 
 **Branch inicial:**
 
@@ -347,40 +430,40 @@ feature/api-integration
 - [ ] Buscar ensaio atual
 - [ ] Buscar próximo ensaio
 - [ ] Buscar data/horário/local
-- [ ] Criar estado de ensaio no frontend
+- [x] Criar estado de ensaio no frontend
 - [ ] Preservar histórico de ensaios
-- [ ] Remover dependência local para dados de ensaio
+- [x] Remover dependência local para dados de ensaio
 
 ---
 
 ## 3. Presença
 
-- [ ] Integrar confirmação de presença
-- [ ] Integrar cancelamento
-- [ ] Persistir presença no backend
-- [ ] Refletir estado atual no frontend
-- [ ] Validar comportamento entre dispositivos
+- [x] Integrar confirmação de presença
+- [x] Integrar cancelamento
+- [x] Persistir presença no backend
+- [x] Refletir estado atual no frontend
+- [x] Validar comportamento entre dispositivos
 
 ---
 
 ## 4. Instrumentos
 
-- [ ] Mapear modelo de instrumentos
+- [x] Mapear modelo de instrumentos
 - [ ] Criar cadastro/estoque de instrumentos no backend
-- [ ] Buscar disponibilidade pela API
-- [ ] Exibir disponibilidade no frontend
-- [ ] Integrar escolha de instrumento
+- [x] Buscar disponibilidade pela API
+- [x] Exibir disponibilidade no frontend
+- [x] Integrar escolha de instrumento
 
 ---
 
 ## 5. Reservas
 
-- [ ] Criar domínio de reservas no backend
-- [ ] Criar endpoint de reserva
-- [ ] Criar endpoint de cancelamento
-- [ ] Criar consulta de minhas reservas
+- [x] Criar domínio de reservas no backend
+- [x] Criar endpoint de reserva
+- [x] Criar endpoint de cancelamento
+- [x] Criar consulta de minhas reservas
 - [ ] Garantir concorrência/transação no backend
-- [ ] Integrar reserva no frontend
+- [x] Integrar reserva no frontend
 - [ ] Testar cenário de último instrumento disponível
 
 ---
@@ -407,12 +490,12 @@ Liberar:
 
 Tasks:
 
-- [ ] Criar `booking_status` no backend
+- [x] Criar `booking_status` no backend
 - [ ] Endpoint para abrir reservas
 - [ ] Endpoint para fechar reservas
 - [ ] Interface de controle na Produção
 - [ ] Atualização da experiência pública
-- [ ] Testar sincronização entre dispositivos
+- [x] Testar sincronização entre dispositivos
 
 ---
 
@@ -423,8 +506,8 @@ A autenticação será implementada inicialmente para a área de Produção.
 - [ ] Integrar login existente do backend
 - [ ] Access token
 - [ ] Refresh token
-- [ ] Controle de sessão
-- [ ] Proteção da área Produção
+- [x] Controle de sessão
+- [x] Proteção da área Produção
 - [ ] Validação de roles
 - [ ] Avaliar OAuth Google
 - [ ] Avaliar autenticação de participantes em uma segunda fase
@@ -436,9 +519,9 @@ A autenticação será implementada inicialmente para a área de Produção.
 - [ ] Próximo ensaio
 - [ ] Criar/encerrar ensaio
 - [ ] Abrir/fechar reservas
-- [ ] Gerenciar estoque
-- [ ] Visualizar presenças
-- [ ] Visualizar reservas
+- [x] Gerenciar estoque
+- [x] Visualizar presenças
+- [x] Visualizar reservas
 - [ ] Gerenciar instrumentos
 - [ ] Controle de acesso por role
 
@@ -446,15 +529,15 @@ A autenticação será implementada inicialmente para a área de Produção.
 
 ## 9. Hardening e operação
 
-- [ ] Tratamento consistente de erros
-- [ ] Estados offline/rede
+- [x] Tratamento consistente de erros
+- [x] Estados offline/rede
 - [ ] Feedback de operações
 - [ ] Testes de concorrência
-- [ ] Testes mobile
+- [x] Testes mobile
 - [ ] Testes de acessibilidade
 - [ ] Revisão de segurança
-- [ ] Documentação de operação
-- [ ] Revisão do fluxo de deploy
+- [x] Documentação de operação
+- [x] Revisão do fluxo de deploy
 
 ---
 
