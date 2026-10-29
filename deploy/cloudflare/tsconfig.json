@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.json",
+  "include": [
+    "cronjob.ts",
+    "../../cronjob/**/*.ts",
+    "../../src/bff/**/*.ts",
+    "../shared/**/*.ts"
+  ]
+}

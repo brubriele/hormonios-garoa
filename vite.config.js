@@ -1,6 +1,6 @@
-import { defineConfig } from 'vite'
+import { defineConfig, mergeConfig } from 'vite'
 
-export default defineConfig({
+const config = {
   build: {
     rollupOptions: {
       input: {
@@ -10,4 +10,12 @@ export default defineConfig({
       }
     }
   }
+}
+
+// spec-5 A3: o que é do dev só carrega no `vite` (serve); o build da Vercel usa só as páginas
+export default defineConfig(async ({ command }) => {
+  if (command !== 'serve') return config
+
+  const { devConfig } = await import('./deploy/dev/vite.config')
+  return mergeConfig(config, devConfig)
 })
