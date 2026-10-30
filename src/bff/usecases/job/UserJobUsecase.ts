@@ -64,7 +64,7 @@ export class UserJobUsecase {
 
   private async syncUser(integrationStatus: IntegrationStatus, now: Date): Promise<User | null> {
     try {
-      const user = await this.hormoniosRepository.findUser(integrationStatus.entityId);
+      const user = await this.hormoniosRepository.findUser({ id: integrationStatus.entityId });
 
       if (!user) {
         await this.saveNotFound(integrationStatus, now);

@@ -64,7 +64,7 @@ export class EventJobUsecase {
 
   private async syncEvent(integrationStatus: IntegrationStatus, now: Date): Promise<Event | null> {
     try {
-      const event = await this.hormoniosRepository.findEvent(integrationStatus.entityId);
+      const event = await this.hormoniosRepository.findEvent({ id: integrationStatus.entityId });
 
       if (!event) {
         await this.saveNotFound(integrationStatus, now);

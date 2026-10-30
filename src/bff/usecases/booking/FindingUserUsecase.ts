@@ -1,42 +1,28 @@
 import { z } from "zod";
-import { Event } from "../../domain/Event";
 import { UserMapper } from "../../domain/mappers/UserMapper";
 import type { User } from "../../domain/User";
 import { AppError } from "../../errors/app-error";
 import type { IHormoniosRepository } from "../../interfaces/IHormoniosRepository";
 import { emailHash } from "../../lib/hash";
 import { createLogger, LogContext } from "../../lib/logger";
-import { UuidSchema, validateSchema } from "../../lib/schema";
+import { validateSchema } from "../../lib/schema";
+import { type IdentifyingUserCommand, IdentifyingUserCommandSchema } from "./IdentifyingUserUsecase";
 
 const logger = createLogger("FindingUserUsecase", LogContext.User);
 
 const EmailSchema = z.email();
 
-const FindingUserInputSchema = z.object({
-  email: z.string().trim().toLowerCase(),
-  userId: UuidSchema.nullable(),
-  emailHash: z.string().nullable(),
-  event: z.instanceof(Event),
-});
-
-type IFindingUserData = z.infer<typeof FindingUserInputSchema>;
-
-export interface IFindingUserInput {
-  email: string;
-  userId: string | null;
-  emailHash: string | null;
-  event: Event;
-}
-
 export class FindingUserUsecase {
   constructor(private readonly hormoniosRepository: IHormoniosRepository) {}
 
-  async execute(input: IFindingUserInput): Promise<User | null> {
+  async execute(command: IdentifyingUserCommand): Promise<User | null> {
     try {
-      return await this._execute(input);
+      const user = await this._execute(command);
+
+      return user;
     } catch (error) {
       if (error instanceof AppError) {
-        logger.appError(error, { hormoniosUserId: input.userId ?? undefined });
+        logger.appError(error, { hormoniosUserId: command.userId ?? undefined });
         throw error;
       }
 
@@ -45,38 +31,39 @@ export class FindingUserUsecase {
     }
   }
 
-  // D3
-  private async _execute(input: IFindingUserInput): Promise<User | null> {
-    logger.track("finding user", { hormoniosUserId: input.userId ?? undefined });
+  // D3, spec-9 A2
+  private async _execute(command: IdentifyingUserCommand): Promise<User | null> {
+    logger.track("finding user", { hormoniosUserId: command.userId ?? undefined });
 
-    const data = this.validateInput(input);
-    const cookieUser = await this.findCookieUser(data);
+    const valid = this.validateInput(command);
+    const cookieUser = await this.findCookieUser(valid);
 
     if (cookieUser) {
       return cookieUser;
     }
 
-    this.validateEmail(data.email);
+    this.validateEmail(valid.user.email);
 
-    return this.findUserByEmail(data.email);
+    return this.findUserByEmail(valid.user.email);
   }
 
-  private validateInput(input: IFindingUserInput): IFindingUserData {
-    return validateSchema(FindingUserInputSchema, input);
+  private validateInput(command: IdentifyingUserCommand): IdentifyingUserCommand {
+    return validateSchema(IdentifyingUserCommandSchema, command);
   }
 
-  private async findCookieUser(data: IFindingUserData): Promise<User | null> {
-    if (data.userId === null) {
+  private async findCookieUser(command: IdentifyingUserCommand): Promise<User | null> {
+    if (command.userId === null) {
       return null;
     }
 
-    const user = await this.hormoniosRepository.findUserById(data.userId, data.event);
+    const user = await this.hormoniosRepository.findUser({ id: command.userId });
 
     if (!user) {
       return null;
     }
 
-    const sameEmail = data.email === user.email || this.isSameAnonymizedEmail(data, user);
+    const email = command.user.email;
+    const sameEmail = email === user.email || this.isSameAnonymizedEmail(email, command.emailHash, user);
 
     if (!sameEmail) {
       return null;
@@ -87,11 +74,11 @@ export class FindingUserUsecase {
     return UserMapper.fromData(json, []);
   }
 
-  private isSameAnonymizedEmail(data: IFindingUserData, user: User): boolean {
-    const anonymized = data.email === user.anonymizedEmail;
+  private isSameAnonymizedEmail(email: string, sentHash: string | null, user: User): boolean {
+    const anonymized = email === user.anonymizedEmail;
     const hash = emailHash(user.email);
 
-    return anonymized && data.emailHash === hash;
+    return anonymized && sentHash === hash;
   }
 
   private validateEmail(email: string): void {
@@ -99,6 +86,6 @@ export class FindingUserUsecase {
   }
 
   private async findUserByEmail(email: string): Promise<User | null> {
-    return this.hormoniosRepository.findUserByEmail(email);
+    return this.hormoniosRepository.findUser({ email });
   }
 }

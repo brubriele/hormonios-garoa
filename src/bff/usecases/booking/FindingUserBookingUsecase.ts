@@ -1,6 +1,9 @@
 import { z } from "zod";
 import type { Event } from "../../domain/Event";
+import { EventPosition, FindingInternalFilter } from "../../domain/FindingInternalFilter";
+import type { ManagerEvent } from "../../domain/ManagerEvent";
 import type { User } from "../../domain/User";
+import { UserBooking } from "../../domain/UserBooking";
 import { AppError, NotFoundError } from "../../errors/app-error";
 import type { IHormoniosRepository } from "../../interfaces/IHormoniosRepository";
 import { createLogger, LogContext } from "../../lib/logger";
@@ -9,13 +12,13 @@ import { UuidSchema, validateSchema } from "../../lib/schema";
 const logger = createLogger("FindingUserBookingUsecase", LogContext.User);
 
 const FindingUserBookingInputSchema = z.object({
-  userId: UuidSchema.nullable(),
+  userId: UuidSchema,
 });
 
 type IFindingUserBookingData = z.infer<typeof FindingUserBookingInputSchema>;
 
 export interface IFindingUserBookingInput {
-  userId: string | null;
+  userId: string; // spec-9 C1
 }
 
 export class FindingUserBookingUsecase {
@@ -23,14 +26,14 @@ export class FindingUserBookingUsecase {
 
   constructor(private readonly hormoniosRepository: IHormoniosRepository) {}
 
-  async execute(input: IFindingUserBookingInput): Promise<User> {
+  async execute(input: IFindingUserBookingInput): Promise<UserBooking> {
     try {
-      const user = await this._execute(input);
+      const userBooking = await this._execute(input);
 
-      return user;
+      return userBooking;
     } catch (error) {
       if (error instanceof AppError) {
-        logger.appError(error, { hormoniosUserId: input.userId ?? undefined });
+        logger.appError(error, { hormoniosUserId: input.userId });
         throw error;
       }
 
@@ -39,42 +42,35 @@ export class FindingUserBookingUsecase {
     }
   }
 
-  // D3, D16
-  private async _execute(input: IFindingUserBookingInput): Promise<User> {
-    logger.track("finding user booking", { hormoniosUserId: input.userId ?? undefined });
+  // D3, D16, spec-8 D5, spec-9 C1
+  private async _execute(input: IFindingUserBookingInput): Promise<UserBooking> {
+    logger.track("finding user booking", { hormoniosUserId: input.userId });
 
     const data = this.validateInput(input);
-    const userId = this.validateUserId(data.userId);
-    const event = await this.findCurrentEvent();
+    const managerEvent = await this.findCurrentEvent();
+    const user = await this.findUser(data.userId, managerEvent.event);
 
-    return this.findUser(userId, event);
+    return new UserBooking(managerEvent, user);
   }
 
   private validateInput(input: IFindingUserBookingInput): IFindingUserBookingData {
     return validateSchema(FindingUserBookingInputSchema, input);
   }
 
-  private validateUserId(userId: string | null): string {
-    if (userId === null) {
-      throw new NotFoundError("User Not Found");
-    }
+  // D2, spec-8 D5
+  private async findCurrentEvent(): Promise<ManagerEvent> {
+    const filter = new FindingInternalFilter({ position: EventPosition.Current });
+    const managerEvent = await this.hormoniosRepository.findCurrentEvent(filter);
 
-    return userId;
-  }
-
-  // D2
-  private async findCurrentEvent(): Promise<Event> {
-    const event = await this.hormoniosRepository.findCurrentEvent();
-
-    if (!event) {
+    if (!managerEvent) {
       throw new NotFoundError("Event Not Found");
     }
 
-    return event;
+    return managerEvent;
   }
 
   private async findUser(userId: string, event: Event): Promise<User> {
-    const user = await this.hormoniosRepository.findUserById(userId, event);
+    const user = await this.hormoniosRepository.findUser({ id: userId, event });
 
     if (!user) {
       throw new NotFoundError("User Not Found");

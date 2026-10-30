@@ -30,7 +30,6 @@ export interface IEventRequest {
   date: string;
   startTime: string | null;
   endTime: string | null;
-  bookingOpen: boolean | null;
   categoryId: string | null;
   description: IEventDescriptionData;
   groups: IEventRequestGroup[];
@@ -50,7 +49,7 @@ export class EventRequest {
       whatsappUrl: body.whatsappUrl,
       date: body.date,
       startTime: body.startTime,
-      bookingOpen: body.bookingOpen,
+      isActive: false, // spec-8 C2, C4
       groups,
       catalog,
       metadata,
