@@ -5,9 +5,21 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "cron:event": "node scripts/cron.mjs event",
+    "cron:sync": "node scripts/cron.mjs sync",
+    "cron:webhook": "node scripts/cron.mjs --type=webhook",
+    "cronjob:dev:cf": "yarn --cwd deploy/cloudflare cronjob:dev",
+    "cronjob:deploy": "yarn --cwd deploy/cloudflare cronjob:deploy"
   },
   "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2",
     "vite": "^7.1.9"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
+    "zod": "^4"
   }
 }
