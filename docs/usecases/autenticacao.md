@@ -17,18 +17,23 @@ os dois em [`reservas.md`](reservas.md).
 ```mermaid
 sequenceDiagram
     autonumber
-    participant CR as quem chama
+    participant CR as CreatingOrUpdatingAttendanceUsecase
     participant UC as IdentifyingUserUsecase
     participant FU as FindingUserUsecase
     participant CU as CreatingOrUpdateUserUsecase
 
-    CR->>UC: execute({ pessoa, aparelho, emailHash })
-    UC->>FU: execute(command)
-    FU-->>UC: a pessoa ou nenhuma
-    break achou e nome e pronome iguais
-        UC-->>CR: a pessoa gravada
+    CR->>UC: execute(IdentifyingUserCommand { user, userId, emailHash })
+    UC->>UC: validateInput
+    break comando inválido
+        UC-->>CR: 400 Invalid Parameter
     end
-    UC->>CU: execute(pessoa nova ou alterada)
+    UC->>FU: execute(command)
+    FU-->>UC: User | null
+    UC->>UC: toUser (nova, ou a achada com o nome e o pronome que vieram)
+    break achou e o nome e o pronome são iguais
+        UC-->>CR: User (a achada, sem gravar)
+    end
+    UC->>CU: execute(user)
     CU-->>UC: User
     UC-->>CR: User
 ```

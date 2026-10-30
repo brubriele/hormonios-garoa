@@ -15,28 +15,34 @@
 ```mermaid
 sequenceDiagram
     autonumber
-    participant CR as quem chama
+    participant CR as IdentifyingUserUsecase
     participant UC as FindingUserUsecase
     participant HR as HormoniosRepository
     participant DB as Supabase
 
-    CR->>UC: execute({ pessoa, aparelho, emailHash })
-    opt aparelho reconhecido
-        UC->>HR: findUser({ id })
+    CR->>UC: execute(IdentifyingUserCommand { user, userId, emailHash })
+    UC->>UC: validateInput
+    break comando inválido
+        UC-->>CR: 400 Invalid Parameter
+    end
+    opt aparelho reconhecido (userId)
+        UC->>HR: findUser({ id: userId })
         HR->>DB: select user where id
+        DB-->>HR: row | null
         HR-->>UC: User | null
-        break mesmo e-mail (ou mascarado + hash)
-            UC-->>CR: a pessoa do aparelho
+        break mesmo e-mail, ou o mascarado com o emailHash certo
+            UC-->>CR: User (sem presenças)
         end
     end
     UC->>UC: validateEmail
     break e-mail inválido
-        UC-->>CR: 4xx ValidationError
+        UC-->>CR: 400 Invalid Parameter (email)
     end
     UC->>HR: findUser({ email })
     HR->>DB: select user where email
+    DB-->>HR: row | null
     HR-->>UC: User | null
-    UC-->>CR: a pessoa ou nenhuma
+    UC-->>CR: User | null
 ```
 
 **Decisão.**
@@ -65,11 +71,28 @@ sequenceDiagram
     participant DB as Supabase
     participant TR as TransicionaisRepo
 
-    CR->>UC: execute(pessoa)
-    UC->>HR: createOrUpdateUser
+    CR->>UC: execute(user)
+    UC->>UC: validateInput
+    UC->>UC: withoutAttendances (id novo se vier vazio)
+    UC->>HR: createOrUpdateUser(user)
     HR->>DB: upsert user
-    UC->>TR: createUser (pelo e-mail, não duplica)
-    TR-->>UC: conta de lá (fila enviada), ou falha (fila pendente ou parada)
+    DB-->>HR: row
+    HR-->>UC: User
+    opt nem enviada nem parada
+        UC->>HR: findIntegrationStatus(user, id)
+        HR->>DB: select integration_status where entity, entityId
+        DB-->>HR: row | null
+        HR-->>UC: IntegrationStatus | null
+        UC->>TR: createUser(user) (pelo e-mail, não duplica)
+        TR-->>UC: User de lá, ou falha
+        UC->>UC: synced, pending (fora do ar, na 10ª manualRetry) ou manualRetry (recusa)
+        UC->>HR: createOrUpdateIntegrationStatus(status)
+        HR->>DB: upsert integration_status
+        UC->>HR: createOrUpdateUser(user com o sync)
+        HR->>DB: upsert user
+        DB-->>HR: row
+        HR-->>UC: User
+    end
     UC-->>CR: User
 ```
 
@@ -98,22 +121,34 @@ sequenceDiagram
     participant DB as Supabase
 
     C->>APP: GET /api/membros
+    APP->>APP: readUserId (cookie)
     break aparelho não reconhecido
         APP-->>C: 404 User Not Found
     end
     APP->>UC: execute({ userId })
-    UC->>HR: findCurrentEvent({ position: atual })
-    HR->>DB: select current_event com event, attendance e user
-    HR-->>UC: o ensaio com todas as presenças
-    UC->>HR: findUser({ id, event })
-    HR->>DB: select user com as presenças no ensaio
+    UC->>UC: validateInput (userId uuid)
+    break userId inválido
+        UC-->>APP: 400 Invalid Parameter
+        APP-->>C: VIEW ERROR
+    end
+    UC->>HR: findCurrentEvent(FindingInternalFilter atual)
+    HR->>DB: select current_event where isCurrent, com event, attendance e user
+    DB-->>HR: row | null
+    HR-->>UC: ManagerEvent | null
+    break sem ensaio atual
+        UC-->>APP: 404 Event Not Found
+        APP-->>C: VIEW ERROR
+    end
+    UC->>HR: findUser({ id: userId, event })
+    HR->>DB: select user com attendance where id, eventId
+    DB-->>HR: row | null
     HR-->>UC: User | null
     break pessoa não existe
         UC-->>APP: 404 User Not Found
         APP-->>C: VIEW ERROR
     end
-    UC-->>APP: o ensaio e a pessoa
-    APP-->>C: 200 OK (a pessoa)
+    UC-->>APP: UserBooking (o ensaio e a pessoa)
+    APP-->>C: 200 OK (UserBookingResponse)
 ```
 
 **Decisão.**
@@ -142,25 +177,64 @@ sequenceDiagram
     participant FI as FindingInternalEventUsecase
     participant HR as HormoniosRepository
     participant DB as Supabase
+    participant TR as TransicionaisRepo
 
-    C->>APP: POST ou PATCH /api/membros/reservas (sem instrumento)
-    APP->>UC: execute(body, aparelho)
-    UC->>FI: execute({ position: atual })
-    FI-->>UC: o ensaio com todas as presenças
+    C->>APP: POST ou PATCH /api/membros/reservas (sem groupId)
+    APP->>APP: getOrCreateDevice e readUserId (cookies)
+    APP->>UC: execute({ ...body, deviceId, userId })
+    UC->>UC: validateInput
+    break corpo inválido
+        UC-->>APP: 400 Invalid Parameter
+        APP-->>C: VIEW ERROR
+    end
+    UC->>FI: execute(FindingInternalFilter atual)
+    FI-->>UC: ManagerEvent (o ensaio com as presenças e as pessoas)
     UC->>UC: validateIdentifier (IdentifyingUserUsecase)
+    UC->>UC: findUserAttendance (a presença da pessoa no ensaio)
     opt vai
-        UC->>UC: confere aberto e vagas
-        break regra quebrada
-            UC-->>APP: 4xx
+        UC->>UC: validateBookingOpen
+        break reservas fechadas
+            UC-->>APP: 409 Booking is closed
+            APP-->>C: VIEW ERROR
+        end
+        UC->>UC: validateTotalVacancies (sem a própria pessoa)
+        break sem vaga
+            UC-->>APP: 409 Event is sold out
             APP-->>C: VIEW ERROR
         end
     end
-    opt a presença mudou
-        UC->>HR: createOrUpdateAttendance
+    UC->>UC: toAttendance
+    opt nova ou mudou (resposta, aparelho, grupo ou acessórios)
+        UC->>HR: createOrUpdateAttendance(attendance, event)
         HR->>DB: upsert attendance
+        DB-->>HR: row
+        HR-->>UC: Attendance
     end
-    UC-->>APP: User
-    APP-->>C: 200 OK + cookie do aparelho
+    opt nem enviada nem parada
+        UC->>HR: findIntegrationStatus(attendance, id)
+        HR->>DB: select integration_status where entity, entityId
+        DB-->>HR: row | null
+        HR-->>UC: IntegrationStatus | null
+        alt a pessoa ou o ensaio ainda não estão lá
+            UC->>UC: pending
+        else pronto
+            UC->>TR: createAttendance(user com a presença)
+            TR-->>UC: ok, ou falha
+            opt enviada
+                UC->>TR: findPresence(user)
+                TR-->>UC: Attendance | null (código de lá)
+            end
+            UC->>UC: synced, pending (fora do ar, na 10ª manualRetry) ou manualRetry (recusa)
+        end
+        UC->>HR: createOrUpdateIntegrationStatus(status)
+        HR->>DB: upsert integration_status
+        UC->>HR: createOrUpdateAttendance(attendance com o sync, event)
+        HR->>DB: upsert attendance
+        DB-->>HR: row
+        HR-->>UC: Attendance
+    end
+    UC-->>APP: User (com a presença)
+    APP-->>C: 201 Created (POST) ou 200 OK (PATCH), UserResponse e cookies
 ```
 
 **Decisão.**
@@ -194,26 +268,85 @@ sequenceDiagram
     participant FB as FindingUserBookingUsecase
     participant HR as HormoniosRepository
     participant DB as Supabase
+    participant TR as TransicionaisRepo
 
-    C->>APP: POST /api/membros/reservas (com instrumento)
-    APP->>UC: execute(body, aparelho)
+    C->>APP: POST /api/membros/reservas (com groupId)
+    APP->>APP: getOrCreateDevice e readUserId (cookies)
+    APP->>UC: execute({ ...body, deviceId, userId })
+    UC->>UC: validateInput
+    break corpo inválido
+        UC-->>APP: 400 Invalid Parameter
+        APP-->>C: VIEW ERROR
+    end
+    UC->>UC: validateUserId
     break aparelho não reconhecido
         UC-->>APP: 404 User Not Found
         APP-->>C: VIEW ERROR
     end
     UC->>FB: execute({ userId })
-    FB-->>UC: o ensaio e a pessoa
-    UC->>UC: confere aberto, vagas, grupo, acessórios e estoque
-    break regra quebrada
-        UC-->>APP: 4xx
+    FB-->>UC: UserBooking (o ensaio e a pessoa)
+    break sem ensaio atual ou pessoa não existe
+        UC-->>APP: 404 Event Not Found ou User Not Found
         APP-->>C: VIEW ERROR
     end
-    opt a presença mudou
-        UC->>HR: createOrUpdateAttendance
-        HR->>DB: upsert attendance
+    UC->>UC: findUserAttendance (a presença da pessoa no ensaio)
+    UC->>UC: validateBookingOpen
+    break reservas fechadas
+        UC-->>APP: 409 Booking is closed
+        APP-->>C: VIEW ERROR
     end
-    UC-->>APP: User
-    APP-->>C: 200 OK
+    UC->>UC: validateTotalVacancies (só quem ainda não ia)
+    break sem vaga no ensaio
+        UC-->>APP: 409 Event is sold out
+        APP-->>C: VIEW ERROR
+    end
+    UC->>UC: findGroup e validateSupportIds
+    break grupo inativo, ou acessório fora do grupo
+        UC-->>APP: 400 Field groupId is invalid ou Field supportIds is invalid
+        APP-->>C: VIEW ERROR
+    end
+    UC->>UC: validateNotReserved
+    break já tem outro instrumento no ensaio
+        UC-->>APP: 409 User already reserved
+        APP-->>C: VIEW ERROR
+    end
+    UC->>UC: validateInstrumentStock, validateAccessoryStock e validateGroupCapacity (sem a própria pessoa)
+    break instrumento, acessório ou grupo sem vaga
+        UC-->>APP: 409 Catalog is sold out ou Group is sold out
+        APP-->>C: VIEW ERROR
+    end
+    UC->>UC: toAttendance
+    opt nova ou mudou (resposta, aparelho, grupo ou acessórios)
+        UC->>HR: createOrUpdateAttendance(attendance, event)
+        HR->>DB: upsert attendance
+        DB-->>HR: row
+        HR-->>UC: Attendance
+    end
+    opt nem enviada nem parada
+        UC->>HR: findIntegrationStatus(attendance, id)
+        HR->>DB: select integration_status where entity, entityId
+        DB-->>HR: row | null
+        HR-->>UC: IntegrationStatus | null
+        alt a pessoa ou o ensaio ainda não estão lá
+            UC->>UC: pending
+        else pronto
+            UC->>TR: createAttendance(user com a presença)
+            TR-->>UC: ok, ou falha
+            opt enviada
+                UC->>TR: findPresence(user)
+                TR-->>UC: Attendance | null (código de lá)
+            end
+            UC->>UC: synced, pending (fora do ar, na 10ª manualRetry) ou manualRetry (recusa)
+        end
+        UC->>HR: createOrUpdateIntegrationStatus(status)
+        HR->>DB: upsert integration_status
+        UC->>HR: createOrUpdateAttendance(attendance com o sync, event)
+        HR->>DB: upsert attendance
+        DB-->>HR: row
+        HR-->>UC: Attendance
+    end
+    UC-->>APP: User (com a presença)
+    APP-->>C: 201 Created, UserResponse e cookies
 ```
 
 **Decisão.**

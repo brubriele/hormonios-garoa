@@ -22,11 +22,15 @@ sequenceDiagram
 
     C->>APP: GET /api/ensaio
     APP->>UC: execute()
-    UC->>FI: execute({ position: atual })
-    FI-->>UC: o ensaio com todas as presenças
-    UC->>UC: withAttendances (conta quem vai e o que está livre)
+    UC->>FI: execute(FindingInternalFilter atual)
+    FI-->>UC: ManagerEvent (o ensaio com as presenças e as pessoas)
+    break sem ensaio e não conseguiu criar o vazio
+        UC-->>APP: 404 Event Not Found
+        APP-->>C: VIEW ERROR
+    end
+    UC->>UC: withAttendances(presenças, false) (quem vai e o que está livre, sem vagas por grupo)
     UC-->>APP: Event
-    APP-->>C: 200 OK (EventResponse, reservas abertas = isActive)
+    APP-->>C: 200 OK (EventResponse)
 ```
 
 **Decisão.**
