@@ -1,6 +1,6 @@
 # Sincronização
 
-> Atualizado em 2026-10-28. O ensaio, as pessoas e as presenças ficam iguais no Transicionais: o
+> Atualizado em 2026-10-29. O ensaio, as pessoas e as presenças ficam iguais no Transicionais: o
 > que muda aqui é enviado para lá, e o que muda lá é trazido para cá.
 
 ## Envio — dentro de criar ensaio, gravar pessoa e reservar
@@ -12,15 +12,37 @@ sem fazer a tela esperar nem falhar.
 
 **Desenho.**
 
-```
-usecase grava no Hormônios (ensaio, estoque, pessoa ou reserva)
-  ▼
-hormoniosRepository.findIntegrationStatus(…)       a fila da entidade
-  ▼ pronto? (data, pessoa e ensaio lá)  não → fila pendente
-transicionaisRepo.create… / updateEvent(…)
-  ├─ ok → createOrUpdateIntegrationStatus(enviado)
-  ├─ fora do ar → pendente: 1, 5, 15, 60 min (na 10ª, parada)   (fase-2 E3)
-  └─ recusa → parada, com o motivo                              (fase-2 E4)
+```mermaid
+sequenceDiagram
+    autonumber
+    participant CR as usecase que grava
+    participant HR as HormoniosRepository
+    participant DB as Supabase
+    participant TR as TransicionaisRepo
+
+    CR->>CR: shouldSync
+    break já enviado ou parado
+        CR->>CR: segue sem enviar
+    end
+    CR->>HR: findIntegrationStatus(entidade, id)
+    HR->>DB: select integration_status where entity, entityId
+    DB-->>HR: row | null
+    HR-->>CR: IntegrationStatus | null (sem fila, cria uma)
+    alt ensaio sem data, ou reserva sem a pessoa ou o ensaio lá
+        CR->>CR: pending
+    else pronto
+        CR->>TR: createEvent | updateEvent | createUser | createAttendance
+        TR-->>CR: o que ficou lá, ou falha
+        opt reserva enviada
+            CR->>TR: findPresence(user)
+            TR-->>CR: Attendance | null (código de lá)
+        end
+        CR->>CR: synced, pending (fora do ar ou desligado, na 10ª manualRetry) ou manualRetry (recusa)
+    end
+    CR->>HR: createOrUpdateIntegrationStatus(status)
+    HR->>DB: upsert integration_status
+    CR->>HR: updateEvent | createOrUpdateUser | createOrUpdateAttendance
+    HR->>DB: update event | upsert user | upsert attendance
 ```
 
 **Decisão.**
@@ -48,15 +70,41 @@ ensaio e as reservas.
 
 **Desenho.**
 
-```
-POST /api/webhooks/transicionais (chave do aviso) ── WebhookUsecase
-  ▼ o que mudou?
-  ├─ encontro → EventWebhookUsecase
-  ├─ pessoa → UserWebhookUsecase
-  ├─ presença → AttendanceWebhookUsecase
-  └─ outro → recusado
-  ▼
-{ igual | pendente | recusado } ──► resposta
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Transicionais
+    participant APP as api/webhooks/transicionais.ts
+    participant UC as WebhookUsecase
+    participant EW as EventWebhookUsecase
+    participant UW as UserWebhookUsecase
+    participant AW as AttendanceWebhookUsecase
+
+    C->>APP: POST /api/webhooks/transicionais
+    APP->>APP: requireWebhookKey
+    break sem a chave
+        APP-->>C: 401 Webhook api key required
+    end
+    APP->>UC: execute(body)
+    UC->>UC: validateInput (entity, sendAt e o id da entidade)
+    break corpo inválido
+        UC-->>APP: 400 Invalid Parameter
+        APP-->>C: 400
+    end
+    alt entity event
+        UC->>EW: execute(Webhook(eventId))
+        EW-->>UC: WebhookResult
+    else entity user
+        UC->>UW: execute(Webhook(userId))
+        UW-->>UC: WebhookResult
+    else entity validation
+        UC->>AW: execute(Webhook(validationId))
+        AW-->>UC: WebhookResult
+    else outra
+        UC->>UC: WebhookResult(rejected)
+    end
+    UC-->>APP: WebhookResult
+    APP-->>C: 200 OK (synced, pending ou rejected)
 ```
 
 **Decisão.**
@@ -76,15 +124,49 @@ POST /api/webhooks/transicionais (chave do aviso) ── WebhookUsecase
 
 **Desenho.**
 
-```
-EventWebhookUsecase
-  ▼
-transicionaisRepo.findEvent(id)                   só os grupos da publicação (spec-4 B8)
-  │ não existe → recusado · fora do ar → pendente
-  ▼
-hormoniosRepository.findEventByIntegrationId(id)
-  ├─ não existe → CreatingInternalEventUsecase (reservas fechadas)
-  └─ mudou e não é mais antigo → UpdatingInternalEventUsecase (não volta para lá)
+```mermaid
+sequenceDiagram
+    autonumber
+    participant CR as WebhookUsecase
+    participant UC as EventWebhookUsecase
+    participant CI as CreatingInternalEventUsecase
+    participant UI as UpdatingInternalEventUsecase
+    participant HR as HormoniosRepository
+    participant DB as Supabase
+    participant TR as TransicionaisRepo
+
+    CR->>UC: execute(Webhook)
+    UC->>UC: validateInput
+    UC->>TR: findEvent(id)
+    break fora do ar
+        TR-->>UC: 503
+        UC-->>CR: WebhookResult(pending)
+    end
+    TR-->>UC: Event (só os grupos da publicação) | 404
+    break não existe lá
+        UC-->>CR: WebhookResult(rejected)
+    end
+    opt tem integrationId
+        UC->>HR: findEvent({ integrationId })
+        HR->>DB: select event where integrationId
+        DB-->>HR: row | null
+        HR-->>UC: Event | null
+    end
+    break não existe aqui
+        UC->>CI: execute(event)
+        CI-->>UC: Event (reservas fechadas)
+        UC-->>CR: WebhookResult(synced)
+    end
+    UC->>UC: isChanged (hash mudou e version não é mais antiga)
+    break não mudou
+        UC-->>CR: WebhookResult(synced)
+    end
+    UC->>UI: execute(event)
+    UI-->>UC: ManagerEvent
+    break tirou um grupo ou item reservado, ou estoque abaixo das reservas
+        UC-->>CR: 400 Field groups must keep group ou 409 Stock is below reservations
+    end
+    UC-->>CR: WebhookResult(synced)
 ```
 
 **Decisão.**
@@ -107,14 +189,50 @@ hormoniosRepository.findEventByIntegrationId(id)
 
 **Desenho.**
 
-```
-UserWebhookUsecase
-  ▼
-transicionaisRepo.findUser(id)                    não existe → recusado
-  ▼
-hormoniosRepository.findUserByIntegrationId(id) ou findUserByEmail(email)
-  ├─ achou → só liga à conta de lá
-  └─ não achou → CreatingOrUpdateUserUsecase (sem e-mail → recusado)
+```mermaid
+sequenceDiagram
+    autonumber
+    participant CR as WebhookUsecase
+    participant UC as UserWebhookUsecase
+    participant CU as CreatingOrUpdateUserUsecase
+    participant HR as HormoniosRepository
+    participant DB as Supabase
+    participant TR as TransicionaisRepo
+
+    CR->>UC: execute(Webhook)
+    UC->>UC: validateInput
+    UC->>TR: findUser(id)
+    break fora do ar
+        TR-->>UC: 503
+        UC-->>CR: WebhookResult(pending)
+    end
+    TR-->>UC: User | 404
+    break não existe lá
+        UC-->>CR: WebhookResult(rejected)
+    end
+    opt tem integrationId
+        UC->>HR: findUser({ integrationId })
+        HR->>DB: select user where integrationId
+        DB-->>HR: row | null
+        HR-->>UC: User | null
+    end
+    opt não achou e tem e-mail
+        UC->>HR: findUser({ email })
+        HR->>DB: select user where email
+        DB-->>HR: row | null
+        HR-->>UC: User | null
+    end
+    break não achou e sem e-mail
+        UC-->>CR: WebhookResult(rejected)
+    end
+    alt achou
+        UC->>UC: linkUser (só integrationId e conta de lá)
+        UC->>CU: execute(pessoa daqui, ligada)
+    else não achou
+        UC->>CU: execute(pessoa de lá)
+    end
+    CU-->>UC: User
+    UC-->>CR: WebhookResult(synced)
 ```
 
 **Decisão.**
@@ -135,16 +253,70 @@ na Produção.
 
 **Desenho.**
 
-```
-AttendanceWebhookUsecase
-  ▼
-transicionaisRepo.findAttendance(id)              não existe → recusado
-  ▼
-hormoniosRepository.findEventByTransicionaisDayId(dia)   não existe → recusado
-  ▼
-pessoa: findUserByIntegrationId / findUserByEmail ou CreatingOrUpdateUserUsecase
-  ▼
-hormoniosRepository.findAttendanceByIntegrationId(…) → createOrUpdateAttendance(…) se mudou
+```mermaid
+sequenceDiagram
+    autonumber
+    participant CR as WebhookUsecase
+    participant UC as AttendanceWebhookUsecase
+    participant CU as CreatingOrUpdateUserUsecase
+    participant HR as HormoniosRepository
+    participant DB as Supabase
+    participant TR as TransicionaisRepo
+
+    CR->>UC: execute(Webhook)
+    UC->>UC: validateInput
+    UC->>TR: findAttendance(id)
+    break fora do ar
+        TR-->>UC: 503
+        UC-->>CR: WebhookResult(pending)
+    end
+    TR-->>UC: User com a presença | 404
+    break não existe lá
+        UC-->>CR: WebhookResult(rejected)
+    end
+    UC->>HR: findEvent({ transicionaisDayId })
+    HR->>DB: select event where transicionaisDayId
+    DB-->>HR: row | null
+    HR-->>UC: Event | null
+    break ensaio não existe aqui
+        UC-->>CR: WebhookResult(rejected)
+    end
+    opt tem integrationId
+        UC->>HR: findUser({ integrationId })
+        HR->>DB: select user where integrationId
+        DB-->>HR: row | null
+        HR-->>UC: User | null
+    end
+    opt não achou
+        UC->>HR: findUser({ email })
+        HR->>DB: select user where email
+        DB-->>HR: row | null
+        HR-->>UC: User | null
+    end
+    opt ainda não achou
+        UC->>CU: execute(pessoa de lá)
+        CU-->>UC: User
+    end
+    opt presença tem integrationId
+        UC->>HR: findAttendance({ integrationId, event })
+        HR->>DB: select attendance where eventId, integrationId
+        DB-->>HR: row | null
+        HR-->>UC: Attendance | null
+    end
+    opt não achou
+        UC->>HR: findEventAttendance(event)
+        HR->>DB: select attendance where eventId
+        DB-->>HR: rows
+        HR-->>UC: Attendance[]
+        UC->>UC: a da pessoa
+    end
+    UC->>UC: isChanged (nova, ou hash mudou e version não é mais antiga)
+    opt mudou
+        UC->>UC: toAttendance (mantém id, data e aparelho, só acessórios do ensaio)
+        UC->>HR: createOrUpdateAttendance(attendance, event)
+        HR->>DB: upsert attendance
+    end
+    UC-->>CR: WebhookResult(synced)
 ```
 
 **Decisão.**
@@ -165,16 +337,49 @@ hormoniosRepository.findAttendanceByIntegrationId(…) → createOrUpdateAttenda
 
 **Desenho.**
 
-```
-agendador (a cada 5 min, um tipo por vez) ─┐
-GET /api/cron/sync?type=… (chave do cron) ─┴── JobUsecase
-  ▼ Transicionais desligado? → "fora do ar" (503), sem tocar a fila   (spec-3 D1)
-  ├─ event → EventJobUsecase
-  ├─ user → UserJobUsecase
-  ├─ attendance → AttendanceJobUsecase
-  └─ outro → 400
-  ▼
-lista do que foi reenviado ──► resposta
+```mermaid
+sequenceDiagram
+    autonumber
+    participant AG as cronjob/handler.ts
+    participant C as Client
+    participant APP as api/cron/sync.ts
+    participant UC as JobUsecase
+    participant EJ as EventJobUsecase
+    participant UJ as UserJobUsecase
+    participant AJ as AttendanceJobUsecase
+
+    alt agendador, a cada 5 min
+        AG->>UC: execute({ entity })
+    else rota
+        C->>APP: GET /api/cron/sync?type=event|user|attendance
+        APP->>APP: requireCron
+        break sem a chave
+            APP-->>C: 401 Cron secret required
+        end
+        APP->>UC: execute({ entity: type })
+    end
+    UC->>UC: validateTransicionaisEnabled
+    break Transicionais desligado
+        UC-->>APP: 503 Transicionais is disabled
+        APP-->>C: 503
+    end
+    UC->>UC: validateInput (event, user ou attendance)
+    break outro tipo
+        UC-->>APP: 400 Invalid Parameter
+        APP-->>C: 400
+    end
+    alt event
+        UC->>EJ: execute(Job)
+        EJ-->>UC: Event[]
+    else user
+        UC->>UJ: execute(Job)
+        UJ-->>UC: User[]
+    else attendance
+        UC->>AJ: execute(Job)
+        AJ-->>UC: Attendance[]
+    end
+    UC-->>APP: o que foi reenviado
+    APP-->>C: 200 OK (lista, com o status de cada um)
 ```
 
 **Decisão.**
@@ -199,16 +404,59 @@ lista do que foi reenviado ──► resposta
 
 **Desenho.**
 
-```
-Event/User/AttendanceJobUsecase
-  ▼
-hormoniosRepository.findDueIntegrationStatus(tipo, pendente, agora, 30)
-  ▼ um por vez, em paralelo
-hormoniosRepository.findEvent / findUser / findAttendance(…)   não existe → parada
-  ▼
-transicionaisRepo.createEvent | updateEvent (já está lá) | createUser | createAttendance
-  ▼
-como no Envio
+```mermaid
+sequenceDiagram
+    autonumber
+    participant CR as JobUsecase
+    participant UC as Event, User ou AttendanceJobUsecase
+    participant HR as HormoniosRepository
+    participant DB as Supabase
+    participant TR as TransicionaisRepo
+
+    CR->>UC: execute(Job)
+    UC->>UC: validateInput
+    UC->>HR: findDueIntegrationStatus(tipo, pending, agora, 30)
+    HR->>DB: select integration_status where entity, pending, nextSyncAt vazio ou vencido order syncAt limit 30
+    DB-->>HR: rows
+    HR-->>UC: IntegrationStatus[]
+    loop cada um, em paralelo
+        alt event
+            UC->>HR: findEvent({ id })
+            HR->>DB: select event where id
+        else user
+            UC->>HR: findUser({ id })
+            HR->>DB: select user where id
+        else attendance
+            UC->>HR: findEvent({ attendanceId })
+            HR->>DB: select event inner join attendance where id
+            UC->>HR: findAttendance({ id, event })
+            HR->>DB: select attendance where eventId, id
+            UC->>HR: findUser({ id: userId })
+            HR->>DB: select user where id
+        end
+        HR-->>UC: Event | User | Attendance | null
+        alt não existe mais
+            UC->>HR: createOrUpdateIntegrationStatus(manualRetry)
+            HR->>DB: upsert integration_status
+        else existe
+            alt ensaio sem data e ainda não lá, ou reserva sem a pessoa ou o ensaio lá
+                UC->>UC: pending
+            else pronto
+                UC->>TR: createEvent | updateEvent (já está lá) | createUser | createAttendance
+                TR-->>UC: o que ficou lá, ou falha
+                opt reserva enviada
+                    UC->>TR: findPresence(user)
+                    TR-->>UC: Attendance | null (código de lá)
+                end
+                UC->>UC: synced, pending (fora do ar, na 10ª manualRetry) ou manualRetry (recusa)
+            end
+            UC->>HR: createOrUpdateIntegrationStatus(status)
+            HR->>DB: upsert integration_status
+            UC->>HR: updateEvent | createOrUpdateUser | createOrUpdateAttendance
+            HR->>DB: update event | upsert user | upsert attendance
+        end
+    end
+    UC-->>CR: Event[] | User[] | Attendance[] (os que existiam)
 ```
 
 **Decisão.**

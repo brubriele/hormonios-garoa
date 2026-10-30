@@ -65,3 +65,27 @@
   dos ids; o `package.json` da raiz ganha os scripts `cronjob:dev:cf` e `cronjob:deploy`, que
   chamam o pacote de `deploy/cloudflare` (instalado à parte, com wrangler, zod e Supabase).
 - **Removidas:** —
+
+### [T8 — hormonios-repo-otimization-event-read-for-event-and-users-attendance](T8-hormonios-repo-otimization-event-read-for-event-and-users-attendance.md) — 2026-10-30
+
+- **Adicionadas:** a tabela `current_event` (atual, próximo e reservas abertas) e a função
+  `update_current_event`, que troca o estado com a linha travada; liberar e fechar as reservas
+  (`PUT /api/admin/reservas`); encerrar o atual e passar para o próximo
+  (`POST /api/admin/ensaio/proximo`); ver o próximo ensaio (`GET /api/admin/ensaio?posicao=proximo`);
+  o erro `NEXT_EVENT_EXISTS_ERROR` (409).
+- **Alteradas:** o ensaio, as presenças e as pessoas vêm numa query só; a pessoa e as presenças dela
+  também; o repo tem um get por entidade com filtro nomeado; o `bookingOpen` vem do `isActive` da
+  `current_event` e sai da escrita do ensaio; criar ensaio entra como próximo; o Updating acha o
+  encontro pelo id; as rotas ficam em português no padrão REST (`GET /api/membros`,
+  `POST`/`PATCH /api/membros/reservas`, `POST /api/admin/ensaio`).
+- **Removidas:** a cópia do último ensaio do Transicionais com o banco vazio (cria o ensaio vazio);
+  `/api/minhas-reservas`, `/api/reserva`, `/api/reserva/desfazer` e `/api/admin/novo-ensaio`.
+
+### [T9 — identifying-user](T9-identifying-user.md) — 2026-10-30
+
+- **Adicionadas:** o `IdentifyingUserUsecase`, que identifica a pessoa pela presença (aparelho,
+  e-mail ou e-mail mascarado) e só grava quando ela é nova ou mudou; o domain `UserBooking`.
+- **Alteradas:** reservar instrumento exige o aparelho reconhecido; minhas reservas exige o aparelho
+  reconhecido e não compara o e-mail; gravar a pessoa volta a só gravar e enviar; a pessoa é lida
+  uma vez por chamada.
+- **Removidas:** —
