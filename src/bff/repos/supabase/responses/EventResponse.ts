@@ -60,23 +60,30 @@ const EventMetadataSchema = z.object({
   syncedAt: z.string().nullable(),
 });
 
-// jsonb de event.data: o Event inteiro (Event.toJson)
-const EventDataSchema = z.object({
+// jsonb de event.data: o Event inteiro (Event.toJson), sem o isActive (spec-8 C1)
+export const EventDataSchema = z.object({
   id: z.guid(),
   location: z.string(),
   whatsappUrl: z.string().nullable(),
   date: z.string(),
   startTime: z.string().nullable(),
-  bookingOpen: z.boolean().nullable(),
   groups: z.array(EventGroupSchema),
   catalog: z.array(EventCatalogSchema),
   metadata: EventMetadataSchema,
 });
 
-// linha de event (só o data: as outras colunas são do repo)
-const EventRowSchema = z.object({
-  data: EventDataSchema,
+// spec-8 C1, C4
+const CurrentEventEmbedSchema = z.object({
+  isActive: z.boolean(),
 });
+
+// linha de event (só o data: as outras colunas são do repo)
+const EventRowSchema = z
+  .object({
+    data: EventDataSchema,
+    current_event: CurrentEventEmbedSchema.nullable().default(null),
+  })
+  .transform((row) => ({ ...row.data, isActive: row.current_event?.isActive ?? false }));
 
 export class EventResponse {
   static toDomain(raw: unknown): Event {
@@ -88,7 +95,7 @@ export class EventResponse {
     );
 
     return InvalidResponseError.guard(InfraSource.Supabase, OPERATION, () =>
-      EventMapper.fromData(row.data),
+      EventMapper.fromData(row),
     );
   }
 }

@@ -71,7 +71,7 @@ export interface IEventData {
   whatsappUrl: string | null;
   date: string;
   startTime: string | null;
-  bookingOpen: boolean | null;
+  isActive: boolean;
   groups: IEventGroupData[];
   catalog: IEventCatalogData[];
   metadata: IEventMetadataData;
@@ -84,7 +84,7 @@ export class EventMapper {
     const catalog = data.catalog.map((item) => EventMapper.toCatalog(item));
     const metadata = EventMapper.toMetadata(data.metadata);
 
-    return new Event(data.id, data.location, data.whatsappUrl, data.date, data.startTime, data.bookingOpen, groups, catalog, metadata);
+    return new Event(data.id, data.location, data.whatsappUrl, data.date, data.startTime, data.isActive, groups, catalog, metadata);
   }
 
   private static toGroup(group: IEventGroupData): EventGroup {

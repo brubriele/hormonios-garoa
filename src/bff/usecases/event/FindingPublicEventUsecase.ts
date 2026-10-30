@@ -1,20 +1,17 @@
 import type { Attendance } from "../../domain/Attendance";
 import type { Event } from "../../domain/Event";
-import { EventMapper } from "../../domain/mappers/EventMapper";
-import { AppError, NotFoundError, UpstreamUnavailableError } from "../../errors/app-error";
-import type { IHormoniosRepository } from "../../interfaces/IHormoniosRepository";
-import type { ITransicionaisRepo } from "../../interfaces/transicionais";
+import { EventPosition, FindingInternalFilter } from "../../domain/FindingInternalFilter";
+import type { ManagerEvent } from "../../domain/ManagerEvent";
+import { AppError } from "../../errors/app-error";
 import { createLogger, LogContext } from "../../lib/logger";
+import type { FindingInternalEventUsecase } from "./FindingInternalEventUsecase";
 
 const logger = createLogger("FindingPublicEventUsecase", LogContext.Event);
 
 export class FindingPublicEventUsecase {
   static readonly token = "FindingPublicEventUsecase";
 
-  constructor(
-    private readonly hormoniosRepository: IHormoniosRepository,
-    private readonly transicionaisRepo: ITransicionaisRepo,
-  ) {}
+  constructor(private readonly findingInternalEventUsecase: FindingInternalEventUsecase) {}
 
   async execute(): Promise<Event> {
     try {
@@ -32,56 +29,25 @@ export class FindingPublicEventUsecase {
     }
   }
 
-  // F4
+  // F4, spec-8 D3
   private async _execute(): Promise<Event> {
     logger.track("finding public event");
 
-    const event = await this.findCurrentEvent();
-    const attendances = await this.findEventAttendance(event);
+    const managerEvent = await this.findCurrentEvent();
+    const attendances = this.toAttendances(managerEvent);
 
-    return event.withAttendances(attendances, false);
+    return managerEvent.event.withAttendances(attendances, false);
   }
 
-  // D2, spec-4 A3
-  private async findCurrentEvent(): Promise<Event> {
-    const event = await this.hormoniosRepository.findCurrentEvent();
+  // spec-8 B5
+  private async findCurrentEvent(): Promise<ManagerEvent> {
+    const filter = new FindingInternalFilter({ position: EventPosition.Current });
+    const managerEvent = await this.findingInternalEventUsecase.execute(filter);
 
-    if (event) {
-      return event;
-    }
-
-    const external = await this.findTransicionaisEvent();
-    const created = await this.createEvent(external);
-
-    return created;
+    return managerEvent;
   }
 
-  // spec-4 A2, A3
-  private async findTransicionaisEvent(): Promise<Event> {
-    try {
-      const external = await this.transicionaisRepo.findLastPublicEvent();
-
-      return external;
-    } catch (error) {
-      if (error instanceof UpstreamUnavailableError || error instanceof NotFoundError) {
-        throw new NotFoundError("Event Not Found");
-      }
-
-      throw error;
-    }
-  }
-
-  // fase-2 W5
-  private async createEvent(external: Event): Promise<Event> {
-    const id = globalThis.crypto.randomUUID();
-    const json = external.toJson();
-    const event = EventMapper.fromData({ ...json, id, whatsappUrl: null, bookingOpen: false });
-    const created = await this.hormoniosRepository.createEvent(event);
-
-    return created;
-  }
-
-  private async findEventAttendance(event: Event): Promise<Attendance[]> {
-    return this.hormoniosRepository.findEventAttendance(event);
+  private toAttendances(managerEvent: ManagerEvent): Attendance[] {
+    return managerEvent.users.flatMap((user) => user.attendances);
   }
 }

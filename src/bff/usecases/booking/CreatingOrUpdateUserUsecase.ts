@@ -22,7 +22,9 @@ export class CreatingOrUpdateUserUsecase {
 
   async execute(user: User): Promise<User> {
     try {
-      return await this._execute(user);
+      const saved = await this._execute(user);
+
+      return saved;
     } catch (error) {
       if (error instanceof AppError) {
         logger.appError(error, { hormoniosUserId: user.id });
@@ -71,8 +73,9 @@ export class CreatingOrUpdateUserUsecase {
 
     try {
       const external = await this.transicionaisRepo.createUser(user);
+      const synced = await this.saveSynced(external, integrationStatus, now);
 
-      return await this.saveSynced(external, integrationStatus, now);
+      return synced;
     } catch (error) {
       const failed = this.toFailedStatus(integrationStatus, error, now);
 

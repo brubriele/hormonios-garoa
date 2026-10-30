@@ -1,27 +1,29 @@
+import { z } from "zod";
 import type { Attendance } from "../../domain/Attendance";
-import type { Event } from "../../domain/Event";
+import { EventPosition, FindingInternalFilter } from "../../domain/FindingInternalFilter";
 import { ManagerEvent } from "../../domain/ManagerEvent";
-import type { User } from "../../domain/User";
 import { AppError, NotFoundError } from "../../errors/app-error";
 import type { IHormoniosRepository } from "../../interfaces/IHormoniosRepository";
-import type { ITransicionaisRepo } from "../../interfaces/transicionais";
 import { createLogger, LogContext } from "../../lib/logger";
+import { validateSchema } from "../../lib/schema";
 import { emptyState } from "../../repos/supabase/mock/emptyState";
-import { CreatingInternalEventUsecase } from "./CreatingInternalEventUsecase";
+import type { CreatingInternalEventUsecase } from "./CreatingInternalEventUsecase";
 
 const logger = createLogger("FindingInternalEventUsecase", LogContext.Event);
+
+const FindingInternalEventInputSchema = z.instanceof(FindingInternalFilter);
 
 export class FindingInternalEventUsecase {
   static readonly token = "FindingInternalEventUsecase";
 
   constructor(
     private readonly hormoniosRepository: IHormoniosRepository,
-    private readonly transicionaisRepo: ITransicionaisRepo,
+    private readonly creatingInternalEventUsecase: CreatingInternalEventUsecase,
   ) {}
 
-  async execute(): Promise<ManagerEvent> {
+  async execute(filter: FindingInternalFilter): Promise<ManagerEvent> {
     try {
-      const managerEvent = await this._execute();
+      const managerEvent = await this._execute(filter);
 
       return managerEvent;
     } catch (error) {
@@ -35,64 +37,52 @@ export class FindingInternalEventUsecase {
     }
   }
 
-  // D5, F4
-  private async _execute(): Promise<ManagerEvent> {
-    logger.track("finding internal event");
+  // spec-8 D1, D2
+  private async _execute(filter: FindingInternalFilter): Promise<ManagerEvent> {
+    logger.track("finding internal event", { position: filter.position ?? undefined, hormoniosEventId: filter.eventId ?? undefined });
 
-    const event = await this.findCurrentEventOrMock();
-    const attendances = await this.findEventAttendance(event);
-    const users = await this.findEventUsers(event);
-    const counted = event.withAttendances(attendances, true);
+    const valid = this.validateInput(filter);
+    const found = await this.findEventOrMock(valid);
+    const attendances = this.toAttendances(found);
+    const counted = found.event.withAttendances(attendances, true);
 
-    return new ManagerEvent(counted, users);
+    return new ManagerEvent(counted, found.users);
   }
 
-  private async findCurrentEventOrMock(): Promise<Event> {
-    try {
-      const event = await this.findCurrentEvent();
+  private validateInput(filter: FindingInternalFilter): FindingInternalFilter {
+    return validateSchema(FindingInternalEventInputSchema, filter);
+  }
 
-      return event;
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        return this.createMockEvent();
-      }
+  private async findEventOrMock(filter: FindingInternalFilter): Promise<ManagerEvent> {
+    const found = await this.hormoniosRepository.findCurrentEvent(filter);
 
-      throw error;
+    if (found) {
+      return found;
     }
+
+    if (filter.position !== EventPosition.Current) {
+      throw new NotFoundError("Event Not Found");
+    }
+
+    return this.createMockEvent();
   }
 
-  private async createMockEvent(): Promise<Event> {
+  // spec-8 B5, C4
+  private async createMockEvent(): Promise<ManagerEvent> {
     try {
       const event = emptyState();
-      const usecase = new CreatingInternalEventUsecase(this.hormoniosRepository, this.transicionaisRepo);
+      const created = await this.creatingInternalEventUsecase.execute(event);
 
-      const newEvent = await usecase.execute(event);
+      logger.info("createMockEvent", created.id);
 
-      logger.info('createMockEvent', newEvent.id)
-
-      return newEvent
+      return new ManagerEvent(created, []);
     } catch (error) {
       logger.error({ err: error }, "mock event not created");
       throw new NotFoundError("Event Not Found");
     }
   }
 
-  // D2
-  private async findCurrentEvent(): Promise<Event> {
-    const event = await this.hormoniosRepository.findCurrentEvent();
-
-    if (!event) {
-      throw new NotFoundError("Event Not Found");
-    }
-
-    return event;
-  }
-
-  private async findEventAttendance(event: Event): Promise<Attendance[]> {
-    return this.hormoniosRepository.findEventAttendance(event);
-  }
-
-  private async findEventUsers(event: Event): Promise<User[]> {
-    return this.hormoniosRepository.findEventUsers(event);
+  private toAttendances(managerEvent: ManagerEvent): Attendance[] {
+    return managerEvent.users.flatMap((user) => user.attendances);
   }
 }

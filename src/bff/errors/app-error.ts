@@ -13,6 +13,7 @@ export enum ErrorKey {
   ReservationRejected = "RESERVATION_REJECTED_ERROR",
   EventCreationPending = "EVENT_CREATION_PENDING_ERROR",
   InvalidCacheState = "INVALID_CACHE_STATE_ERROR",
+  NextEventExists = "NEXT_EVENT_EXISTS_ERROR",
 }
 
 export abstract class AppError extends Error {
@@ -68,6 +69,12 @@ export class EventChangedError extends AppError {
 
 export class StockBelowReservationsError extends AppError {
   readonly key = ErrorKey.StockBelowReservations;
+  readonly status = 409;
+}
+
+// spec-8 B4
+export class NextEventExistsError extends AppError {
+  readonly key = ErrorKey.NextEventExists;
   readonly status = 409;
 }
 

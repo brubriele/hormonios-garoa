@@ -1,9 +1,11 @@
 import { z } from "zod";
 import { Event, EventCatalogType, EventVisibility } from "../../domain/Event";
 import { ErrorCtx, IntegrationEntity, IntegrationStatus } from "../../domain/IntegrationStatus";
+import { EventPosition, FindingInternalFilter } from "../../domain/FindingInternalFilter";
+import type { ManagerEvent } from "../../domain/ManagerEvent";
 import { EventMapper } from "../../domain/mappers/EventMapper";
 import { SyncStatus } from "../../domain/SyncStatus";
-import { AppError, UpstreamUnavailableError } from "../../errors/app-error";
+import { AppError, NextEventExistsError, UpstreamUnavailableError } from "../../errors/app-error";
 import type { IHormoniosRepository } from "../../interfaces/IHormoniosRepository";
 import type { ITransicionaisRepo } from "../../interfaces/transicionais";
 import { createLogger, LogContext } from "../../lib/logger";
@@ -20,7 +22,6 @@ export const EventBodySchema = z
     whatsappUrl: z.string().nullable(),
     date: z.union([z.literal(""), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)]),
     startTime: TimeSchema.nullable(),
-    bookingOpen: z.boolean().nullable(),
     groups: z.array(
       z.object({
         id: NonBlankSchema,
@@ -103,8 +104,14 @@ export class CreatingInternalEventUsecase {
     logger.track("creating internal event", { hormoniosEventId: data.id });
 
     const valid = this.validateInput(data);
+    const current = await this.findCurrent();
+
+    await this.validateNoNext(current);
+
     const event = this.withId(valid);
     const created = await this.createEvent(event);
+
+    await this.createCurrentEvent(created, current);
 
     return this.sync(created);
   }
@@ -118,15 +125,49 @@ export class CreatingInternalEventUsecase {
     return event;
   }
 
+  // spec-8 C4
   private withId(event: Event): Event {
     const id = globalThis.crypto.randomUUID();
     const json = event.toJson();
 
-    return EventMapper.fromData({ ...json, id });
+    return EventMapper.fromData({ ...json, id, isActive: false });
   }
 
   private async createEvent(event: Event): Promise<Event> {
     return this.hormoniosRepository.createEvent(event);
+  }
+
+  private async findCurrent(): Promise<ManagerEvent | null> {
+    const filter = new FindingInternalFilter({ position: EventPosition.Current });
+    const current = await this.hormoniosRepository.findCurrentEvent(filter);
+
+    return current;
+  }
+
+  // spec-8 B4: com próximo criado, salvar a aba PRÓXIMO edita (PUT), não cria outro
+  private async validateNoNext(current: ManagerEvent | null): Promise<void> {
+    if (!current) {
+      return;
+    }
+
+    const filter = new FindingInternalFilter({ position: EventPosition.Next });
+    const next = await this.hormoniosRepository.findCurrentEvent(filter);
+
+    if (next) {
+      throw new NextEventExistsError("Next event already exists");
+    }
+  }
+
+  // spec-8 B4, B5
+  private async createCurrentEvent(created: Event, current: ManagerEvent | null): Promise<void> {
+    if (!current) {
+      await this.hormoniosRepository.createCurrentEvent(created, true);
+
+      return;
+    }
+
+    await this.hormoniosRepository.createCurrentEvent(created, false);
+    await this.hormoniosRepository.updateCurrentEvent(current.event, null, null, created);
   }
 
   private async sync(event: Event): Promise<Event> {

@@ -21,7 +21,7 @@ const AttendanceMetadataSchema = z.object({
 });
 
 // jsonb de attendance.data: a Attendance inteira (Attendance.toJson)
-const AttendanceDataSchema = z.object({
+export const AttendanceDataSchema = z.object({
   id: z.guid(),
   eventId: z.guid(),
   groupId: z.string().optional().transform((id) => id ?? null), // ausente = só presença
