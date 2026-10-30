@@ -26,8 +26,10 @@
     <main id="app">
       <section id="home" class="view active">
 
+        <div id="home-status" class="home-status"><div class="empty-state">Carregando…</div></div>
+
         <!-- VISÃO INFORMATIVA: reservas fechadas -->
-        <div id="booking-closed-view" class="booking-state booking-state--closed">
+        <div id="booking-closed-view" class="booking-state booking-state--closed" hidden>
           <div class="booking-closed-grid">
             <div class="booking-closed-copy">
               <p class="eyebrow">PRÓXIMO ENSAIO</p>
@@ -48,6 +50,7 @@
             <div class="rehearsal-spec">
               <div class="spec-label">PRÓXIMO ENSAIO</div>
               <div class="spec-value" id="closed-date">A definir</div>
+              <div class="dev-event-code" data-dev-event-code hidden></div>
               <div class="spec-rule"></div>
               <div class="spec-row">
                 <div><span>HORÁRIO</span><strong id="closed-time">A definir</strong></div>
@@ -80,6 +83,7 @@
             <div class="rehearsal-spec">
               <div class="spec-label">DATA</div>
               <div class="spec-value" id="home-date">A definir</div>
+              <div class="dev-event-code" data-dev-event-code hidden></div>
               <div class="spec-rule"></div>
               <div class="spec-row">
                 <div><span>HORÁRIO</span><strong id="home-time">A definir</strong></div>
@@ -116,12 +120,14 @@
         <div class="form-layout">
           <div class="form-intro">
             <p>Preencha uma vez para confirmar sua presença. Seu nome não é usado como identificador técnico.</p>
-            <div class="technical-note">ID DE PARTICIPANTE <span id="participant-id-short">—</span></div>
+            <p id="presence-user-id" class="technical-id" hidden></p>
           </div>
           <form id="presence-form" class="line-form">
+            <input id="presence-email-hash" type="hidden">
+            <label>E-mail <input id="presence-email" type="email" required autocomplete="email" placeholder="voce@exemplo.com"></label>
             <label>Nome / Nome Social <input id="presence-name" required autocomplete="name" placeholder="Como você quer ser chamado?"></label>
             <label>Pronome <input id="presence-pronoun" required placeholder="ex.: ela/dela, ele/dele, elu/delu"></label>
-            <button class="primary-btn" type="submit">Confirmar presença <span>→</span></button>
+            <button class="primary-btn" type="submit" id="presence-submit">Confirmar presença <span>→</span></button>
           </form>
         </div>
         <div id="presence-status" class="status-message" hidden></div>
@@ -153,7 +159,7 @@
       </section>
     </main>
 
-    <nav class="bottom-nav" aria-label="Navegação principal" id="main-bottom-nav">
+    <nav class="bottom-nav" aria-label="Navegação principal" id="main-bottom-nav" hidden>
       <button data-nav="presence"><span>01</span>Presença</button>
       <button data-nav="instruments"><span>02</span>Instrumentos</button>
       <button data-nav="my-reservations"><span>03</span>Minhas reservas</button>
@@ -162,26 +168,25 @@
 
   <dialog id="reserve-dialog">
     <form method="dialog" id="reserve-form" class="dialog-form">
-      <button class="dialog-close" value="cancel" aria-label="Fechar">×</button>
+      <button class="dialog-close" value="cancel" formnovalidate aria-label="Fechar">×</button>
       <p class="eyebrow">RESERVA / <span id="reserve-instrument-label"></span></p>
       <h3>Detalhes<br><em>do instrumento.</em></h3>
       <input type="hidden" id="reserve-instrument-id">
+      <label>E-mail <input id="reserve-email" type="email" autocomplete="email" required></label>
       <label>Nome / Nome Social <input id="reserve-name" required></label>
       <label>Pronome <input id="reserve-pronoun" required placeholder="ex.: ela/dela"></label>
-      <label class="toggle-row"><input type="checkbox" id="needs-strap"><span>Preciso de talabarte (alça)</span></label>
-      <label class="toggle-row"><input type="checkbox" id="needs-beater"><span>Preciso de baqueta / maçaneta</span></label>
-      <button class="primary-btn" type="submit">Reservar instrumento <span>→</span></button>
+      <div id="reserve-accessories"></div>
+      <button class="primary-btn" type="submit" id="reserve-submit">Reservar instrumento <span>→</span></button>
     </form>
   </dialog>
 
   <dialog id="admin-login-dialog">
     <form method="dialog" id="admin-login-form" class="dialog-form compact">
-      <button class="dialog-close" value="cancel" aria-label="Fechar">×</button>
+      <button class="dialog-close" value="cancel" formnovalidate aria-label="Fechar">×</button>
       <p class="eyebrow">ÁREA RESTRITA</p>
       <h3>Entrar na<br><em>produção.</em></h3>
       <label>Senha <input id="admin-password" type="password" autocomplete="current-password" required></label>
-      <p class="form-hint">Protótipo: a senha definida no ADR é <strong>garoa</strong>.</p>
-      <button class="primary-btn" type="submit">Acessar produção <span>→</span></button>
+      <button class="primary-btn" type="submit" id="admin-login-submit">Acessar produção <span>→</span></button>
     </form>
   </dialog>
 
