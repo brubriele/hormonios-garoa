@@ -1,6 +1,6 @@
 # Ensaio
 
-> Atualizado em 2026-10-28.
+> Atualizado em 2026-10-30.
 
 ## Ver o ensaio atual (FindingPublicEventUsecase) — `GET /api/ensaio`
 
@@ -9,27 +9,31 @@
 **Contexto.** Qualquer pessoa, sem se identificar, vê o próximo ensaio e o que ainda dá para
 reservar.
 
-**Desenho.**
+**Desenho.** O ensaio vem de "Ver o ensaio com quem vai", em [`producao.md`](producao.md), que
+também cria o ensaio vazio quando não há nenhum.
 
-```
-GET /api/ensaio ── FindingPublicEventUsecase
-  ▼
-hormoniosRepository.findCurrentEvent()            o último criado (fase-1 D2)
-  │ não tem
-  ├─► transicionaisRepo.findLastPublicEvent()      o último Público de lá (spec-4 A2)
-  │     └─ fora do ar ou sem encontro → "não encontrado" (404)
-  │   hormoniosRepository.createEvent(…)           reservas fechadas, sem link (spec-4 A3)
-  ▼
-hormoniosRepository.findEventAttendance(event)
-  ▼
-conta quem vai e o que está livre ──► resposta
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Client
+    participant APP as api/ensaio.ts
+    participant UC as FindingPublicEventUsecase
+    participant FI as FindingInternalEventUsecase
+
+    C->>APP: GET /api/ensaio
+    APP->>UC: execute()
+    UC->>FI: execute({ position: atual })
+    FI-->>UC: o ensaio com todas as presenças
+    UC->>UC: withAttendances (conta quem vai e o que está livre)
+    UC-->>APP: Event
+    APP-->>C: 200 OK (EventResponse, reservas abertas = isActive)
 ```
 
 **Decisão.**
-- O ensaio atual é o último criado.
-- Sem ensaio aqui, traz o último ensaio aberto ao público no Transicionais, com as reservas
-  fechadas e sem o link do grupo. Sem ensaio lá também, ou com o Transicionais fora do ar, avisa
-  que não encontrou.
+- O ensaio atual é o que a Produção deixou como atual: o último que ela liberou, ou o único que
+  existe.
+- Sem nenhum ensaio, cria o ensaio vazio padrão, igual ao da Produção, e ele passa a ser o atual.
+- As reservas estão abertas quando a Produção liberou.
 - Mostra local, data, horário, se as reservas estão abertas e o link do grupo.
 - Mostra quantas pessoas vão, com e sem instrumento. Presença recusada não conta.
 - Mostra quanto de cada instrumento e acessório ainda está livre. Item sem limite ou rotativo não
@@ -37,5 +41,6 @@ conta quem vai e o que está livre ──► resposta
 - Não mostra quantas vagas sobram em cada grupo.
 
 **Consequências.**
+- O ensaio, as presenças e as pessoas chegam numa leitura só: a tela abre mais rápido.
 - A conta das vagas é a mesma da Produção e da reserva, então as telas sempre batem.
-- Com o banco vazio, o ensaio que está no Transicionais já aparece.
+- Com o banco vazio, aparece o ensaio vazio padrão, e não mais o último ensaio do Transicionais.

@@ -19,9 +19,9 @@
 
 **Contexto.** Uma a três linhas: o problema que ele resolve e quem usa.
 
-**Desenho.** O caminho em ASCII, no formato do desenho da spec: a rota, o usecase, o que ele
-confere e as chamadas de repo (`hormoniosRepository`, `transicionaisRepo`), em alto nível, sem descer
-ao que o repo faz por dentro.
+**Desenho.** Um diagrama de sequência em Mermaid, gerado pela skill `sequence-diagram` a partir do
+código: a rota, o usecase, o que ele confere e cada ida ao Supabase e ao Transicionais. Não conta
+no limite de 20 linhas do bloco.
 
 **Decisão.**
 - As regras que o sistema segue.
@@ -38,10 +38,11 @@ ao que o repo faz por dentro.
 | [`producao.md`](producao.md) | Ver, criar e editar o ensaio na Produção |
 | [`reservas.md`](reservas.md) | Confirmar presença, reservar, desfazer e ver as minhas reservas |
 | [`sincronizacao.md`](sincronizacao.md) | Manter o ensaio, as pessoas e as presenças iguais no Transicionais |
+| [`autenticacao.md`](autenticacao.md) | Identificar quem está reservando (aparelho e e-mail) |
 
 ## Retrato dos endpoints
 
-> Atualizado em 2026-10-28. Quem chama cada rota, o que ela faz e para onde vai. Hormônios = a base
+> Atualizado em 2026-10-30. Quem chama cada rota, o que ela faz e para onde vai. Hormônios = a base
 > do Hormônios; Transicionais = o sistema da organização, onde estão os grupos, os instrumentos e
 > os acessórios.
 
@@ -49,18 +50,22 @@ ao que o repo faz por dentro.
 QUEM CHAMA          ROTA                                O QUE FAZ                          VAI PARA
 ──────────          ────                                ─────────                          ────────
 Pessoa ──────────►  GET  /api/ensaio ─────────────────► vê o ensaio atual ───────────────► Hormônios
-(sem se                                                  base vazia: traz o último ──────► Transicionais
- identificar)                                            ensaio aberto ao público
-                    POST /api/reserva ────────────────► confirma presença e reserva ────► Hormônios
-                    POST /api/reserva/desfazer ───────► desfaz (vira "não vou")            └─► envia ► Transicionais
-                    GET  /api/minhas-reservas ────────► vê as próprias reservas ────────► Hormônios
+(sem se                                                  base vazia: cria o ensaio vazio
+ identificar)                                            padrão
+                    POST  /api/membros/reservas ──────► confirma presença e reserva ────► Hormônios
+                    PATCH /api/membros/reservas ──────► desfaz (vira "não vou")            └─► envia ► Transicionais
+                    GET   /api/membros ───────────────► vê as próprias reservas ────────► Hormônios
 
 Produção ────────►  POST /api/admin/entrar ───────────► entra com a chave da Produção
 (com a chave)       GET  /api/admin/ensaio ───────────► vê o ensaio, quem vai e o estoque ► Hormônios
                     PUT  /api/admin/ensaio ───────────► edita o ensaio e o estoque ─────► Hormônios
                                                                                            └─► envia o estoque ► Transicionais
-                    POST /api/admin/novo-ensaio ──────► encerra e cria o próximo ───────► Hormônios
+                    PUT  /api/admin/reservas ─────────► libera ou fecha as reservas ────► Hormônios
+                                                         do ensaio atual
+                    POST /api/admin/ensaio ───────────► cria o próximo ensaio ──────────► Hormônios
                                                                                            └─► cria o encontro ► Transicionais
+                    POST /api/admin/ensaio/proximo ───► encerra o atual e o próximo ────► Hormônios
+                                                         passa a ser o atual
 
 Transicionais ───►  POST /api/webhooks/transicionais ─► avisa que um encontro, uma ─────► Hormônios
 (com a chave                                             pessoa ou uma presença mudou
