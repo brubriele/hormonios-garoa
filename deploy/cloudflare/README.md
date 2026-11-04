@@ -1,6 +1,6 @@
 # cloudflare
 
-O job (`cronjob/handler.ts`) na Cloudflare, como worker `hormonios-cronjob` (spec-6). É um pacote à
+O job (`cronjob/handler.ts`) na Cloudflare, como worker `job-transicionais-sync` (spec-6). É um pacote à
 parte: instala aqui dentro, e nada daqui vai para a raiz nem para a Vercel.
 
 | Arquivo | O que faz |
@@ -67,10 +67,30 @@ ou com `curl`):
 Com `TRANSICIONAIS_ENABLED=false` no `.dev.vars`, cada um termina em 500 com
 `UPSTREAM_UNAVAILABLE_ERROR`, sem tocar a fila (spec-3 D1).
 
+## Publicar pelo GitHub Actions
+
+| Workflow | Quando roda | O que faz |
+|---|---|---|
+| `.github/workflows/build.yml` | em toda PR, e chamado por cada deploy | dois jobs: `typecheck` (`npm run typecheck`) e `build` (`npm run build` e o bundle do worker com `wrangler deploy --dry-run`), que guarda os artefatos `web` (`dist/`) e `worker` (`dist-worker/`) |
+| `.github/workflows/cronjob-deploy.yml` | push na `main` que mexe em `src/bff/`, `cronjob/`, `deploy/cloudflare/`, `deploy/shared/` ou nos workflows, e à mão (Actions → deploy job-transicionais-sync (Cloudflare) → Run workflow) | chama o `build.yml` e, se passou, publica o artefato `worker` sem montar de novo (`wrangler deploy --no-bundle`) |
+
+Outro deploy (a Vercel, por exemplo) reaproveita o build com `uses: ./.github/workflows/build.yml`
+e `needs: build`.
+
+No GitHub (Settings → Secrets and variables → Actions), uma vez:
+
+| Secret | De onde vem |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | My Profile → API Tokens → modelo "Edit Cloudflare Workers" |
+| `CLOUDFLARE_ACCOUNT_ID` | Workers & Pages → Account ID, na lateral |
+
+Os secrets do worker (Supabase, Transicionais) continuam no `wrangler secret put`: o deploy não
+mexe neles.
+
 ## Logs em produção
 
 O Workers Logs está ligado (`[observability]`, spec-6 A6): os logs do logger de cada execução
-(`processing job`, `user job started`, `app error`…) ficam em Workers & Pages → `hormonios-cronjob`
+(`processing job`, `user job started`, `app error`…) ficam em Workers & Pages → `job-transicionais-sync`
 → Logs, filtráveis pelos campos do JSON (`context`, `scope`, `key`). Ao vivo: `npx wrangler tail`.
 
 Cron fora da agenda ou erro do job falha a execução, e aparece nesses logs.

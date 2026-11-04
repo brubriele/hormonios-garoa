@@ -1,5 +1,5 @@
 # spec-6 A2
-name = "hormonios-cronjob"
+name = "job-transicionais-sync"
 main = "cronjob.ts"
 compatibility_date = "2025-09-01"
 compatibility_flags = ["nodejs_compat"]
