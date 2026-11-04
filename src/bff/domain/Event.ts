@@ -28,7 +28,7 @@ export class Event {
     readonly whatsappUrl: string | null, // só do Hormônios
     readonly date: string, // YYYY-MM-DD; vazia = a definir
     readonly startTime: string | null, // HH:mm; null = a definir
-    readonly bookingOpen: boolean | null,
+    readonly isActive: boolean, // spec-8 C1
     readonly groups: EventGroup[], // os grupos (ex.: Tamborim)
     readonly catalog: EventCatalog[], // o que é oferecido
     readonly metadata: EventMetadata,
@@ -55,7 +55,7 @@ export class Event {
       this.whatsappUrl,
       this.date,
       this.startTime,
-      this.bookingOpen,
+      this.isActive,
       groups,
       catalog,
       this.metadata,
@@ -71,7 +71,7 @@ export class Event {
       whatsappUrl: this.whatsappUrl,
       date: this.date,
       startTime: this.startTime,
-      bookingOpen: this.bookingOpen,
+      isActive: this.isActive,
       goingCount: this.goingCount,
       groups: this.groups.map((group) => group.toJson()),
       catalog: this.catalog.map((item) => item.toJson()),

@@ -25,7 +25,9 @@ export class AttendanceWebhookUsecase {
 
   async execute(input: Webhook): Promise<WebhookResult> {
     try {
-      return await this._execute(input);
+      const result = await this._execute(input);
+
+      return result;
     } catch (error) {
       if (error instanceof AppError) {
         logger.appError(error);
@@ -43,7 +45,9 @@ export class AttendanceWebhookUsecase {
     const webhook = this.validateInput(input);
 
     try {
-      return await this.receiveAttendance(webhook);
+      const result = await this.receiveAttendance(webhook);
+
+      return result;
     } catch (error) {
       if (error instanceof UpstreamUnavailableError) {
         return new WebhookResult(SyncStatus.Pending, false);
@@ -88,7 +92,9 @@ export class AttendanceWebhookUsecase {
     const externalId = String(id);
 
     try {
-      return await this.transicionaisRepo.findAttendance(externalId);
+      const result = await this.transicionaisRepo.findAttendance(externalId);
+
+      return result;
     } catch (error) {
       if (error instanceof NotFoundError) {
         return null;
@@ -101,7 +107,7 @@ export class AttendanceWebhookUsecase {
   private async findEvent(incoming: Attendance): Promise<Event | null> {
     const transicionaisDayId = Number(incoming.event);
 
-    return this.hormoniosRepository.findEventByTransicionaisDayId(transicionaisDayId);
+    return this.hormoniosRepository.findEvent({ transicionaisDayId });
   }
 
   private async findOrCreateUser(external: User): Promise<User> {
@@ -122,21 +128,21 @@ export class AttendanceWebhookUsecase {
     const integrationId = external.metadata.integrationId;
 
     if (integrationId) {
-      const byIntegrationId = await this.hormoniosRepository.findUserByIntegrationId(integrationId);
+      const byIntegrationId = await this.hormoniosRepository.findUser({ integrationId });
 
       if (byIntegrationId) {
         return byIntegrationId;
       }
     }
 
-    return this.hormoniosRepository.findUserByEmail(external.email);
+    return this.hormoniosRepository.findUser({ email: external.email });
   }
 
   private async findCurrentAttendance(incoming: Attendance, user: User, event: Event): Promise<Attendance | null> {
     const integrationId = incoming.metadata.integrationId;
 
     if (integrationId !== null) {
-      const byIntegrationId = await this.hormoniosRepository.findAttendanceByIntegrationId(integrationId, event);
+      const byIntegrationId = await this.hormoniosRepository.findAttendance({ integrationId, event });
 
       if (byIntegrationId) {
         return byIntegrationId;

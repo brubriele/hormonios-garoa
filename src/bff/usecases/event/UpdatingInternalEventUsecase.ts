@@ -1,11 +1,11 @@
 import { z } from "zod";
 import type { Attendance } from "../../domain/Attendance";
 import { Event, type EventCatalog, type EventGroup, type EventMetadata } from "../../domain/Event";
+import { EventPosition, FindingInternalFilter } from "../../domain/FindingInternalFilter";
 import { IntegrationEntity, IntegrationStatus } from "../../domain/IntegrationStatus";
 import { ManagerEvent } from "../../domain/ManagerEvent";
 import { EventMapper, type IEventCatalogData, type IEventGroupData, type IEventMetadataData } from "../../domain/mappers/EventMapper";
 import { SyncStatus } from "../../domain/SyncStatus";
-import type { User } from "../../domain/User";
 import {
   AppError,
   InvalidParameterError,
@@ -19,6 +19,7 @@ import { createLogger, LogContext } from "../../lib/logger";
 import { validateSchema } from "../../lib/schema";
 import { toErrorCtx } from "../../lib/upstream";
 import { EventBodySchema } from "./CreatingInternalEventUsecase";
+import type { FindingInternalEventUsecase } from "./FindingInternalEventUsecase";
 
 const logger = createLogger("UpdatingInternalEventUsecase", LogContext.Event);
 
@@ -30,6 +31,7 @@ export class UpdatingInternalEventUsecase {
   constructor(
     private readonly hormoniosRepository: IHormoniosRepository,
     private readonly transicionaisRepo: ITransicionaisRepo,
+    private readonly findingInternalEventUsecase: FindingInternalEventUsecase,
   ) {}
 
   async execute(data: Event): Promise<ManagerEvent> {
@@ -48,25 +50,23 @@ export class UpdatingInternalEventUsecase {
     }
   }
 
-  // D13, F10
+  // D13, F10, spec-8 D3
   private async _execute(data: Event): Promise<ManagerEvent> {
     logger.track("updating internal event", { hormoniosEventId: data.id });
 
     const valid = this.validateInput(data);
-    const current = await this.findEvent(valid);
-    const attendances = await this.findEventAttendance(current);
-    const event = this.mergeEvent(valid, current);
+    const found = await this.findManagerEvent(valid);
+    const attendances = this.toAttendances(found);
+    const event = this.mergeEvent(valid, found.event);
 
     this.validateAttendancesKept(event, attendances);
     this.validateStockAboveReservations(event, attendances);
 
     const saved = await this.updateEvent(event);
     const updated = await this.sync(saved);
-    const users = await this.findEventUsers(updated);
-    const updatedAttendances = await this.findEventAttendance(updated);
-    const counted = updated.withAttendances(updatedAttendances, true);
+    const counted = updated.withAttendances(attendances, true);
 
-    return new ManagerEvent(counted, users);
+    return new ManagerEvent(counted, found.users);
   }
 
   private validateInput(data: Event): Event {
@@ -78,43 +78,27 @@ export class UpdatingInternalEventUsecase {
     return event;
   }
 
-  private async findEvent(data: Event): Promise<Event> {
-    const event = await this.findEventByIdOrIntegrationId(data);
+  // spec-8 D3: o encontro pelo id (ou integrationId, no webhook), sem olhar o atual
+  private async findManagerEvent(data: Event): Promise<ManagerEvent> {
+    const integrationId = data.metadata.integrationId ?? undefined;
+    const filter = data.id ? new FindingInternalFilter({ eventId: data.id }) : new FindingInternalFilter({ integrationId });
+    const found = await this.findingInternalEventUsecase.execute(filter);
 
-    if (!event) {
-      throw new NotFoundError("Event Not Found");
-    }
-
-    return event;
+    return found;
   }
 
-  private async findEventByIdOrIntegrationId(data: Event): Promise<Event | null> {
-    const integrationId = data.metadata.integrationId;
-
-    if (data.id) {
-      return this.hormoniosRepository.findEvent(data.id);
-    }
-
-    if (integrationId === null) {
-      return null;
-    }
-
-    return this.hormoniosRepository.findEventByIntegrationId(integrationId);
-  }
-
-  private async findEventAttendance(data: Event): Promise<Attendance[]> {
-    return this.hormoniosRepository.findEventAttendance(data);
+  private toAttendances(managerEvent: ManagerEvent): Attendance[] {
+    return managerEvent.users.flatMap((user) => user.attendances);
   }
 
   private mergeEvent(data: Event, current: Event): Event {
     const json = data.toJson();
     const whatsappUrl = data.whatsappUrl ?? current.whatsappUrl;
-    const bookingOpen = data.bookingOpen ?? current.bookingOpen;
     const groups = data.groups.map((group) => this.mergeGroup(group, current));
     const catalog = data.catalog.map((item) => this.mergeCatalog(item, current));
     const metadata = this.mergeMetadata(data.metadata, current);
 
-    return EventMapper.fromData({ ...json, id: current.id, whatsappUrl, bookingOpen, groups, catalog, metadata });
+    return EventMapper.fromData({ ...json, id: current.id, whatsappUrl, isActive: current.isActive, groups, catalog, metadata });
   }
 
   private mergeGroup(group: EventGroup, current: Event): IEventGroupData {
@@ -258,9 +242,5 @@ export class UpdatingInternalEventUsecase {
     await this.hormoniosRepository.createOrUpdateIntegrationStatus(integrationStatus);
 
     return this.hormoniosRepository.updateEvent(failed);
-  }
-
-  private async findEventUsers(event: Event): Promise<User[]> {
-    return this.hormoniosRepository.findEventUsers(event);
   }
 }

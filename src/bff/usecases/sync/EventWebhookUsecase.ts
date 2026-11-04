@@ -8,6 +8,7 @@ import type { ITransicionaisRepo } from "../../interfaces/transicionais";
 import { createLogger, LogContext } from "../../lib/logger";
 import { validateSchema } from "../../lib/schema";
 import { CreatingInternalEventUsecase } from "../event/CreatingInternalEventUsecase";
+import { FindingInternalEventUsecase } from "../event/FindingInternalEventUsecase";
 import { UpdatingInternalEventUsecase } from "../event/UpdatingInternalEventUsecase";
 
 const logger = createLogger("EventWebhookUsecase", LogContext.Sync);
@@ -115,7 +116,7 @@ export class EventWebhookUsecase {
       return null;
     }
 
-    return this.hormoniosRepository.findEventByIntegrationId(integrationId);
+    return this.hormoniosRepository.findEvent({ integrationId });
   }
 
   private isChanged(external: Event, current: Event): boolean {
@@ -144,7 +145,9 @@ export class EventWebhookUsecase {
   }
 
   private async updateEvent(external: Event): Promise<void> {
-    const usecase = new UpdatingInternalEventUsecase(this.hormoniosRepository, this.transicionaisRepo);
+    const creating = new CreatingInternalEventUsecase(this.hormoniosRepository, this.transicionaisRepo);
+    const finding = new FindingInternalEventUsecase(this.hormoniosRepository, creating);
+    const usecase = new UpdatingInternalEventUsecase(this.hormoniosRepository, this.transicionaisRepo, finding);
 
     await usecase.execute(external);
   }

@@ -70,9 +70,9 @@ export class AttendanceJobUsecase {
   private async syncAttendance(integrationStatus: IntegrationStatus, now: Date): Promise<Attendance | null> {
     try {
       const attendanceId = integrationStatus.entityId;
-      const event = await this.hormoniosRepository.findEventByAttendanceId(attendanceId);
-      const attendance = event ? await this.hormoniosRepository.findAttendance(attendanceId, event) : null;
-      const user = attendance ? await this.hormoniosRepository.findUser(attendance.metadata.userId) : null;
+      const event = await this.hormoniosRepository.findEvent({ attendanceId });
+      const attendance = event ? await this.hormoniosRepository.findAttendance({ id: attendanceId, event }) : null;
+      const user = attendance ? await this.hormoniosRepository.findUser({ id: attendance.metadata.userId }) : null;
 
       if (!event || !attendance || !user) {
         await this.saveNotFound(integrationStatus, now);

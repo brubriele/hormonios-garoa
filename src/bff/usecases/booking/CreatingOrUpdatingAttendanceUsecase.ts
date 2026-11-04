@@ -1,11 +1,14 @@
 import { z } from "zod";
 import { type Attendance, AttendanceAnswer } from "../../domain/Attendance";
 import { type Event, EventCatalogType, type EventGroup } from "../../domain/Event";
+import { EventPosition, FindingInternalFilter } from "../../domain/FindingInternalFilter";
 import { ErrorCtx, IntegrationEntity, IntegrationStatus } from "../../domain/IntegrationStatus";
 import { AttendanceMapper, type IAttendanceData } from "../../domain/mappers/AttendanceMapper";
 import { type IUserData, UserMapper } from "../../domain/mappers/UserMapper";
+import type { ManagerEvent } from "../../domain/ManagerEvent";
 import { SyncStatus } from "../../domain/SyncStatus";
 import type { User } from "../../domain/User";
+import { UserBooking } from "../../domain/UserBooking";
 import {
   AccessorySoldOutError,
   AlreadyReservedError,
@@ -21,8 +24,9 @@ import type { ITransicionaisRepo } from "../../interfaces/transicionais";
 import { createLogger, LogContext } from "../../lib/logger";
 import { NonBlankSchema, UuidSchema, validateSchema } from "../../lib/schema";
 import { toErrorCtx } from "../../lib/upstream";
-import type { CreatingOrUpdateUserUsecase } from "./CreatingOrUpdateUserUsecase";
-import type { FindingUserUsecase } from "./FindingUserUsecase";
+import type { FindingInternalEventUsecase } from "../event/FindingInternalEventUsecase";
+import type { FindingUserBookingUsecase } from "./FindingUserBookingUsecase";
+import type { IdentifyingUserUsecase } from "./IdentifyingUserUsecase";
 
 const logger = createLogger("CreatingOrUpdatingAttendanceUsecase", LogContext.Attendance);
 
@@ -70,8 +74,9 @@ export class CreatingOrUpdatingAttendanceUsecase {
   constructor(
     private readonly hormoniosRepository: IHormoniosRepository,
     private readonly transicionaisRepo: ITransicionaisRepo,
-    private readonly creatingOrUpdateUserUsecase: CreatingOrUpdateUserUsecase,
-    private readonly findingUserUsecase: FindingUserUsecase,
+    private readonly findingInternalEventUsecase: FindingInternalEventUsecase,
+    private readonly identifyingUserUsecase: IdentifyingUserUsecase,
+    private readonly findingUserBookingUsecase: FindingUserBookingUsecase,
   ) {}
 
   async execute(input: ICreatingOrUpdatingAttendanceInput): Promise<User> {
@@ -90,15 +95,15 @@ export class CreatingOrUpdatingAttendanceUsecase {
     }
   }
 
-  // F7, F8
+  // F7, F8, spec-8 D6, spec-9 B1, B2, B3
   private async _execute(input: ICreatingOrUpdatingAttendanceInput): Promise<User> {
     logger.track("creating or updating attendance", { hormoniosUserId: input.userId ?? undefined });
 
     const data = this.validateInput(input);
-    const event = await this.findCurrentEvent();
-    const found = await this.findUser(data, event);
-    const user = this.toUser(found, data);
-    const attendances = await this.findEventAttendance(event);
+    const userBooking = await this.findUserBooking(data);
+    const { managerEvent, user } = userBooking;
+    const event = managerEvent.event;
+    const attendances = this.findEventAttendance(managerEvent);
     const current = this.findUserAttendance(attendances, user);
     const going = data.answer === AttendanceAnswer.Going;
 
@@ -106,63 +111,55 @@ export class CreatingOrUpdatingAttendanceUsecase {
       this.validateGoing(event, attendances, user, current, data);
     }
 
-    const savedUser = await this.createOrUpdateUser(user);
-    const attendance = this.toAttendance(event, savedUser, current, data);
-    const savedAttendance = await this.createOrUpdateAttendance(attendance, event);
-    const syncedAttendance = await this.sync(savedUser, savedAttendance, event);
-    const savedUserData = savedUser.toJson();
+    const attendance = this.toAttendance(event, user, current, data);
+    const savedAttendance = await this.createOrUpdateChangedAttendance(attendance, current, event);
+    const syncedAttendance = await this.sync(user, savedAttendance, event);
+    const userData = user.toJson();
 
-    return UserMapper.fromData(savedUserData, [syncedAttendance]);
+    return UserMapper.fromData(userData, [syncedAttendance]);
   }
 
   private validateInput(input: ICreatingOrUpdatingAttendanceInput): ICreatingOrUpdatingAttendanceData {
     return validateSchema(CreatingOrUpdatingAttendanceInputSchema, input);
   }
 
-  // D2
-  private async findCurrentEvent(): Promise<Event> {
-    const event = await this.hormoniosRepository.findCurrentEvent();
-
-    if (!event) {
-      throw new NotFoundError("Event Not Found");
+  private async findUserBooking(data: ICreatingOrUpdatingAttendanceData): Promise<UserBooking> {
+    if (data.groupId === null) {
+      return this.identifyUser(data);
     }
 
-    return event;
+    const userId = this.validateUserId(data.userId);
+
+    return this.findingUserBookingUsecase.execute({ userId });
   }
 
-  private async findUser(data: ICreatingOrUpdatingAttendanceData, event: Event): Promise<User | null> {
-    return this.findingUserUsecase.execute({ email: data.email, userId: data.userId, emailHash: data.emailHash, event });
-  }
-
-  private toUser(found: User | null, data: ICreatingOrUpdatingAttendanceData): User {
-    if (!found) {
-      const id = globalThis.crypto.randomUUID();
-      const userData: IUserData = {
-        id,
-        name: data.name,
-        pronoun: data.pronoun,
-        email: data.email,
-        metadata: { integrationId: null, sync: SyncStatus.Pending, syncError: null, syncHash: null, syncedAt: null, version: null, account: null },
-      };
-
-      return UserMapper.fromData(userData, []);
+  // spec-9 B2
+  private validateUserId(userId: string | null): string {
+    if (userId === null) {
+      throw new NotFoundError("User Not Found");
     }
 
-    const metadata = found.metadata;
+    return userId;
+  }
+
+  // spec-9 B1
+  private async identifyUser(data: ICreatingOrUpdatingAttendanceData): Promise<UserBooking> {
+    const filter = new FindingInternalFilter({ position: EventPosition.Current });
+    const managerEvent = await this.findingInternalEventUsecase.execute(filter);
+    const incoming = this.toIncomingUser(data);
+    const command = { user: incoming, userId: data.userId, emailHash: data.emailHash };
+    const user = await this.identifyingUserUsecase.execute(command);
+
+    return new UserBooking(managerEvent, user);
+  }
+
+  private toIncomingUser(data: ICreatingOrUpdatingAttendanceData): User {
     const userData: IUserData = {
-      id: found.id,
+      id: "",
       name: data.name,
       pronoun: data.pronoun,
-      email: found.email,
-      metadata: {
-        integrationId: metadata.integrationId,
-        sync: SyncStatus.Pending,
-        syncError: null,
-        syncHash: metadata.syncHash,
-        syncedAt: metadata.syncedAt,
-        version: metadata.version,
-        account: metadata.account ? metadata.account.toJson() : null,
-      },
+      email: data.email,
+      metadata: { integrationId: null, sync: SyncStatus.Pending, syncError: null, syncHash: null, syncedAt: null, version: null, account: null },
     };
 
     return UserMapper.fromData(userData, []);
@@ -206,8 +203,9 @@ export class CreatingOrUpdatingAttendanceUsecase {
     this.validateGroupCapacity(counted, group);
   }
 
+  // spec-8 C3
   private validateBookingOpen(event: Event): void {
-    if (!event.bookingOpen) {
+    if (!event.isActive) {
       throw new BookingClosedError("Booking is closed");
     }
   }
@@ -269,8 +267,9 @@ export class CreatingOrUpdatingAttendanceUsecase {
     }
   }
 
-  private async findEventAttendance(event: Event): Promise<Attendance[]> {
-    return this.hormoniosRepository.findEventAttendance(event);
+  // spec-8 D6
+  private findEventAttendance(managerEvent: ManagerEvent): Attendance[] {
+    return managerEvent.users.flatMap((user) => user.attendances);
   }
 
   private filterOthers(attendances: Attendance[], user: User): Attendance[] {
@@ -316,10 +315,6 @@ export class CreatingOrUpdatingAttendanceUsecase {
     }
   }
 
-  private async createOrUpdateUser(user: User): Promise<User> {
-    return this.creatingOrUpdateUserUsecase.execute(user);
-  }
-
   // F8
   private toAttendance(event: Event, user: User, current: Attendance | null, data: ICreatingOrUpdatingAttendanceData): Attendance {
     const id = current ? current.id : globalThis.crypto.randomUUID();
@@ -347,6 +342,34 @@ export class CreatingOrUpdatingAttendanceUsecase {
     };
 
     return AttendanceMapper.fromData(attendanceData, event);
+  }
+
+  // spec-9 B3
+  private async createOrUpdateChangedAttendance(attendance: Attendance, current: Attendance | null, event: Event): Promise<Attendance> {
+    if (current && !this.hasChanged(current, attendance)) {
+      return current;
+    }
+
+    return this.createOrUpdateAttendance(attendance, event);
+  }
+
+  // spec-9 B3
+  private hasChanged(current: Attendance, attendance: Attendance): boolean {
+    const currentGroupId = current.eventGroup ? current.eventGroup.id : null;
+    const groupId = attendance.eventGroup ? attendance.eventGroup.id : null;
+    const currentSupportIds = this.sortedSupportIds(current);
+    const supportIds = this.sortedSupportIds(attendance);
+    const sameAnswer = current.metadata.answer === attendance.metadata.answer;
+    const sameDevice = current.metadata.deviceId === attendance.metadata.deviceId;
+    const sameSupports = currentSupportIds.join(",") === supportIds.join(",");
+
+    return !sameAnswer || !sameDevice || currentGroupId !== groupId || !sameSupports;
+  }
+
+  private sortedSupportIds(attendance: Attendance): string[] {
+    const ids = attendance.catalog.map((item) => item.id);
+
+    return ids.sort();
   }
 
   private async createOrUpdateAttendance(attendance: Attendance, event: Event): Promise<Attendance> {

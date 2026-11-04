@@ -1,10 +1,13 @@
 import { z } from "zod";
 import type { Attendance } from "../../../domain/Attendance";
+import type { Event } from "../../../domain/Event";
+import { AttendanceMapper } from "../../../domain/mappers/AttendanceMapper";
 import { SyncStatus } from "../../../domain/SyncStatus";
 import { UserMapper } from "../../../domain/mappers/UserMapper";
 import type { User } from "../../../domain/User";
 import { InfraSource, InvalidResponseError } from "../../../errors/infra-error";
 import { parseResponse } from "../../parse-response";
+import { AttendanceDataSchema } from "./AttendanceResponse";
 
 const OPERATION = "findUser";
 
@@ -32,7 +35,7 @@ const UserMetadataSchema = z.object({
 });
 
 // jsonb de "user".data: o User inteiro (User.toJson)
-const UserDataSchema = z.object({
+export const UserDataSchema = z.object({
   id: z.guid(),
   name: z.string(),
   pronoun: z.string(),
@@ -45,6 +48,16 @@ const UserRowSchema = z.object({
   data: UserDataSchema,
 });
 
+const UserAttendanceSchema = z.object({
+  data: AttendanceDataSchema,
+});
+
+// spec-8 D4
+const UserWithAttendanceRowSchema = z.object({
+  data: UserDataSchema,
+  attendance: z.array(UserAttendanceSchema),
+});
+
 export class UserResponse {
   // as presenças vêm de outra tabela (attendance): quem as leu as passa
   static toDomain(raw: unknown, attendances: Attendance[]): User {
@@ -53,5 +66,16 @@ export class UserResponse {
     return InvalidResponseError.guard(InfraSource.Supabase, OPERATION, () =>
       UserMapper.fromData(data, attendances),
     );
+  }
+
+  // spec-8 D4
+  static toDomainForEvent(raw: unknown, event: Event): User {
+    const row = parseResponse(UserWithAttendanceRowSchema, raw, InfraSource.Supabase, OPERATION);
+
+    return InvalidResponseError.guard(InfraSource.Supabase, OPERATION, () => {
+      const attendances = row.attendance.map((attendance) => AttendanceMapper.fromData(attendance.data, event));
+
+      return UserMapper.fromData(row.data, attendances);
+    });
   }
 }

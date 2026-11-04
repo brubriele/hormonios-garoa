@@ -10,7 +10,7 @@ export class EventResponse {
       date: event.date,
       startTime: event.startTime,
       endTime: event.endTime,
-      bookingOpen: event.bookingOpen,
+      bookingOpen: event.isActive, // spec-8 C3
       goingCount: event.goingCount,
       categoryId: event.categoryId,
       description: event.description.toJson(),

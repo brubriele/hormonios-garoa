@@ -120,7 +120,7 @@ export class PublicEventResponse {
       null,
       day.current,
       day.startTime,
-      null,
+      false, // spec-8 C4
       groups,
       catalog,
       metadata,

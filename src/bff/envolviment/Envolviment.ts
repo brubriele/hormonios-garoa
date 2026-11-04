@@ -11,6 +11,9 @@ import { CreatingOrUpdateUserUsecase } from "../usecases/booking/CreatingOrUpdat
 import { CreatingOrUpdatingAttendanceUsecase } from "../usecases/booking/CreatingOrUpdatingAttendanceUsecase";
 import { FindingUserBookingUsecase } from "../usecases/booking/FindingUserBookingUsecase";
 import { FindingUserUsecase } from "../usecases/booking/FindingUserUsecase";
+import { IdentifyingUserUsecase } from "../usecases/booking/IdentifyingUserUsecase";
+import { ActiveNextEventUsecase } from "../usecases/event/ActiveNextEventUsecase";
+import { BookingAvailabilityUsecase } from "../usecases/event/BookingAvailabilityUsecase";
 import { CreatingInternalEventUsecase } from "../usecases/event/CreatingInternalEventUsecase";
 import { FindingInternalEventUsecase } from "../usecases/event/FindingInternalEventUsecase";
 import { FindingPublicEventUsecase } from "../usecases/event/FindingPublicEventUsecase";
@@ -89,6 +92,10 @@ export class Envolviment {
         return this.creatingInternalEventUsecase(state);
       case UpdatingInternalEventUsecase.token:
         return this.updatingInternalEventUsecase(state);
+      case BookingAvailabilityUsecase.token:
+        return this.bookingAvailabilityUsecase();
+      case ActiveNextEventUsecase.token:
+        return this.activeNextEventUsecase();
       case JobUsecase.token:
         return this.jobUsecase(state);
       case WebhookUsecase.token:
@@ -99,10 +106,9 @@ export class Envolviment {
   }
 
   private static findingPublicEventUsecase(state: TransicionaisState | null): FindingPublicEventUsecase {
-    const hormoniosRepository = this.hormoniosRepository;
-    const transicionaisRepo = this.transicionaisRepo(state);
+    const findingInternalEventUsecase = this.findingInternalEventUsecase(state);
 
-    return new FindingPublicEventUsecase(hormoniosRepository, transicionaisRepo);
+    return new FindingPublicEventUsecase(findingInternalEventUsecase);
   }
 
   private static findingUserBookingUsecase(): FindingUserBookingUsecase {
@@ -114,22 +120,26 @@ export class Envolviment {
   private static creatingOrUpdatingAttendanceUsecase(state: TransicionaisState | null): CreatingOrUpdatingAttendanceUsecase {
     const hormoniosRepository = this.hormoniosRepository;
     const transicionaisRepo = this.transicionaisRepo(state);
-    const creatingOrUpdateUserUsecase = new CreatingOrUpdateUserUsecase(hormoniosRepository, transicionaisRepo);
     const findingUserUsecase = new FindingUserUsecase(hormoniosRepository);
+    const creatingOrUpdateUserUsecase = new CreatingOrUpdateUserUsecase(hormoniosRepository, transicionaisRepo);
+    const identifyingUserUsecase = new IdentifyingUserUsecase(findingUserUsecase, creatingOrUpdateUserUsecase);
+    const findingInternalEventUsecase = this.findingInternalEventUsecase(state);
+    const findingUserBookingUsecase = this.findingUserBookingUsecase();
 
     return new CreatingOrUpdatingAttendanceUsecase(
       hormoniosRepository,
       transicionaisRepo,
-      creatingOrUpdateUserUsecase,
-      findingUserUsecase,
+      findingInternalEventUsecase,
+      identifyingUserUsecase,
+      findingUserBookingUsecase,
     );
   }
 
   private static findingInternalEventUsecase(state: TransicionaisState | null): FindingInternalEventUsecase {
     const hormoniosRepository = this.hormoniosRepository;
-    const transicionaisRepo = this.transicionaisRepo(state);
+    const creatingInternalEventUsecase = this.creatingInternalEventUsecase(state);
 
-    return new FindingInternalEventUsecase(hormoniosRepository, transicionaisRepo);
+    return new FindingInternalEventUsecase(hormoniosRepository, creatingInternalEventUsecase);
   }
 
   private static creatingInternalEventUsecase(state: TransicionaisState | null): CreatingInternalEventUsecase {
@@ -143,7 +153,21 @@ export class Envolviment {
     const hormoniosRepository = this.hormoniosRepository;
     const transicionaisRepo = this.transicionaisRepo(state);
 
-    return new UpdatingInternalEventUsecase(hormoniosRepository, transicionaisRepo);
+    const findingInternalEventUsecase = this.findingInternalEventUsecase(state);
+
+    return new UpdatingInternalEventUsecase(hormoniosRepository, transicionaisRepo, findingInternalEventUsecase);
+  }
+
+  private static bookingAvailabilityUsecase(): BookingAvailabilityUsecase {
+    const hormoniosRepository = this.hormoniosRepository;
+
+    return new BookingAvailabilityUsecase(hormoniosRepository);
+  }
+
+  private static activeNextEventUsecase(): ActiveNextEventUsecase {
+    const hormoniosRepository = this.hormoniosRepository;
+
+    return new ActiveNextEventUsecase(hormoniosRepository);
   }
 
   private static jobUsecase(state: TransicionaisState | null): JobUsecase {

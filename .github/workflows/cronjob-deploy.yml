@@ -1,0 +1,51 @@
+name: deploy job-transicionais-sync (Cloudflare)
+run-name: deploy job-transicionais-sync (${{ github.sha }} por ${{ github.actor }})
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/bff/**"
+      - "cronjob/**"
+      - "deploy/cloudflare/**"
+      - "deploy/shared/**"
+      - ".github/workflows/build.yml"
+      - ".github/workflows/cronjob-deploy.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-job-transicionais-sync
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build
+    uses: ./.github/workflows/build.yml
+
+  deploy:
+    name: deploy job-transicionais-sync
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: worker
+          path: dist-worker
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: deploy/cloudflare/package-lock.json
+
+      - run: npm ci
+        working-directory: deploy/cloudflare
+
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: deploy/cloudflare
+          command: deploy -c wrangler.toml ../../dist-worker/cronjob.js --no-bundle

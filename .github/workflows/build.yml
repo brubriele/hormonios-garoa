@@ -1,0 +1,58 @@
+name: build
+
+on:
+  pull_request:
+  workflow_call:
+
+jobs:
+  typecheck:
+    name: typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+  build:
+    name: build (web e worker)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            deploy/cloudflare/package-lock.json
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - run: npm ci
+        working-directory: deploy/cloudflare
+
+      - run: npx wrangler deploy --dry-run --outdir ../../dist-worker
+        working-directory: deploy/cloudflare
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web
+          path: dist/
+          retention-days: 7
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: worker
+          path: dist-worker/
+          retention-days: 7
