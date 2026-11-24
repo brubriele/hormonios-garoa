@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f7f3ed"><title>Caderno Musical — Hormônios da Garoa</title>
+<style>
+:root{--paper:#f7f3ed;--ink:#171717;--pink:#f3a4c8;--cyan:#8de0e7;--cream:#f5eee5;--line:#222;--muted:#6c6863}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.45 Arial,Helvetica,sans-serif}button,input,select,textarea{font:inherit;color:inherit}button{cursor:pointer;border:1.5px solid var(--ink);background:transparent;padding:10px 14px;font-weight:700}button:hover{background:var(--ink);color:white}.wrap{max-width:1120px;margin:auto;padding:20px}.top{display:flex;justify-content:space-between;gap:18px;align-items:center;border-bottom:2px solid var(--ink);padding:12px 0 18px}.brand{font-size:13px;letter-spacing:.1em;text-transform:uppercase;font-weight:800}.brand strong{display:block;font-size:25px;letter-spacing:-.04em;text-transform:none;margin-top:4px}.pill{font-size:12px;border:1px solid var(--ink);padding:5px 8px;font-weight:bold}.hero{padding:34px 0 24px;display:grid;grid-template-columns:1.5fr 1fr;gap:24px;align-items:end}.eyebrow{text-transform:uppercase;font-size:12px;font-weight:800;letter-spacing:.12em}.hero h1{font-size:clamp(38px,7vw,72px);line-height:.94;letter-spacing:-.06em;margin:12px 0}.hero p{max-width:540px;color:#45413d}.sticker{background:var(--pink);border:1.5px solid var(--ink);padding:18px;transform:rotate(1deg);font-weight:bold}.tabs{display:flex;gap:8px;border-bottom:1.5px solid var(--ink);padding-bottom:12px;flex-wrap:wrap}.tab.active{background:var(--ink);color:white}.layout{display:grid;grid-template-columns:1fr 290px;gap:24px;padding-top:22px}.section-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px}.section-head h2{margin:0;font-size:26px;letter-spacing:-.04em}.search{width:100%;padding:12px;border:1.5px solid var(--ink);background:transparent;margin:0 0 14px}.song{border:1.5px solid var(--ink);padding:16px;margin-bottom:12px;background:#fffaf4}.song-top{display:flex;justify-content:space-between;gap:10px}.song h3{margin:0;font-size:22px;letter-spacing:-.03em}.meta{font-size:13px;color:var(--muted);margin:4px 0 12px}.tag{display:inline-block;padding:4px 7px;background:var(--cyan);border:1px solid var(--ink);font-size:11px;font-weight:bold;text-transform:uppercase;margin:0 4px 4px 0}.notation{font:700 17px/1.5 ui-monospace,SFMono-Regular,monospace;background:var(--cream);padding:12px;border-left:4px solid var(--pink);margin-top:10px;overflow-wrap:anywhere}.sidebox{border:1.5px solid var(--ink);padding:16px;margin-bottom:14px}.sidebox h3{margin:0 0 10px;font-size:18px}.sidebox p{font-size:14px;margin:0;color:#45413d}.accent{background:var(--cream)}.notice{font-size:12px;color:var(--muted);margin-top:20px;border-top:1px solid #bbb;padding-top:12px}.hidden{display:none!important}.formgrid{display:grid;gap:12px;max-width:700px}.formgrid label{font-size:13px;font-weight:bold;display:grid;gap:5px}.formgrid input,.formgrid select,.formgrid textarea{width:100%;border:1.5px solid var(--ink);padding:11px;background:#fffaf4}.formgrid textarea{min-height:90px}.form-actions{display:flex;gap:8px;flex-wrap:wrap}.status{padding:10px;background:var(--cream);border:1px solid var(--ink);font-size:13px;margin:12px 0}.footer{padding:28px 0 10px;font-size:12px;border-top:1.5px solid var(--ink);margin-top:34px;color:var(--muted)}@media(max-width:760px){.wrap{padding:14px}.hero{grid-template-columns:1fr;padding-top:25px}.sticker{max-width:360px}.layout{grid-template-columns:1fr}.top{align-items:flex-start}.top .pill{max-width:125px;text-align:center}.section-head{align-items:flex-start}.hero h1{font-size:54px}}
+</style>
+</head>
+<body><div class="wrap">
+<header class="top"><a href="/" aria-label="Voltar ao aplicativo de ensaios" style="color:inherit;text-decoration:none;font-size:13px;font-weight:700">← Ensaios</a><div class="brand">Hormônios da Garoa<strong>Caderno Musical</strong></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end"><span class="pill" id="authbadge">Não conectado</span><button type="button" id="loginbutton">Entrar com Google</button><button type="button" id="logoutbutton" class="hidden">Sair</button></div></header>
+<section class="hero"><div><div class="eyebrow">Memória coletiva · ritmo · repertório</div><h1>O bloco toca.<br>O saber circula.</h1><p>Uma biblioteca compartilhada para consultar músicas, levadas, entradas, viradas e referências dos naipes do Hormônios da Garoa.</p></div><div class="sticker">Feito para consultar no celular, no ensaio e na rua.<br><span style="font-weight:400;font-size:13px">Uma música · vários naipes · memória compartilhada.</span></div></section>
+<nav class="tabs" aria-label="Navegação"><button class="tab active" data-view="songs">Canções</button><button class="tab" data-view="naipes">Por naipe</button><button class="tab" data-view="production">Produção</button></nav>
+<section id="songs" class="view"><div class="layout"><main><div class="section-head"><h2>Biblioteca de canções</h2><span class="pill" id="songcount">3 registros de exemplo</span></div><input id="search" class="search" placeholder="Buscar música, ritmo ou naipe…" aria-label="Buscar música, ritmo ou naipe"><div id="songlist"></div></main><aside><div class="sidebox accent"><h3>Como usar</h3><p>Busque uma música, consulte a notação e abra as referências de áudio ou cifra quando estiverem cadastradas.</p></div><div class="sidebox"><h3>Uma música, vários naipes</h3><p>As contribuições de percussão, harmonia, sopros e vozes devem ficar ligadas ao mesmo registro da canção.</p></div><div class="sidebox"><h3>Construção coletiva</h3><p>Notações e relatos podem ter autoria e contexto, preservando a memória de quem compartilha o conhecimento.</p></div></aside></div></section>
+<section id="naipes" class="view hidden"><div class="section-head"><h2>Consulta por naipe</h2><span class="pill">Exemplos iniciais</span></div><p>Escolha um naipe para localizar contribuições cadastradas.</p><div class="formgrid"><label>Naipe<select id="naipeselect"><option>Surdo de 1ª</option><option>Surdo de 2ª</option><option>Caixa</option><option>Tamborim</option><option>Agogô</option><option>Bass</option><option>Guitarra</option><option>Violão</option><option>Cavaquinho</option><option>Sax</option><option>Voz</option><option>Teclado</option></select></label></div><div id="naiperesults" style="margin-top:16px"></div></section>
+<section id="production" class="view hidden"><div class="section-head"><h2>Área de produção</h2><span class="pill" id="productionbadge">Acesso a verificar</span></div><div id="authmessage" class="status">Entre com Google para verificar se sua conta tem acesso à produção.</div><div id="productiontools" class="hidden"><div class="status"><strong>Acesso de produção confirmado.</strong> Este formulário salva canções e contribuições como rascunhos privados (published = false). Eles não entram na biblioteca pública até serem publicados por um fluxo de publicação que implementaremos depois.</div><h3>Cadastrar canção e primeira contribuição</h3><form id="productionform" class="formgrid"><label>Nome da música<input name="title" placeholder="Ex.: Podres Poderes" required maxlength="200"></label><label>Artista / referência<input name="artist" placeholder="Artista ou versão do bloco" maxlength="200"></label><label>Naipe<select name="instrument" required><option value="Surdo de 1ª">Surdo de 1ª</option><option value="Surdo de 2ª">Surdo de 2ª</option><option value="Caixa">Caixa</option><option value="Tamborim">Tamborim</option><option value="Agogô">Agogô</option><option value="Baixo">Baixo</option><option value="Guitarra">Guitarra</option><option value="Violão">Violão</option><option value="Cavaquinho">Cavaquinho</option><option value="Sax">Sax</option><option value="Voz">Voz</option><option value="Teclado">Teclado</option></select></label><label>Tipo de contribuição<select name="contribution_type" required><option value="levada">Levada</option><option value="convenção">Convenção</option><option value="harmonia">Harmonia</option><option value="melodia">Melodia</option><option value="letra">Letra</option><option value="referência">Referência</option><option value="outro">Outro</option></select></label><label>Levada / notação<textarea name="notation" placeholder="Escreva a frase rítmica ou orientação musical"></textarea></label><label>Entradas / chamadas<textarea name="entry_cues" placeholder="Quando e como entrar"></textarea></label><label>Transições / viradas<textarea name="transition_cues" placeholder="Passagens entre partes"></textarea></label><label>Fechamento<textarea name="closing_cues" placeholder="Finalização da música"></textarea></label><label>Observações da canção<textarea name="song_notes" placeholder="Tom, andamento, contexto ou observações gerais"></textarea></label><label>Observações desta contribuição<textarea name="contribution_notes" placeholder="Contexto específico do naipe"></textarea></label><label>Link de áudio<input name="audio_url" type="url" placeholder="https://…"></label><label>Link de cifra / partitura / documento<input name="document_url" type="url" placeholder="https://…"></label><div class="form-actions"><button id="saveproduction" type="submit">Salvar como rascunho</button></div><div id="formmessage" class="status hidden" role="status" aria-live="polite"></div></form></div></section>
+<div class="notice">Conteúdo demonstrativo: exemplos de notação ainda precisam ser validados por regência / mestras / naipes. Compartilhe apenas áudios, cifras e partituras que vocês tenham autorização para disponibilizar.</div>
+<footer class="footer">Hormônios da Garoa · Caderno Musical · MVP em construção</footer>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// Configuração pública do Supabase: substitua apenas o texto COLE_SUA_CHAVE_PUBLICA_AQUI pela chave sb_publishable_ do seu projeto.
+const SUPABASE_URL = "https://zktyaimschssofjlwill.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_a9FC2dPWU0riGN8t5O__Sg_h-93V2ct";
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+let songs=[
+{id:'HG-001',title:'MARACATU',artist:'Referência do bloco',items:[{naip:'Surdo de 1ª',kind:'Levada',text:'Tum / Qui - Tum / Qui - Tum / Qui - Tum - Tum'}]},
+{id:'HG-002',title:'MARACABREGA',artist:'Referência do bloco',items:[{naip:'Surdo de 1ª',kind:'Levada',text:'Pa Dan - Pa Dan / Pa Dan - Pa Dan Dan'}]},
+{id:'HG-003',title:'FUNK JESUS',artist:'Referência do bloco',items:[{naip:'Surdo de 1ª',kind:'Levada',text:'Tum / Pá - Tum / Pá - Tum / Pá - Tum - Tum'}]},
+{id:'HG-004',title:'CONVENÇÃO PODRES PODERES',artist:'Referência do bloco',items:[{naip:'Surdo de 1ª',kind:'Convenção',text:'Tum - Tum - Pá / Tum - Tum - Pá / … / Pá - Tum - Tum - Pá / Tum - Tum - Pá.'}]}
+];
+async function loadPublishedSongs(){
+  try {
+    if (!SUPABASE_PUBLISHABLE_KEY || SUPABASE_PUBLISHABLE_KEY === 'COLE_SUA_CHAVE_PUBLICA_AQUI') return;
+    const { data, error } = await supabaseClient
+      .from('songs')
+      .select('id,title,artist,spotify_url,notes,contributions(id,instrument,contribution_type,notation,entry_cues,transition_cues,closing_cues,notes,audio_url,document_url,author_name)')
+      .eq('published', true)
+      .eq('contributions.published', true)
+      .order('title');
+    if (error) throw error;
+    // Enquanto o banco não tiver canções publicadas, mantemos os exemplos atuais na tela.
+    if (Array.isArray(data) && data.length > 0) {
+      songs = data.map(song => ({
+        id: 'HG-' + String(song.id).padStart(3, '0'),
+        title: song.title || 'Canção sem título',
+        artist: song.artist || 'Referência do bloco',
+        spotify_url: song.spotify_url || '',
+        notes: song.notes || '',
+        items: (song.contributions || []).map(item => ({
+          naip: item.instrument || 'Naipe não informado',
+          kind: item.contribution_type || 'Contribuição',
+          text: [item.notation, item.entry_cues, item.transition_cues, item.closing_cues, item.notes]
+            .filter(Boolean).join(' · '),
+          audio_url: item.audio_url || '',
+          document_url: item.document_url || '',
+          author_name: item.author_name || ''
+        }))
+      }));
+      document.getElementById('songcount').textContent = songs.length + ' canções publicadas';
+      renderSongs();
+    }
+  } catch (error) {
+    console.error('Não foi possível carregar as canções publicadas do Supabase:', error);
+    // Mantém a biblioteca de exemplo funcionando caso a conexão ainda não esteja pronta.
+  }
+}
+const authBadge = document.getElementById('authbadge');
+const loginButton = document.getElementById('loginbutton');
+const logoutButton = document.getElementById('logoutbutton');
+const authMessage = document.getElementById('authmessage');
+const productionBadge = document.getElementById('productionbadge');
+const productionTools = document.getElementById('productiontools');
+
+function showSignedOut(){
+  authBadge.textContent = 'Não conectado';
+  loginButton.classList.remove('hidden');
+  logoutButton.classList.add('hidden');
+  productionBadge.textContent = 'Login necessário';
+  authMessage.textContent = 'Entre com Google para verificar se sua conta tem acesso à produção.';
+  productionTools.classList.add('hidden');
+}
+async function updateAuthUI(session){
+  const user = session?.user;
+  if (!user) { showSignedOut(); return; }
+  authBadge.textContent = user.email ? 'Conectado: ' + user.email : 'Conectado';
+  loginButton.classList.add('hidden');
+  logoutButton.classList.remove('hidden');
+  productionBadge.textContent = 'Verificando acesso…';
+  authMessage.textContent = 'Conta autenticada. Verificando permissão de produção…';
+  productionTools.classList.add('hidden');
+  try {
+    const { data, error } = await supabaseClient
+      .from('production_members')
+      .select('user_id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (error) throw error;
+    if (data) {
+      productionBadge.textContent = 'Acesso autorizado';
+      authMessage.textContent = 'Acesso de produção confirmado para esta conta.';
+      productionTools.classList.remove('hidden');
+    } else {
+      productionBadge.textContent = 'Somente leitura';
+      authMessage.textContent = 'Sua conta está autenticada, mas não consta como integrante da produção. Você pode consultar o conteúdo publicado, mas não tem acesso às ferramentas de produção.';
+      productionTools.classList.add('hidden');
+    }
+  } catch (error) {
+    console.error('Erro ao verificar permissão de produção:', error);
+    productionBadge.textContent = 'Não foi possível verificar';
+    authMessage.textContent = 'Não conseguimos verificar a permissão de produção. Confira o Console e as políticas RLS de production_members.';
+    productionTools.classList.add('hidden');
+  }
+}
+loginButton.addEventListener('click', async () => {
+  loginButton.disabled = true;
+  loginButton.textContent = 'Redirecionando…';
+  const { error } = await supabaseClient.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.href.split('#')[0] }
+  });
+  if (error) {
+    console.error('Erro ao iniciar login Google:', error);
+    authMessage.textContent = 'Não foi possível iniciar o login Google. Consulte o Console para detalhes.';
+    loginButton.disabled = false;
+    loginButton.textContent = 'Entrar com Google';
+  }
+});
+logoutButton.addEventListener('click', async () => {
+  const { error } = await supabaseClient.auth.signOut();
+  if (error) console.error('Erro ao sair:', error);
+  showSignedOut();
+});
+supabaseClient.auth.onAuthStateChange((_event, session) => {
+  // Evita operações demoradas diretamente dentro do callback do Auth.
+  setTimeout(() => updateAuthUI(session), 0);
+});
+(async () => {
+  const { data, error } = await supabaseClient.auth.getSession();
+  if (error) console.error('Erro ao recuperar sessão:', error);
+  await updateAuthUI(data?.session || null);
+})();
+
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function renderSongs(){let q=document.getElementById('search').value.toLowerCase();let filtered=songs.filter(s=>(s.title+' '+s.artist+' '+s.items.map(i=>i.naip+' '+i.text).join(' ')).toLowerCase().includes(q));document.getElementById('songcount').textContent=filtered.length+' registros';document.getElementById('songlist').innerHTML=filtered.map(s=>'<article class="song"><div class="song-top"><div><h3>'+esc(s.title)+'</h3><div class="meta">'+esc(s.artist)+' · ID '+esc(s.id)+'</div></div><span class="tag">'+s.items.length+' contribuição(ões)</span></div>'+s.items.map(i=>'<div><span class="tag">'+esc(i.naip)+'</span><span class="tag">'+esc(i.kind)+'</span><div class="notation">'+esc(i.text)+'</div></div>').join('')+'<div class="meta" style="margin-top:10px">Métrica, andamento e acentuação: a confirmar com o naipe.</div></article>').join('')||'<p>Nenhuma música encontrada.</p>';renderNaipes()}
+function renderNaipes(){let n=document.getElementById('naipeselect').value;let found=songs.flatMap(s=>s.items.filter(i=>i.naip===n).map(i=>({s,i})));document.getElementById('naiperesults').innerHTML=found.map(({s,i})=>'<article class="song"><h3>'+esc(s.title)+'</h3><div class="meta">ID '+esc(s.id)+' · '+esc(i.kind)+'</div><div class="notation">'+esc(i.text)+'</div></article>').join('')||'<p>Não há contribuições de exemplo para este naipe ainda.</p>'}
+document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.view').forEach(v=>v.classList.toggle('hidden',v.id!==b.dataset.view));}));
+document.getElementById('search').addEventListener('input',renderSongs);document.getElementById('naipeselect').addEventListener('change',renderNaipes);
+document.getElementById('productionform').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.currentTarget;
+  const message = document.getElementById('formmessage');
+  const saveButton = document.getElementById('saveproduction');
+  const value = (name) => String(new FormData(form).get(name) || '').trim();
+  const showMessage = (text, isError = false) => {
+    message.textContent = text;
+    message.classList.remove('hidden');
+    message.style.borderColor = isError ? '#b42318' : 'var(--ink)';
+  };
+  saveButton.disabled = true;
+  saveButton.textContent = 'Salvando…';
+  message.classList.add('hidden');
+  try {
+    // Revalida a sessão e a associação de produção antes de tentar gravar.
+    const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+    if (sessionError) throw sessionError;
+    const user = sessionData?.session?.user;
+    if (!user) throw new Error('Sua sessão expirou. Entre novamente com Google.');
+    const { data: membership, error: membershipError } = await supabaseClient
+      .from('production_members').select('user_id').eq('user_id', user.id).maybeSingle();
+    if (membershipError) throw membershipError;
+    if (!membership) throw new Error('Esta conta não tem autorização para cadastrar registros.');
+
+    const title = value('title');
+    if (!title) throw new Error('Informe o nome da música.');
+    const songPayload = {
+      title,
+      artist: value('artist') || null,
+      notes: value('song_notes') || null,
+      published: false
+    };
+    const { data: newSong, error: songError } = await supabaseClient
+      .from('songs').insert(songPayload).select('id').single();
+    if (songError) throw songError;
+
+    const contributionPayload = {
+      song_id: newSong.id,
+      instrument: value('instrument'),
+      contribution_type: value('contribution_type') || 'levada',
+      notation: value('notation') || null,
+      entry_cues: value('entry_cues') || null,
+      transition_cues: value('transition_cues') || null,
+      closing_cues: value('closing_cues') || null,
+      notes: value('contribution_notes') || null,
+      audio_url: value('audio_url') || null,
+      document_url: value('document_url') || null,
+      author_name: user.email || null,
+      published: false
+    };
+    const { error: contributionError } = await supabaseClient
+      .from('contributions').insert(contributionPayload);
+    if (contributionError) {
+      console.error('Canção criada, mas a contribuição não foi salva:', contributionError);
+      showMessage('A canção foi criada como rascunho (ID ' + newSong.id + '), mas a contribuição falhou. Não envie o formulário de novo ainda para evitar duplicar a canção. Consulte o erro no Console.', true);
+      return;
+    }
+    form.reset();
+    showMessage('Salvo como rascunho! Canção ID ' + newSong.id + ' e primeira contribuição cadastradas. Nada foi publicado na biblioteca pública.');
+  } catch (error) {
+    console.error('Falha ao salvar canção/contribuição:', error);
+    showMessage('Não foi possível salvar. ' + (error?.message || 'Consulte o Console para detalhes.'), true);
+  } finally {
+    saveButton.disabled = false;
+    saveButton.textContent = 'Salvar como rascunho';
+  }
+});
+renderSongs();
+loadPublishedSongs();
+</script></body></html>
