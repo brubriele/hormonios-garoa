@@ -6,7 +6,8 @@ const config = {
       input: {
         main: 'index.html',
         flow: 'flow.html',
-        guides: 'guias.html'
+        guides: 'guias.html',
+        caderno: 'caderno.html'
       }
     }
   }
